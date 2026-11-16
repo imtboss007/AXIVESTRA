@@ -13,6 +13,8 @@ on:
       - feature/axivestra-public-website
     paths:
       - "website/**"
+      - "functions/**"
+      - "README.md"
       - "auth-worker/**"
       - ".github/workflows/axivestra-website-checks.yml"
   workflow_dispatch:
