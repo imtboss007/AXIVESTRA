@@ -20,6 +20,16 @@ const expectedModules = [
   "Compliance & KYC"
 ];
 
+test.beforeEach(async ({ page }) => {
+  // Signed-out browser builds now show the public AXIVESTRA entry first.
+  // Select the supported local-only path before testing the existing app workspace.
+  await page.goto("/");
+  const continueLocally = page.getByRole("button", { name: "Continue locally on this device" });
+  if (await continueLocally.isVisible().catch(() => false)) {
+    await continueLocally.click();
+  }
+});
+
 async function openExplorer(page) {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Understand assets, capital and exposure/i })).toBeVisible();
