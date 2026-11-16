@@ -71,6 +71,12 @@ The GitHub Actions workflow is `.github/workflows/main.yml`. It runs on pushes t
 
 The Android project is created on the GitHub runner with `npx cap add android`, then synced and built. It is a generated build output and is not required to be committed to this source branch.
 
+## Separate public company website
+
+A standalone AXIVESTRA public website and protected website-admin workspace is maintained in [`website/`](website/README.md). It has its own homepage, enquiry form, editable pages, page SEO settings, admin access and Cloudflare Pages deployment guide. It is deployed as a separate Cloudflare Pages project so it does not replace this AXIVESTRA application at `https://axivestra.pages.dev`.
+
+See [website setup and deployment instructions](website/README.md), including the Supabase website schema, administrator provisioning, free `pages.dev` hosting and custom-domain notes.
+
 ## Run in a browser for development
 
 Requires Node.js 22 and npm.
