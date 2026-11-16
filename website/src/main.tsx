@@ -107,14 +107,14 @@ function Site({ path, navigate }: { path: string; navigate: (path: string) => vo
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    document.title = settings.seo_title || settings.brand_name;
-    const description = document.querySelector('meta[name="description"]');
-    if (description) description.setAttribute("content", settings.seo_description || settings.hero_subtitle);
-  }, [settings]);
-
   const slug = path.startsWith("/pages/") ? decodeURIComponent(path.slice(7)) : "";
   const customPage = pages.find(page => page.slug === slug);
+
+  useEffect(() => {
+    document.title = customPage?.seo_title || customPage?.title || settings.seo_title || settings.brand_name;
+    const description = document.querySelector('meta[name="description"]');
+    if (description) description.setAttribute("content", customPage?.seo_description || customPage?.summary || settings.seo_description || settings.hero_subtitle);
+  }, [settings, customPage]);
   const goSection = (id: string) => {
     setMobileMenu(false);
     if (path !== "/") navigate("/");
