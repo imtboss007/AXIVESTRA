@@ -161,19 +161,38 @@ async function handleAccess(request: Request, env: Env, auth: ReturnType<typeof 
   return null;
 }
 
+function withCors(response: Response, origin: string | null, env: Env) {
+  const headers = new Headers(response.headers);
+  if (origin && (origin === env.APP_ORIGIN || origin === env.AUTH_BASE_URL)) {
+    headers.set("Access-Control-Allow-Origin", origin);
+    headers.set("Access-Control-Allow-Credentials", "true");
+    headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Axivestra-Device");
+    headers.set("Vary", "Origin");
+  }
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
-    if (origin && origin !== env.APP_ORIGIN && origin !== env.AUTH_BASE_URL) return json({ error: "Origin not allowed." }, 403);
-
+    if (origin && origin !== env.APP_ORIGIN && origin !== env.AUTH_BASE_URL) {
+      return json({ error: "Origin not allowed." }, 403);
+    }
+    if (request.method === "OPTIONS") {
+      if (!origin) return new Response(null, { status: 204 });
+      return withCors(new Response(null, { status: 204 }), origin, env);
+    }
     const auth = authFor(env);
-    if (url.pathname.startsWith("/api/auth/")) return auth.handler(request);
-
+    if (url.pathname.startsWith("/api/auth/")) {
+      return withCors(await auth.handler(request), origin, env);
+    }
     const response = await handleAccess(request, env, auth);
-    if (response) return response;
-
-    if (url.pathname === "/health") return json({ ok: true, service: "axivestra-access", timestamp: new Date().toISOString() });
-    return json({ error: "Not found." }, 404);
+    if (response) return withCors(response, origin, env);
+    if (url.pathname === "/health") return withCors(json({ ok: true, service: "axivestra-access", timestamp: new Date().toISOString() }), origin, env);
+    return withCors(json({ error: "Not found." }, 404), origin, env);
   }
-};
+}
