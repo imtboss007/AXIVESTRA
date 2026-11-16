@@ -38,7 +38,7 @@ The Owner must sign in with Google using the exact configured Owner email and a 
 
 ## API contract
 
-All API calls use same-origin credentials and `x-axivestra-device` containing a random 256-bit per-installation ID. The raw ID is never stored in D1; only its SHA-256 digest is stored.
+The app calls these endpoints on its own origin (`https://axivestra.pages.dev`); the Pages Function proxies them to the Worker. All API calls use same-origin credentials and `x-axivestra-device` containing a random 256-bit per-installation ID. The raw ID is never stored in D1; only its SHA-256 digest is stored.
 
 - Better Auth endpoints: `/api/auth/*`
 - `POST /api/access/register-device` body: `{ "deviceId": "...", "label": "Office PC", "kind": "desktop" }`
