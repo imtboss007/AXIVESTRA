@@ -6,6 +6,7 @@ on:
     paths:
       - "README.md"
       - "website/**"
+      - "auth-worker/**"
       - ".github/workflows/axivestra-website-checks.yml"
   push:
     branches:
@@ -43,3 +44,22 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run desktop and mobile browser smoke tests
         run: npm run test:browser
+
+  auth-worker:
+    name: Authentication Worker typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: auth-worker
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install authentication dependencies
+        run: npm install --no-audit --no-fund
+      - name: Typecheck D1 authentication and device approval Worker
+        run: npm run typecheck
