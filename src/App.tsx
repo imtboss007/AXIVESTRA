@@ -1797,13 +1797,27 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
       setNotice("Read-only company access cannot change follow-ups.");
       return;
     }
-    const next = parseFollowUps(record.moduleData).map(item => item.id === entry.id ? entry : item);
+    const current = parseFollowUps(record.moduleData);
+    const previousEntry = current.find(item => item.id === entry.id);
+    const next = current.map(item => item.id === entry.id ? entry : item);
+
+    // Keep the legacy record-level date aligned only when it still represents
+    // this same structured follow-up. Do not overwrite an independent legacy
+    // commitment that has since been changed to another date.
+    const nextFollowUpDate = previousEntry && record.nextFollowUpDate === previousEntry.date
+      ? entry.date
+      : record.nextFollowUpDate;
+
     setProperties(previous => previous.map(item => item.id === record.id
-      ? { ...item, moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) } }
+      ? {
+          ...item,
+          nextFollowUpDate,
+          moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) }
+        }
       : item));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: "updated" as const, entity: "Follow-up",
-      recordId: record.id, label: "Follow-up status updated · " + entry.description
+      recordId: record.id, label: "Follow-up updated · " + entry.description
     }, ...previous].slice(0, 500));
   };
 
