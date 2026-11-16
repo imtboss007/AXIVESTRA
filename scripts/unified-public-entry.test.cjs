@@ -16,9 +16,9 @@ assert.match(auth, /onContinueLocally=\{enterLocalMode\}/, "The public entry mus
 assert.match(auth, /if \(!activeCompany\)|if \(activeCompany\)/, "The existing company workspace lifecycle must remain in the AuthGate.");
 assert.match(auth, /<App key=\{\"company:\" \+ activeCompany\.id\}/, "Approved company access must still open the existing application.");
 assert.match(auth, /<App key=\{\"personal:\" \+ userId\}/, "Personal access must still open the existing application.");
-assert.match(entry, /Asset Intelligence/);
+assert.match(entry, /ASSET INTELLIGENCE/);
 assert.match(entry, /Property Sale[\s\S]*?Compliance & KYC/, "The public page must describe all sixteen existing domain workspaces.");
-assert.match(entry, /One AXIVESTRA Experience/, "The public website must make the single-product experience explicit.");
+assert.match(entry, /ONE AXIVESTRA EXPERIENCE/, "The public website must make the single-product experience explicit.");
 assert.match(styles, /@media \(max-width: 720px\)/, "The public website must have a responsive mobile layout.");
 assert.match(styles, /prefers-reduced-motion/, "The public website must respect reduced-motion preferences.");
 assert.match(app, /name: "Property Sale"/);
