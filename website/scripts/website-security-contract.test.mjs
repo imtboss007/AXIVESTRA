@@ -49,6 +49,10 @@ check("public enquiry form writes only to website_leads and requires consent",
   /if \(!consent\)/i.test(app) &&
   /consent: true/i.test(app));
 
+check("React website entry mounts into the root element",
+  /import \{ createRoot \} from "react-dom\/client"/i.test(app) &&
+  /createRoot\(rootElement\)\.render\(<App \/>\)/i.test(app));
+
 check("browser code does not contain a Supabase service-role key",
   !/SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(app) &&
   !/SUPABASE_SERVICE_ROLE_KEY|service_role/i.test(read("index.html")));
