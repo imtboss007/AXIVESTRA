@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import {
   ArrowDown, ArrowRight, ArrowUpRight, BadgeCheck, BarChart3, Building2, Check,
@@ -515,7 +515,7 @@ function AdminScreen({ navigate }: { navigate: (path: string) => void }) {
   );
 }
 
-function AdminFrame({ children, navigate }: { children: React.ReactNode; navigate: (path: string) => void }) {
+function AdminFrame({ children, navigate }: { children: ReactNode; navigate: (path: string) => void }) {
   return <div className="admin-shell"><header className="admin-public-bar"><button onClick={() => navigate("/")}><span className="brand-mark"><span/></span><strong>AXIVESTRA</strong><small>PUBLIC WEBSITE ADMIN</small></button><a href="/" onClick={e => { e.preventDefault(); navigate("/"); }}>View website <ArrowUpRight size={15}/></a></header>{children}</div>;
 }
 
