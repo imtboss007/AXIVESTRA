@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import {
   ArrowDown, ArrowRight, ArrowUpRight, BadgeCheck, BarChart3, Building2, Check,
@@ -534,3 +535,7 @@ export default function App() {
   if (path === "/admin" || path.startsWith("/admin/")) return <AdminScreen navigate={navigate}/>;
   return <Site path={path} navigate={navigate}/>;
 }
+
+const rootElement = document.getElementById("root");
+if (!rootElement) throw new Error("AXIVESTRA website root element was not found.");
+createRoot(rootElement).render(<App />);
