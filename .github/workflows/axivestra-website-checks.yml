@@ -66,5 +66,7 @@ jobs:
           node-version: 22
       - name: Install authentication dependencies
         run: npm install --no-audit --no-fund
+      - name: Run D1 authentication security contracts
+        run: npm test
       - name: Typecheck D1 authentication and device approval Worker
         run: npm run typecheck
