@@ -57,7 +57,7 @@ check("admin access can be provisioned without embedding a secret",
   /insert into public\.website_admins[\s\S]*select id, 'owner'[\s\S]*from auth\.users/i.test(read("README.md")));
 
 check("standalone website package exposes build and test scripts",
-  /"build": "tsc -b && vite build"/.test(read("package.json")) &&
+  /"build": "tsc --noEmit && vite build"/.test(read("package.json")) &&
   /"test": "node scripts\/website-security-contract\.test\.mjs"/.test(read("package.json")));
 
 process.stdout.write("\n" + passed + " website security-contract checks passed.\n");
