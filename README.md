@@ -77,6 +77,12 @@ A standalone AXIVESTRA public website and protected website-admin workspace is m
 
 See [website setup and deployment instructions](website/README.md), including the Supabase website schema, administrator provisioning, free `pages.dev` hosting and custom-domain notes.
 
+## Owner-controlled AXIVESTRA authentication
+
+A dedicated Better Auth + Cloudflare D1 Worker is being added under [`auth-worker/`](auth-worker/README.md). It supports Google sign-in, email/password registration, per-installation device registration, owner-only device approval/rejection/revocation, and an access audit trail. A same-origin Pages Function at [`functions/api/[[path]].ts`](functions/api/[[path]].ts) proxies auth requests so browser sessions stay on the AXIVESTRA app origin.
+
+**Migration status:** this is the authentication/device-approval foundation, not yet a complete removal of Supabase. The existing application still uses Supabase for company memberships and cloud record/storage operations, and the public website admin package also still references Supabase. Those data paths must be migrated behind the D1/Workers backend and re-tested before the system can be described as Supabase-free or the approval gate can protect every private data request.
+
 ## Run in a browser for development
 
 Requires Node.js 22 and npm.
