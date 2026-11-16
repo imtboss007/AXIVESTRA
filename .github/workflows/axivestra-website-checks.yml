@@ -1,0 +1,72 @@
+name: AXIVESTRA public website checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "README.md"
+      - "website/**"
+      - "auth-worker/**"
+      - ".github/workflows/axivestra-website-checks.yml"
+  push:
+    branches:
+      - feature/axivestra-public-website
+    paths:
+      - "website/**"
+      - "functions/**"
+      - "README.md"
+      - "auth-worker/**"
+      - "src/lib/**"
+      - "public/**"
+      - ".github/workflows/axivestra-website-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    name: Website security contracts and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run website security contract tests
+        run: npm test
+      - name: Build public website and admin console
+        run: npm run build
+      - name: Install Chromium for browser smoke tests
+        run: npx playwright install --with-deps chromium
+      - name: Run desktop and mobile browser smoke tests
+        run: npm run test:browser
+
+  auth-worker:
+    name: Authentication Worker typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: auth-worker
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install authentication dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run D1 authentication security contracts
+        run: npm test
+      - name: Typecheck D1 authentication and device approval Worker
+        run: npm run typecheck
