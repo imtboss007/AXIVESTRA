@@ -16,6 +16,8 @@ on:
       - "functions/**"
       - "README.md"
       - "auth-worker/**"
+      - "src/lib/**"
+      - "public/**"
       - ".github/workflows/axivestra-website-checks.yml"
   workflow_dispatch:
 
