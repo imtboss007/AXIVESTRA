@@ -1,8 +1,8 @@
 import { useState } from "react";
 import {
   Activity, ArrowRight, BarChart3, Building2, BriefcaseBusiness, Calculator,
-  FileCheck2, HandCoins, Handshake, House, Landmark, Menu, Network, PieChart,
-  Rocket, Scale, ShieldCheck, Store, Users, Wheat, Workflow, X
+  FileCheck2, HandCoins, Handshake, Landmark, Menu, Network, PieChart,
+  Rocket, Scale, ShieldCheck, Users, Workflow, X
 } from "lucide-react";
 import "./PublicEntry.css";
 
