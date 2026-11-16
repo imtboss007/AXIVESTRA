@@ -117,7 +117,7 @@ drop policy if exists "website admins manage pages" on public.website_pages;
 create policy "website admins manage pages"
 on public.website_pages for all to authenticated
 using (public.is_website_admin())
-with check (public.is_website_admin());
+with check (public.is_website_admin() and updated_by = auth.uid());
 
 drop policy if exists "public can submit website enquiries" on public.website_leads;
 create policy "public can submit website enquiries"
