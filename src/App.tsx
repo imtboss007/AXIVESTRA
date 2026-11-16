@@ -1775,13 +1775,33 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
     setProperties(previous => previous.map(record => {
       if (source && source.id !== target.id && record.id === source.id) {
         const remaining = parseFollowUps(record.moduleData).filter(item => item.id !== editingFollowUp.entry.id);
-        return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) } };
+        // Clear the old compatibility date only when it still represents the
+        // structured follow-up being moved. Preserve an independent commitment.
+        const nextFollowUpDate = record.nextFollowUpDate === editingFollowUp.entry.date
+          ? ""
+          : record.nextFollowUpDate;
+        return {
+          ...record,
+          nextFollowUpDate,
+          moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) }
+        };
       }
       if (record.id !== target.id) return record;
       const current = parseFollowUps(record.moduleData);
       const exists = current.some(item => item.id === entry.id);
       const next = exists ? current.map(item => item.id === entry.id ? entry : item) : [entry, ...current];
-      return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) } };
+      // The legacy date is a compatibility mirror only while it still matches
+      // this structured entry's old date. Do not overwrite a different legacy
+      // follow-up that may have been entered separately.
+      const nextFollowUpDate = source && source.id === target.id
+        && record.nextFollowUpDate === editingFollowUp.entry.date
+        ? entry.date
+        : record.nextFollowUpDate;
+      return {
+        ...record,
+        nextFollowUpDate,
+        moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) }
+      };
     }));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: editingFollowUp ? "updated" as const : "created" as const,
