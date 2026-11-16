@@ -14,6 +14,6 @@
   ],
   "vars": {
     "APP_ORIGIN": "https://axivestra.pages.dev",
-    "AUTH_BASE_URL": "https://axivestra-access.REPLACE_WITH_ACCOUNT.workers.dev"
+    "AUTH_BASE_URL": "https://axivestra.pages.dev"
   }
 }
