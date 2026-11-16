@@ -128,7 +128,7 @@ async function handleAccess(request: Request, env: Env, auth: ReturnType<typeof 
     const owner = await requireOwner(request, auth, env);
     if (!owner) return json({ error: "Owner approval required." }, 403);
     const result = await env.DB.prepare(
-      "SELECT id, email, device_label, device_kind, status, created_at, last_seen_at, approved_at FROM device_access ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, created_at DESC LIMIT 500"
+      "SELECT d.id, d.email, d.device_label, d.device_kind, d.status, d.created_at, d.last_seen_at, d.approved_at, u.emailVerified AS email_verified FROM device_access d LEFT JOIN user u ON u.id = d.user_id ORDER BY CASE d.status WHEN 'pending' THEN 0 ELSE 1 END, d.created_at DESC LIMIT 500"
     ).all();
     return json({ devices: result.results || [] });
   }
