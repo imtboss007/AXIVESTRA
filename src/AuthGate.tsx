@@ -18,7 +18,7 @@ export default function AuthGate() {
   const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
   const [mode, setMode] = useState<AuthMode>("signin");
-  const [showPublicEntry, setShowPublicEntry] = useState(true);
+  const [showPublicEntry, setShowPublicEntry] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,8 +32,14 @@ export default function AuthGate() {
   const [migrationCompany, setMigrationCompany] = useState<WorkspaceCompany | null>(null);
   const [migrationPersonal, setMigrationPersonal] = useState(false);
   const [localMode, setLocalMode] = useState(() => {
-    try { return localStorage.getItem("axivestra.workspaceMode") === "local"; }
-    catch { return false; }
+    try {
+      const storedMode = localStorage.getItem("axivestra.workspaceMode");
+      const activeCloudWorkspace = localStorage.getItem("axivestra.activeCompanyId") ||
+        localStorage.getItem("axivestra.activePersonalUserId");
+      // A first visit opens the actual application locally. An explicit cloud
+      // choice or saved cloud workspace continues through the authenticated gate.
+      return storedMode === "local" || (storedMode !== "cloud" && !activeCloudWorkspace);
+    } catch { return true; }
   });
 
   const clearMessages = () => { setError(""); setInfo(""); };
@@ -53,7 +59,7 @@ export default function AuthGate() {
   };
 
   const switchToCloudMode = () => {
-    localStorage.removeItem("axivestra.workspaceMode");
+    localStorage.setItem("axivestra.workspaceMode", "cloud");
     setLocalMode(false);
     setActiveCompany(null);
     setActivePersonal(false);
@@ -134,6 +140,13 @@ export default function AuthGate() {
     if (userId) { setMembershipsReady(false); void loadMemberships(); }
     else { setMemberships([]); setMembershipsReady(false); }
   }, [userId, loadMemberships]);
+
+  useEffect(() => {
+    if (!userId) return;
+    // Preserve cloud accounts from older builds that have a session but no
+    // explicit workspace-mode marker. A deliberate local choice remains local.
+    if (localStorage.getItem("axivestra.workspaceMode") !== "local") setLocalMode(false);
+  }, [userId]);
 
   const submitAuth = async (event: FormEvent) => {
     event.preventDefault();
@@ -225,7 +238,7 @@ export default function AuthGate() {
     setBusy(true);
     try {
       const importingPersonalWorkspace = hasPersonalWorkspaceCache(userId);
-      localStorage.removeItem("axivestra.workspaceMode");
+      localStorage.setItem("axivestra.workspaceMode", "cloud");
       setLocalMode(false);
       localStorage.removeItem("axivestra.activePersonalUserId");
       localStorage.setItem("axivestra.activeCompanyId", company.id);
@@ -276,7 +289,7 @@ export default function AuthGate() {
     clearMessages();
     setBusy(true);
     try {
-      localStorage.removeItem("axivestra.workspaceMode");
+      localStorage.setItem("axivestra.workspaceMode", "cloud");
       setLocalMode(false);
       localStorage.removeItem("axivestra.activeCompanyId");
       localStorage.setItem("axivestra.activePersonalUserId", userId);
@@ -304,7 +317,7 @@ export default function AuthGate() {
   };
 
   const openWorkspaceChooser = () => {
-    localStorage.removeItem("axivestra.workspaceMode");
+    localStorage.setItem("axivestra.workspaceMode", "cloud");
     setLocalMode(false);
     setActivePersonal(false);
     setActiveCompany(null);
@@ -324,7 +337,7 @@ export default function AuthGate() {
       setShowPublicEntry(true);
       localStorage.removeItem("axivestra.activeCompanyId");
       localStorage.removeItem("axivestra.activePersonalUserId");
-      localStorage.removeItem("axivestra.workspaceMode");
+      localStorage.setItem("axivestra.workspaceMode", "cloud");
       setLocalMode(false);
       setBusy(false);
     }

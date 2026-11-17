@@ -10,7 +10,10 @@ const styles = fs.readFileSync(path.join(root, "src", "PublicEntry.css"), "utf8"
 const main = fs.readFileSync(path.join(root, "src", "main.tsx"), "utf8");
 
 assert.match(main, /import AuthGate from "\.\/AuthGate"/, "The website must enter through the single application AuthGate.");
-assert.match(auth, /import PublicEntry from "\.\/PublicEntry"/, "The public website must be part of the main application bundle.");
+assert.match(auth, /import PublicEntry from "\.\/PublicEntry"/, "The public website must remain available from the authenticated entry flow.");
+assert.match(auth, /const \[showPublicEntry, setShowPublicEntry\] = useState\(false\)/, "The marketing page must not replace the actual app as the first screen.");
+assert.match(auth, /const storedMode = localStorage\.getItem\("axivestra\.workspaceMode"\)[\s\S]{0,450}return storedMode === "local" \|\| \(storedMode !== "cloud" && !activeCloudWorkspace\)/, "A fresh browser or desktop launch must enter the app in local mode.");
+assert.match(auth, /setItem\("axivestra\.workspaceMode", "cloud"\)/, "Explicit cloud access must persist across reloads.");
 assert.match(auth, /<PublicEntry[\s\S]*?onSignIn=\{\(\) => setShowPublicEntry\(false\)\}/, "The public entry must lead to the existing sign-in form.");
 assert.match(auth, /onContinueLocally=\{enterLocalMode\}/, "The public entry must preserve the existing local-only application mode.");
 assert.match(auth, /if \(!activeCompany\)|if \(activeCompany\)/, "The existing company workspace lifecycle must remain in the AuthGate.");
