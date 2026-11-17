@@ -1689,7 +1689,8 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
         }
       })();
     };
-    // Append before opening: this is more reliable in desktop browsers and Android WebViews.
+    // Attach the input before opening it; detached inputs are unreliable in Android WebViews.
+    document.body.appendChild(input);
     input.click();
     window.setTimeout(() => { if (input.isConnected) input.remove(); }, 120000);
   };
