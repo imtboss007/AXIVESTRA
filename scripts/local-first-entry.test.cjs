@@ -18,7 +18,7 @@ const checks = [
   ["workspace export uses a versioned envelope", /createWorkspaceBackup\([\s\S]{0,350}properties, contacts, whatsappGroups: savedWhatsAppGroups, tasks/.test(app)],
   ["workspace import persists to the active scope before updating state", /parseWorkspaceBackup\(parsed\)[\s\S]{0,2500}persistImportedWorkspaceCollections\(collections\)[\s\S]{0,900}setProperties\(collections\.properties/.test(app)],
   ["workspace restore confirms only after records are persisted", /persistImportedWorkspaceCollections\(collections\)[\s\S]{0,1400}Workspace backup imported and saved/.test(app)],
-  ["JSON import chooser is attached, cancel-aware and bounded", /async function chooseJsonBackupText[\s\S]{0,1400}input\.addEventListener\("cancel"\)[\s\S]{0,900}document\.body\.appendChild\(input\)[\s\S]{0,120}input\.click\(\)[\s\S]{0,300}120000/.test(app)],
+  ["JSON import chooser is attached, cancel-aware and bounded", /async function chooseJsonBackupText[\s\S]{0,2400}input\.addEventListener\("cancel",[\s\S]{0,900}document\.body\.appendChild\(input\)[\s\S]{0,120}input\.click\(\)[\s\S]{0,300}120000/.test(app)],
   ["Document Vault import uses the cross-platform chooser", /const importDocumentVault = async \(\) => \{[\s\S]{0,1000}chooseJsonBackupText\(\)/.test(app)],
   ["older mobile WebViews have a FileReader fallback", /async function readBrowserFileText[\s\S]{0,500}new FileReader\(\)/.test(app)],
   ["download URL is revoked after a delay", /window\.setTimeout\(\(\) => URL\.revokeObjectURL\(url\), 60000\)/.test(app)],
