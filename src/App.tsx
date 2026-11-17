@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { BarcodeFormat, BarcodeScanner } from "@capacitor-mlkit/barcode-scanning";
 import QRCode from "qrcode";
 import {
@@ -569,6 +571,105 @@ async function readBrowserFileText(file: File): Promise<string> {
       ? resolve(reader.result)
       : reject(new Error("The selected file could not be decoded as text."));
     reader.readAsText(file);
+  });
+}
+
+
+type AppFileEncoding = "utf8" | "base64";
+type AppFileSaveResult = { target: "desktop" | "android" | "browser"; canceled?: boolean; fileName: string };
+
+function safeExportFileName(fileName: string): string {
+  const cleaned = fileName.replace(/[\\/:*?"<>|]+/g, "_").replace(/^\.+/, "").trim();
+  return cleaned || "axivestra-export.json";
+}
+async function saveAppFile(
+  fileName: string, contents: string, encoding: AppFileEncoding, mimeType = "application/json;charset=utf-8"
+): Promise<AppFileSaveResult> {
+  const safeName = safeExportFileName(fileName);
+  const desktop = window.axivestraDesktop;
+  if (desktop?.saveFile) {
+    const result = await desktop.saveFile({ fileName: safeName, contents, encoding });
+    return { target: "desktop", canceled: result.canceled, fileName: result.fileName || safeName };
+  }
+  if (Capacitor.getPlatform() === "android") {
+    const path = "axivestra-exports/" + safeName;
+    const writeResult = await Filesystem.writeFile({
+      path, data: contents, directory: Directory.Cache, recursive: true,
+      ...(encoding === "utf8" ? { encoding: Encoding.UTF8 } : {})
+    });
+    const uri = writeResult.uri || (await Filesystem.getUri({ directory: Directory.Cache, path })).uri;
+    await Share.share({
+      title: safeName,
+      text: "Choose Files or Drive to save this AXIVESTRA export outside the app.",
+      url: uri,
+      dialogTitle: "Save AXIVESTRA file"
+    });
+    return { target: "android", fileName: safeName };
+  }
+  const blob = encoding === "base64"
+    ? base64ToBlob(contents, mimeType)
+    : new Blob([contents], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = safeName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  return { target: "browser", fileName: safeName };
+}
+
+async function chooseJsonBackupText(): Promise<{ fileName: string; text: string } | null> {
+  const desktop = window.axivestraDesktop;
+  if (desktop?.openTextFile) {
+    const selected = await desktop.openTextFile();
+    if (selected.canceled) return null;
+    if (typeof selected.contents !== "string") throw new Error("The selected JSON file could not be read.");
+    if (new Blob([selected.contents]).size > 150 * 1024 * 1024) throw new Error("This JSON backup exceeds the 150 MB import limit.");
+    return { fileName: selected.fileName || "axivestra-backup.json", text: selected.contents };
+  }
+  return await new Promise<{ fileName: string; text: string } | null>((resolve, reject) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.setAttribute("aria-label", "Choose AXIVESTRA JSON backup");
+    // Android WebViews can ignore detached, display:none or far-offscreen file inputs.
+    input.style.position = "fixed";
+    input.style.left = "0";
+    input.style.top = "0";
+    input.style.width = "1px";
+    input.style.height = "1px";
+    input.style.opacity = "0.01";
+    input.style.zIndex = "10000";
+    let settled = false;
+    let timeout = 0;
+    const cleanup = () => { window.clearTimeout(timeout); input.remove(); };
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    input.addEventListener("cancel", () => finish(() => resolve(null)));
+    input.onchange = () => {
+      const file = input.files?.[0] || null;
+      if (!file) { finish(() => resolve(null)); return; }
+      if (file.size > 150 * 1024 * 1024) {
+        finish(() => reject(new Error("This JSON backup exceeds the 150 MB import limit.")));
+        return;
+      }
+      void readBrowserFileText(file).then(
+        text => finish(() => resolve({ fileName: file.name, text })),
+        error => finish(() => reject(error instanceof Error ? error : new Error(String(error))))
+      );
+    };
+    document.body.appendChild(input);
+    input.click();
+    timeout = window.setTimeout(() => finish(() => reject(new Error(
+      "The file picker did not return a selection. Please open it again and choose a JSON backup."
+    ))), 120000);
   });
 }
 
@@ -1490,16 +1591,12 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
         setNotice("The document file is missing from this device. Restore it from your own document backup.");
         return;
       }
-      const url = URL.createObjectURL(saved.file);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = saved.name;
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-      setNotice("Document download started.");
+      const base64 = await blobToBase64(saved.file);
+      const result = await saveAppFile(saved.name, base64, "base64", saved.mimeType || "application/octet-stream");
+      if (result.canceled) setNotice("Document save cancelled.");
+      else if (result.target === "android") setNotice("Document ready to save. Choose Files or Drive in the Android share sheet.");
+      else if (result.target === "desktop") setNotice("Document saved to " + result.fileName + ".");
+      else setNotice("Document download started.");
     } catch (error) {
       setNotice("Document download failed: " + (error instanceof Error ? error.message : String(error)));
     }
@@ -1537,8 +1634,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
     setDocumentVaultBusy(true);
     try {
       const activeCompanyId = company?.id || "";
-      const allDocuments = await localDb.documents.toArray();
-      const saved = allDocuments.filter(record => (record.companyId || "") === activeCompanyId);
+      const saved = (await localDb.documents.toArray()).filter(record => (record.companyId || "") === activeCompanyId);
       const totalBytes = saved.reduce((sum, record) => sum + (record.file?.size || 0), 0);
       if (totalBytes > 100 * 1024 * 1024) {
         setNotice("The document vault exceeds the 100 MB single-file backup limit. Download documents individually or export smaller batches.");
@@ -1555,31 +1651,30 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
         documents.push({
           id: record.id, propertyId: record.propertyId, property: record.property, contactId: record.contactId || "",
           name: record.name, category: record.category, storagePath: record.storagePath, mimeType: record.mimeType,
-          sizeBytes: record.sizeBytes, expiresOn: record.expiresOn, notes: record.notes, createdAt: record.createdAt,
+          sizeBytes: bytes.byteLength, expiresOn: record.expiresOn, notes: record.notes, createdAt: record.createdAt,
           fileBase64: btoa(binary)
         });
       }
       const backup = { format: "AXIVESTRA_DOCUMENT_VAULT", schemaVersion: 2, companyId: activeCompanyId, exportedAt: new Date().toISOString(), documents };
-      const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = "axivestra-document-vault-" + new Date().toISOString().slice(0, 10) + ".json";
-      document.body.appendChild(link); link.click(); link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-      setNotice("Document-vault backup started for " + documents.length + " files. Store the backup securely; it contains the original documents.");
+      const fileName = "axivestra-document-vault-" + new Date().toISOString().slice(0, 10) + ".json";
+      const result = await saveAppFile(fileName, JSON.stringify(backup), "utf8", "application/json;charset=utf-8");
+      if (result.canceled) setNotice("Document-vault export cancelled.");
+      else if (result.target === "android") setNotice("Document-vault backup created. Choose Files or Drive in the Android share sheet to save the file outside AXIVESTRA.");
+      else if (result.target === "desktop") setNotice("Document-vault backup saved as " + result.fileName + ".");
+      else setNotice("Document-vault backup download started for " + documents.length + " files. Store it securely; it contains the original documents.");
     } catch (error) {
       setNotice("Document-vault export failed: " + (error instanceof Error ? error.message : String(error)));
     } finally { setDocumentVaultBusy(false); }
   };
 
-  const importDocumentVault = async (file: File) => {
-    if (file.size > 150 * 1024 * 1024) {
-      setNotice("This backup exceeds the 150 MB import limit. Export smaller document batches."); return;
-    }
-    if (!window.confirm("Import this document-vault backup? Matching document IDs will be replaced by the backup version; other existing documents will be retained. Export a backup of the current vault first.")) return;
+  const importDocumentVault = async () => {
     setDocumentVaultBusy(true);
     try {
-      const data = JSON.parse(await file.text()) as { format?: string; schemaVersion?: number; companyId?: string; documents?: Array<Record<string, unknown>> };
+      const selected = await chooseJsonBackupText();
+      if (!selected) return;
+      if (new Blob([selected.text]).size > 150 * 1024 * 1024) throw new Error("This backup exceeds the 150 MB import limit. Export smaller document batches.");
+      if (!window.confirm("Import this document-vault backup? Matching document IDs will be replaced by the backup version; other existing documents will be retained. Export a backup of the current vault first.")) return;
+      const data = JSON.parse(selected.text) as { format?: string; schemaVersion?: number; companyId?: string; documents?: Array<Record<string, unknown>> };
       if (data.format !== "AXIVESTRA_DOCUMENT_VAULT" || ![1, 2].includes(data.schemaVersion || 0) || !Array.isArray(data.documents) || data.documents.length > 10000) {
         throw new Error("This is not a supported AXIVESTRA document-vault backup.");
       }
@@ -1589,109 +1684,136 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
         throw new Error("This backup belongs to a different company. Switch to the source company before restoring it.");
       }
       const restored = [];
+      const seenIds = new Set<string>();
       let totalBytes = 0;
       for (const item of data.documents) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Invalid document entry in backup.");
         const id = String(item.id || "");
         const name = String(item.name || "");
-        const encoded = String(item.fileBase64 || "");
-        if (!id || !name || !encoded || encoded.length > 36 * 1024 * 1024) throw new Error("Invalid or oversized document entry.");
+        const encoded = typeof item.fileBase64 === "string" ? item.fileBase64 : null;
+        if (!id || !name || encoded === null || encoded.length > 136 * 1024 * 1024) throw new Error("Invalid or oversized document entry.");
+        if (seenIds.has(id)) throw new Error("Duplicate document ID in backup: " + id);
+        seenIds.add(id);
         const binary = atob(encoded);
         totalBytes += binary.length;
         if (totalBytes > 100 * 1024 * 1024) throw new Error("Decoded document total exceeds the 100 MB restore limit.");
         const bytes = new Uint8Array(binary.length);
         for (let offset = 0; offset < binary.length; offset += 0x8000) {
-          const end = Math.min(offset + 0x8000, binary.length);
-          for (let i = offset; i < end; i++) bytes[i] = binary.charCodeAt(i);
+          const stop = Math.min(offset + 0x8000, binary.length);
+          for (let i = offset; i < stop; i++) bytes[i] = binary.charCodeAt(i);
         }
+        const expectedSize = Number(item.sizeBytes);
+        if (Number.isFinite(expectedSize) && expectedSize >= 0 && expectedSize !== bytes.byteLength) {
+          throw new Error("Document size check failed for " + name + ". The backup file may be incomplete.");
+        }
+        const mimeType = String(item.mimeType || "application/octet-stream");
         restored.push({
           id, companyId: activeCompanyId, propertyId: String(item.propertyId || ""), property: String(item.property || ""),
-          contactId: String(item.contactId || ""), name: name.slice(0, 255),
-          category: String(item.category || "Other"), storagePath: String(item.storagePath || id),
-          mimeType: String(item.mimeType || "application/octet-stream"), sizeBytes: bytes.byteLength,
-          expiresOn: String(item.expiresOn || ""), notes: String(item.notes || ""), createdAt: String(item.createdAt || new Date().toISOString()),
-          file: new Blob([bytes], { type: String(item.mimeType || "application/octet-stream") })
+          contactId: String(item.contactId || ""), name: name.slice(0, 255), category: String(item.category || "Other"),
+          storagePath: String(item.storagePath || id), mimeType, sizeBytes: bytes.byteLength,
+          expiresOn: String(item.expiresOn || ""), notes: String(item.notes || ""),
+          createdAt: String(item.createdAt || new Date().toISOString()), file: new Blob([bytes], { type: mimeType })
         });
       }
       await localDb.documents.bulkPut(restored);
       const saved = await localDb.documents.orderBy("createdAt").reverse().toArray();
       setDocuments(saved.filter(record => (record.companyId || "") === activeCompanyId).map(({ file: _file, ...record }) => record));
-      setNotice("Restored " + restored.length + " document files. Existing documents with different IDs were retained.");
+      setNotice("Restored " + restored.length + " document files. Each restored file passed its size check.");
     } catch (error) {
       setNotice("Document-vault import failed: " + (error instanceof Error ? error.message : String(error)));
     } finally { setDocumentVaultBusy(false); }
   };
 
-  const exportWorkspaceBackup = () => {
+  const persistImportedWorkspaceCollections = (collections: ReturnType<typeof parseWorkspaceBackup>) => {
+    const entries: Array<[string, unknown]> = [
+      ["estateflow.properties", collections.properties],
+      ["estateflow.contacts", collections.contacts],
+      ["estateflow.tasks", collections.tasks],
+      ["estateflow.whatsappGroups", collections.whatsappGroups],
+      ["estateflow.financials", collections.financials],
+      ["estateflow.risks", collections.riskRecords],
+      ["estateflow.approvals", collections.approvalRequests],
+      ["estateflow.auditEvents", collections.auditEvents]
+    ];
+    const previous = new Map<string, string | null>();
+    try {
+      for (const [key, value] of entries) {
+        if (value === undefined) continue;
+        const scopedKey = storageKey(key);
+        previous.set(scopedKey, localStorage.getItem(scopedKey));
+        localStorage.setItem(scopedKey, JSON.stringify(value));
+      }
+    } catch (error) {
+      for (const [key, value] of Array.from(previous.entries()).reverse()) {
+        try { value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch { /* best-effort rollback */ }
+      }
+      throw new Error("The backup was read, but this device could not save all restored records. Free storage space and retry. " + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+
+  const exportWorkspaceBackup = async () => {
     try {
       const backup = createWorkspaceBackup({
         properties, contacts, whatsappGroups: savedWhatsAppGroups, tasks,
         financials, riskRecords, approvalRequests, auditEvents
       });
-      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "axivestra-workspace-backup-" + today + ".json";
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      // Keep the Blob URL alive long enough for desktop browsers and Android WebViews
-      // to hand the download to their download manager.
-      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-      setNotice("Workspace JSON backup started. Original document files are backed up separately from the Documents workspace.");
+      const fileName = "axivestra-workspace-backup-" + today + ".json";
+      const result = await saveAppFile(fileName, JSON.stringify(backup, null, 2), "utf8", "application/json;charset=utf-8");
+      if (result.canceled) setNotice("Workspace backup export cancelled.");
+      else if (result.target === "android") setNotice("Workspace backup created. Choose Files or Drive in the Android share sheet to save the JSON outside AXIVESTRA.");
+      else if (result.target === "desktop") setNotice("Workspace backup saved as " + result.fileName + ".");
+      else setNotice("Workspace JSON backup download started. Original document files are backed up separately from the Documents workspace.");
     } catch (error) {
       setNotice("Workspace backup export failed: " + (error instanceof Error ? error.message : String(error)));
     }
   };
 
   const importWorkspaceBackup = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json,application/json";
-    input.setAttribute("aria-label", "Choose AXIVESTRA workspace backup");
-    input.style.position = "fixed";
-    input.style.left = "-10000px";
-    input.style.top = "0";
-    document.body.appendChild(input);
-    input.onchange = () => {
-      const file = input.files?.[0] || null;
-      input.remove();
-      if (!file) return;
-      void (async () => {
-        try {
-          if (file.size > 150 * 1024 * 1024) throw new Error("This JSON backup exceeds the 150 MB import limit.");
-          const parsed = JSON.parse(await readBrowserFileText(file)) as unknown;
-          const collections = parseWorkspaceBackup(parsed);
-          const counts = [
-            "Properties: " + collections.properties.length,
-            "Contacts: " + collections.contacts.length,
-            "WhatsApp groups: " + (collections.whatsappGroups?.length ?? "not included"),
-            "Tasks: " + collections.tasks.length,
-            "Financials: " + (collections.financials?.length ?? "not included"),
-            "Risks: " + (collections.riskRecords?.length ?? "not included"),
-            "Approvals: " + (collections.approvalRequests?.length ?? "not included"),
-            "Audit events: " + (collections.auditEvents?.length ?? "not included")
-          ].join("\n");
-          if (!window.confirm("Importing this backup replaces the matching record collections in the current workspace. Collections omitted by an older backup will be left unchanged.\n\n" + counts + "\n\nExport a backup of the current workspace first. Continue?")) return;
-          // All collections are parsed and validated before any state changes are committed.
-          setProperties(collections.properties as unknown as PropertyRecord[]);
-          setContacts(collections.contacts as unknown as ContactRecord[]);
-          setTasks(collections.tasks as unknown as TaskRecord[]);
-          if (collections.whatsappGroups) setSavedWhatsAppGroups(collections.whatsappGroups as unknown as SavedWhatsAppGroup[]);
-          if (collections.financials) setFinancials(collections.financials as unknown as FinancialRecord[]);
-          if (collections.riskRecords) setRiskRecords(collections.riskRecords as unknown as RiskRecord[]);
-          if (collections.approvalRequests) setApprovalRequests(collections.approvalRequests as unknown as ApprovalRequest[]);
-          if (collections.auditEvents) setAuditEvents(collections.auditEvents as unknown as AuditEvent[]);
-          setNotice("Workspace backup imported successfully. Restore original document files separately from the Documents workspace.");
-        } catch (error) {
-          setNotice("Workspace backup import failed: " + (error instanceof Error ? error.message : String(error)));
-        }
-      })();
-    };
-    // Append before opening: this is more reliable in desktop browsers and Android WebViews.
-    input.click();
-    window.setTimeout(() => { if (input.isConnected) input.remove(); }, 120000);
+    void (async () => {
+      try {
+        const selected = await chooseJsonBackupText();
+        if (!selected) return;
+        const parsed = JSON.parse(selected.text) as unknown;
+        const collections = parseWorkspaceBackup(parsed);
+        const counts = [
+          "Properties: " + collections.properties.length,
+          "Contacts: " + collections.contacts.length,
+          "WhatsApp groups: " + (collections.whatsappGroups?.length ?? "not included"),
+          "Tasks: " + collections.tasks.length,
+          "Financials: " + (collections.financials?.length ?? "not included"),
+          "Risks: " + (collections.riskRecords?.length ?? "not included"),
+          "Approvals: " + (collections.approvalRequests?.length ?? "not included"),
+          "Audit events: " + (collections.auditEvents?.length ?? "not included")
+        ].join("\n");
+        if (!window.confirm("Importing this backup replaces the matching record collections in the current workspace. Collections omitted by an older backup will be left unchanged.\n\n" + counts + "\n\nExport a backup of the current workspace first. Continue?")) return;
+        // Persist all collections in the active local/company/personal scope before
+        // updating React state or reporting success. Roll back if storage refuses the write.
+        persistImportedWorkspaceCollections(collections);
+        setProperties(collections.properties as unknown as PropertyRecord[]);
+        setContacts(collections.contacts as unknown as ContactRecord[]);
+        setTasks(collections.tasks as unknown as TaskRecord[]);
+        if (collections.whatsappGroups) setSavedWhatsAppGroups(collections.whatsappGroups as unknown as SavedWhatsAppGroup[]);
+        if (collections.financials) setFinancials(collections.financials as unknown as FinancialRecord[]);
+        if (collections.riskRecords) setRiskRecords(collections.riskRecords as unknown as RiskRecord[]);
+        if (collections.approvalRequests) setApprovalRequests(collections.approvalRequests as unknown as ApprovalRequest[]);
+        if (collections.auditEvents) setAuditEvents(collections.auditEvents as unknown as AuditEvent[]);
+        setNotice("Workspace backup imported and saved on this device successfully. Original document files are restored separately from Documents.");
+      } catch (error) {
+        setNotice("Workspace backup import failed: " + (error instanceof Error ? error.message : String(error)));
+      }
+    })();
+  };
+
+  const exportAuditLog = async () => {
+    try {
+      const result = await saveAppFile("axivestra-audit-" + today + ".json", JSON.stringify(auditEvents, null, 2), "utf8", "application/json;charset=utf-8");
+      if (result.canceled) setNotice("Audit-log export cancelled.");
+      else if (result.target === "android") setNotice("Audit log ready to save. Choose Files or Drive in the Android share sheet.");
+      else if (result.target === "desktop") setNotice("Audit log saved as " + result.fileName + ".");
+      else setNotice("Audit-log download started.");
+    } catch (error) {
+      setNotice("Audit-log export failed: " + (error instanceof Error ? error.message : String(error)));
+    }
   };
 
   const go = (section: Section) => { setActive(section); setMobileMenu(false); setNotice(""); if (section !== "WhatsApp Automation") setWhatsAppPrefill(null); };
@@ -1775,13 +1897,33 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
     setProperties(previous => previous.map(record => {
       if (source && source.id !== target.id && record.id === source.id) {
         const remaining = parseFollowUps(record.moduleData).filter(item => item.id !== editingFollowUp.entry.id);
-        return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) } };
+        // Clear the old compatibility date only when it still represents the
+        // structured follow-up being moved. Preserve an independent commitment.
+        const nextFollowUpDate = record.nextFollowUpDate === editingFollowUp.entry.date
+          ? ""
+          : record.nextFollowUpDate;
+        return {
+          ...record,
+          nextFollowUpDate,
+          moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) }
+        };
       }
       if (record.id !== target.id) return record;
       const current = parseFollowUps(record.moduleData);
       const exists = current.some(item => item.id === entry.id);
       const next = exists ? current.map(item => item.id === entry.id ? entry : item) : [entry, ...current];
-      return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) } };
+      // The legacy date is a compatibility mirror only while it still matches
+      // this structured entry's old date. Do not overwrite a different legacy
+      // follow-up that may have been entered separately.
+      const nextFollowUpDate = source && source.id === target.id
+        && record.nextFollowUpDate === editingFollowUp.entry.date
+        ? entry.date
+        : record.nextFollowUpDate;
+      return {
+        ...record,
+        nextFollowUpDate,
+        moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) }
+      };
     }));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: editingFollowUp ? "updated" as const : "created" as const,
@@ -1797,13 +1939,27 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
       setNotice("Read-only company access cannot change follow-ups.");
       return;
     }
-    const next = parseFollowUps(record.moduleData).map(item => item.id === entry.id ? entry : item);
+    const current = parseFollowUps(record.moduleData);
+    const previousEntry = current.find(item => item.id === entry.id);
+    const next = current.map(item => item.id === entry.id ? entry : item);
+
+    // Keep the legacy record-level date aligned only when it still represents
+    // this same structured follow-up. Do not overwrite an independent legacy
+    // commitment that has since been changed to another date.
+    const nextFollowUpDate = previousEntry && record.nextFollowUpDate === previousEntry.date
+      ? entry.date
+      : record.nextFollowUpDate;
+
     setProperties(previous => previous.map(item => item.id === record.id
-      ? { ...item, moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) } }
+      ? {
+          ...item,
+          nextFollowUpDate,
+          moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) }
+        }
       : item));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: "updated" as const, entity: "Follow-up",
-      recordId: record.id, label: "Follow-up status updated · " + entry.description
+      recordId: record.id, label: "Follow-up updated · " + entry.description
     }, ...previous].slice(0, 500));
   };
 
@@ -2738,7 +2894,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             onDeleteTask={deleteTask}
           />}
           {active === "Documents" && <section className="data-panel">
-            <div className="section-heading"><div><h2>Document vault</h2><p>{documents.length} saved documents · documents sync with your linked PC</p></div><div className="finance-actions"><button className="secondary-button" disabled={documentVaultBusy} onClick={()=>void exportDocumentVault()}>{documentVaultBusy?"Working…":"Export vault backup"}</button><label className={"secondary-button "+(documentVaultBusy?"disabled":"")}>Import vault backup<input type="file" accept=".json,application/json" disabled={documentVaultBusy} hidden onChange={event=>{const file=event.target.files?.[0];if(file)void importDocumentVault(file);event.currentTarget.value="";}}/></label></div></div>
+            <div className="section-heading"><div><h2>Document vault</h2><p>{documents.length} saved documents · documents sync with your linked PC</p></div><div className="finance-actions"><button className="secondary-button" disabled={documentVaultBusy} onClick={()=>void exportDocumentVault()}>{documentVaultBusy?"Working…":"Export vault backup"}</button><button type="button" className="secondary-button" disabled={documentVaultBusy} onClick={()=>void importDocumentVault()}>{documentVaultBusy?"Working…":"Import vault backup"}</button></div></div>
             <div className="notice notice-warn">Documents are saved in this browser/app's local database. They do not sync to your PC or other phone automatically. Download important files separately before changing devices or clearing app data.</div>
             <div className="document-upload-card">
               <div className="form-two">
@@ -2774,7 +2930,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             <div className="governance-callout"><ClipboardCheck size={19}/><div><strong>Decision governance</strong><p>Use for investment decisions, loan disbursals, payments, settlements, legal filings and high-impact changes. This personal-workspace version tracks decisions; production multi-user segregation of duties requires organization roles and server-enforced reviewer separation.</p></div></div>
             {approvalRequests.length ? <div className="record-list">{[...approvalRequests].sort((a,b)=>b.requestedAt.localeCompare(a.requestedAt)).map(record=><article className="record-card" key={record.id}><div className="record-symbol approval-symbol"><ClipboardCheck size={20}/></div><div className="record-main"><h3>{record.title}</h3><p>{record.area}{record.entity ? <><span>•</span>{record.entity}</> : null}</p><small>Requested by {record.requestedBy || "Unspecified"}{record.approver ? ` · Reviewer: ${record.approver}` : ""} · {new Date(record.requestedAt).toLocaleDateString("en-IN")}</small><small>Priority: {record.priority}</small>{record.rationale&&<small>Rationale: {record.rationale}</small>}{record.decisionNotes&&<small>Decision: {record.decisionNotes}</small>}</div><div className="record-side"><span className={`status-pill approval-${record.status}`}>{record.status}</span>{record.status==="pending"&&<><button className="decision-button approve" onClick={()=>decideApproval(record,"approved")}>Approve</button><button className="decision-button reject" onClick={()=>decideApproval(record,"rejected")}>Reject</button></>}<button className="delete-button" onClick={()=>deleteApproval(record.id)} aria-label="Delete approval request"><Trash2 size={15}/></button></div></article>)}</div> : <Empty icon={<ClipboardCheck size={22}/>} title="No approval requests yet" text="Create a request to document review for a capital, credit, property, settlement or legal action." action="Request approval" onClick={()=>setShowApprovalForm(true)}/>}
           </section>}
-          {active === "Settings" && <section className="data-panel"><div className="section-heading"><div><h2>Settings</h2><p>Workspace data and local backup</p></div></div><div className="settings-card"><h3>Local data backup</h3><p>{company ? "Business records sync through your AXIVESTRA account. Document files sync with your linked Windows PC while both devices are connected." : personalUserId ? "Personal records sync privately through your AXIVESTRA account across any signed-in phone or PC. Document file bytes remain in the local vault and are not included in personal cloud record sync." : "Your workspace records are saved locally on this device. Document file bytes are stored separately in the local vault and can be backed up from Documents."}</p><button type="button" className="secondary-button" onClick={exportWorkspaceBackup}>Export workspace JSON</button><button type="button" className="secondary-button" onClick={importWorkspaceBackup}>Import workspace JSON</button></div>{!company && !personalUserId && onSwitchCompany && <div className="settings-card"><h3>Account and cloud sync</h3><p>Local mode saves your records on this device without a login. Sign in only when you want private account sync or shared company workspaces. Your local records remain on this device.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Sign in / switch to cloud mode</button></div></div>}{company && ["owner", "admin"].includes(company.role) && <div className="settings-card"><h3>Company member access</h3><p>Invite a new teammate by email, or use an existing Supabase Auth user UUID to grant or change access. Owner access cannot be granted, changed or removed through this screen.</p><form className="member-access-form" onSubmit={inviteCompanyMember}><label>Invite email address<input type="email" autoComplete="email" value={memberInviteEmail} onChange={event=>setMemberInviteEmail(event.target.value)} required placeholder="colleague@company.com"/></label><label>Invitation role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="primary-button" disabled={memberBusy}>{memberBusy ? "Sending…" : "Invite by email"}</button></form><details className="member-existing-access"><summary>Existing account? Add or update by UUID</summary><form className="member-access-form" onSubmit={addCompanyMember}><label>Existing user UUID<input value={memberUserId} onChange={event=>setMemberUserId(event.target.value)} required placeholder="00000000-0000-4000-8000-000000000000"/></label><label>Existing member role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="secondary-button" disabled={memberBusy}>{memberBusy ? "Saving…" : "Add / update existing account"}</button></form></details>{memberStatus && <p role="status" className="sync-status">{memberStatus}</p>}<div className="company-member-list">{memberRows.map(member=><div className="company-member-row" key={member.user_id}><div><strong>{member.user_id}</strong><small>{member.role.replace("_"," ")} · added {new Date(member.created_at).toLocaleDateString("en-IN")}</small></div><button className="delete-button" disabled={memberBusy || member.role === "owner"} onClick={()=>void removeCompanyMember(member.user_id,member.role)}>{member.role === "owner" ? "Owner" : "Remove"}</button></div>)}</div><p className="ax-form-note">Email invitations need the <code>invite-company-member</code> Supabase Edge Function deployed and Auth email delivery configured. Existing registered accounts should be added by UUID.</p></div>}{personalUserId && <div className="settings-card"><h3>Personal cloud sync · phone and PC</h3><p>This is your private workspace. Sign in with the same account on any phone or PC to access the same properties, contacts, tasks, financial records, risks, approvals and follow-ups. No company or paired Windows PC is required. Sync runs automatically while online.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic personal cloud sync is active."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Your records are isolated by your signed-in account. Original document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Explore Company Mode</button></div></div>}{company && <div className="settings-card"><h3>Company cloud sync · phone and PC</h3><p>Signed in to <strong>{company.name}</strong>. This phone or PC can be your starting device. Business records sync both ways through this company account; you do not need a Windows PC to use or synchronize from the phone. When adding another device, sign in with the same account and open the same company.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic sync is active · tap Sync now to refresh this device."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Cloud records are protected by company membership policies. Document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p></div>}<div className="settings-card"><h3>Sync WhatsApp + data</h3>{Boolean(window.estateflowWhatsApp?.getBridgeInfo) ? <div className="device-sync-pairing"><p>{company ? "Optional PC link: scan from Android only to share this Windows WhatsApp session and local document vault. Company records already sync through your account." : "Open AXIVESTRA on your Android phone and scan this code once to pair local records with this Windows PC."}</p>{deviceSyncQr ? <img src={deviceSyncQr} alt="AXIVESTRA phone sync QR code" style={{ width: "100%", maxWidth: 260, display: "block", margin: "12px auto" }}/> : <p className="sync-status">Preparing your link code…</p>}<p className="sync-status">{syncStatus || "Ready to link on the same Wi-Fi."}</p>{!company && <div className="settings-actions"><button type="button" className="primary-button" disabled={syncBusy} onClick={()=>void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button></div>}</div> : Capacitor.getPlatform() === "android" ? <div><p>{company ? "Company records sync directly from this phone through your AXIVESTRA account. Pair a Windows PC only if you also need its linked WhatsApp session or local document vault." : syncHost ? "This phone is linked to your Windows AXIVESTRA." : "Scan the PC code once to sync local records and share its documents and linked WhatsApp number."}</p><div className="settings-actions"><button className="primary-button" disabled={syncBusy} onClick={() => void scanAndPairWithPc()}>{syncBusy ? "Connecting…" : syncHost ? "Change linked PC" : "Scan PC code"}</button>{syncHost && <button className="secondary-button" disabled={syncBusy} onClick={() => void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button>}{syncHost && <button className="secondary-button" onClick={unlinkPc}>Unlink</button>}</div>{syncStatus && <p className="sync-status">{syncStatus}</p>}</div> : <p>Open AXIVESTRA on Windows to display the link code.</p>}</div><div className="settings-card"><h3>Local audit history</h3><p>Tracks creation, edits and deletions for properties, contacts, tasks, financial transactions, risks and approvals on this device. The log records record labels and IDs, not the private field contents. This is a local activity history, not a tamper-proof or multi-user compliance audit.</p><div className="settings-actions"><button className="secondary-button" onClick={()=>{const blob=new Blob([JSON.stringify(auditEvents,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`axivestra-audit-${today}.json`;a.click();URL.revokeObjectURL(url);}}>Export audit log</button></div>{auditEvents.length ? <div className="audit-event-list">{auditEvents.slice(0,50).map(event=><article className="audit-event-row" key={event.id}><span className={`audit-event-action audit-${event.action}`}>{event.action}</span><div><strong>{event.entity}: {event.label}</strong><small>{event.recordId} · {new Date(event.at).toLocaleString("en-IN")}</small></div></article>)}</div> : <p>No changes have been recorded yet. New record changes will appear here.</p>}</div></section>}
+          {active === "Settings" && <section className="data-panel"><div className="section-heading"><div><h2>Settings</h2><p>Workspace data and local backup</p></div></div><div className="settings-card"><h3>Local data backup</h3><p>{company ? "Business records sync through your AXIVESTRA account. Document files sync with your linked Windows PC while both devices are connected." : personalUserId ? "Personal records sync privately through your AXIVESTRA account across any signed-in phone or PC. Document file bytes remain in the local vault and are not included in personal cloud record sync." : "Your workspace records are saved locally on this device. Document file bytes are stored separately in the local vault and can be backed up from Documents."}</p><button type="button" className="secondary-button" onClick={()=>void exportWorkspaceBackup()}>Export workspace JSON</button><button type="button" className="secondary-button" onClick={importWorkspaceBackup}>Import workspace JSON</button></div>{!company && !personalUserId && onSwitchCompany && <div className="settings-card"><h3>Account and cloud sync</h3><p>Local mode saves your records on this device without a login. Sign in only when you want private account sync or shared company workspaces. Your local records remain on this device.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Sign in / switch to cloud mode</button></div></div>}{company && ["owner", "admin"].includes(company.role) && <div className="settings-card"><h3>Company member access</h3><p>Invite a new teammate by email, or use an existing Supabase Auth user UUID to grant or change access. Owner access cannot be granted, changed or removed through this screen.</p><form className="member-access-form" onSubmit={inviteCompanyMember}><label>Invite email address<input type="email" autoComplete="email" value={memberInviteEmail} onChange={event=>setMemberInviteEmail(event.target.value)} required placeholder="colleague@company.com"/></label><label>Invitation role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="primary-button" disabled={memberBusy}>{memberBusy ? "Sending…" : "Invite by email"}</button></form><details className="member-existing-access"><summary>Existing account? Add or update by UUID</summary><form className="member-access-form" onSubmit={addCompanyMember}><label>Existing user UUID<input value={memberUserId} onChange={event=>setMemberUserId(event.target.value)} required placeholder="00000000-0000-4000-8000-000000000000"/></label><label>Existing member role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="secondary-button" disabled={memberBusy}>{memberBusy ? "Saving…" : "Add / update existing account"}</button></form></details>{memberStatus && <p role="status" className="sync-status">{memberStatus}</p>}<div className="company-member-list">{memberRows.map(member=><div className="company-member-row" key={member.user_id}><div><strong>{member.user_id}</strong><small>{member.role.replace("_"," ")} · added {new Date(member.created_at).toLocaleDateString("en-IN")}</small></div><button className="delete-button" disabled={memberBusy || member.role === "owner"} onClick={()=>void removeCompanyMember(member.user_id,member.role)}>{member.role === "owner" ? "Owner" : "Remove"}</button></div>)}</div><p className="ax-form-note">Email invitations need the <code>invite-company-member</code> Supabase Edge Function deployed and Auth email delivery configured. Existing registered accounts should be added by UUID.</p></div>}{personalUserId && <div className="settings-card"><h3>Personal cloud sync · phone and PC</h3><p>This is your private workspace. Sign in with the same account on any phone or PC to access the same properties, contacts, tasks, financial records, risks, approvals and follow-ups. No company or paired Windows PC is required. Sync runs automatically while online.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic personal cloud sync is active."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Your records are isolated by your signed-in account. Original document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Explore Company Mode</button></div></div>}{company && <div className="settings-card"><h3>Company cloud sync · phone and PC</h3><p>Signed in to <strong>{company.name}</strong>. This phone or PC can be your starting device. Business records sync both ways through this company account; you do not need a Windows PC to use or synchronize from the phone. When adding another device, sign in with the same account and open the same company.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic sync is active · tap Sync now to refresh this device."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Cloud records are protected by company membership policies. Document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p></div>}<div className="settings-card"><h3>Sync WhatsApp + data</h3>{Boolean(window.estateflowWhatsApp?.getBridgeInfo) ? <div className="device-sync-pairing"><p>{company ? "Optional PC link: scan from Android only to share this Windows WhatsApp session and local document vault. Company records already sync through your account." : "Open AXIVESTRA on your Android phone and scan this code once to pair local records with this Windows PC."}</p>{deviceSyncQr ? <img src={deviceSyncQr} alt="AXIVESTRA phone sync QR code" style={{ width: "100%", maxWidth: 260, display: "block", margin: "12px auto" }}/> : <p className="sync-status">Preparing your link code…</p>}<p className="sync-status">{syncStatus || "Ready to link on the same Wi-Fi."}</p>{!company && <div className="settings-actions"><button type="button" className="primary-button" disabled={syncBusy} onClick={()=>void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button></div>}</div> : Capacitor.getPlatform() === "android" ? <div><p>{company ? "Company records sync directly from this phone through your AXIVESTRA account. Pair a Windows PC only if you also need its linked WhatsApp session or local document vault." : syncHost ? "This phone is linked to your Windows AXIVESTRA." : "Scan the PC code once to sync local records and share its documents and linked WhatsApp number."}</p><div className="settings-actions"><button className="primary-button" disabled={syncBusy} onClick={() => void scanAndPairWithPc()}>{syncBusy ? "Connecting…" : syncHost ? "Change linked PC" : "Scan PC code"}</button>{syncHost && <button className="secondary-button" disabled={syncBusy} onClick={() => void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button>}{syncHost && <button className="secondary-button" onClick={unlinkPc}>Unlink</button>}</div>{syncStatus && <p className="sync-status">{syncStatus}</p>}</div> : <p>Open AXIVESTRA on Windows to display the link code.</p>}</div><div className="settings-card"><h3>Local audit history</h3><p>Tracks creation, edits and deletions for properties, contacts, tasks, financial transactions, risks and approvals on this device. The log records record labels and IDs, not the private field contents. This is a local activity history, not a tamper-proof or multi-user compliance audit.</p><div className="settings-actions"><button className="secondary-button" onClick={()=>void exportAuditLog()}>Export audit log</button></div>{auditEvents.length ? <div className="audit-event-list">{auditEvents.slice(0,50).map(event=><article className="audit-event-row" key={event.id}><span className={`audit-event-action audit-${event.action}`}>{event.action}</span><div><strong>{event.entity}: {event.label}</strong><small>{event.recordId} · {new Date(event.at).toLocaleString("en-IN")}</small></div></article>)}</div> : <p>No changes have been recorded yet. New record changes will appear here.</p>}</div></section>}
           <footer className="footer"><span>AXIVESTRA © 2026</span><span>{company ? `Company cloud mode · ${company.role.replace("_"," ")} access` : personalUserId ? "Personal cloud mode · private account" : "Local-first mode · optional trusted-network sync"}</span></footer>
         </div>
       </section>

@@ -23,3 +23,9 @@ contextBridge.exposeInMainWorld("estateflowWhatsApp", {
     return () => ipcRenderer.removeListener("estateflow:wa:update", handler);
   }
 });
+
+
+contextBridge.exposeInMainWorld("axivestraDesktop", {
+  saveFile: payload => ipcRenderer.invoke("axivestra:save-file", payload),
+  openTextFile: () => ipcRenderer.invoke("axivestra:open-text-file")
+});

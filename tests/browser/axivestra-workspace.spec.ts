@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { Buffer } from "node:buffer";
 
 const expectedModules = [
   "Property Sale",
@@ -19,6 +20,16 @@ const expectedModules = [
   "Investor Relations",
   "Compliance & KYC"
 ];
+
+test.beforeEach(async ({ page }) => {
+  // Signed-out browser builds now show the public AXIVESTRA entry first.
+  // Select the supported local-only path before testing the existing app workspace.
+  await page.goto("/");
+  const continueLocally = page.getByRole("button", { name: "Continue locally on this device" });
+  if (await continueLocally.isVisible().catch(() => false)) {
+    await continueLocally.click();
+  }
+});
 
 async function openExplorer(page) {
   await page.goto("/");
@@ -537,4 +548,63 @@ test("desktop and mobile: every module formats crores and opens table details, h
   await expect(page.getByText("QA appointment · Property Loans",{exact:true})).toHaveCount(0);
   await page.getByRole("button",{name:"Clear all filters"}).click();
   await expect(page.locator(".ax-followup-export__head span")).toContainText("16 entries");
+});
+
+
+test("workspace JSON backup imports, persists and exports the restored records", async ({ page }) => {
+  const seedProperty = {
+    id: "backup-current", title: "Existing before restore", module: "Property Sale",
+    location: "Bengaluru", value: "100000", status: "Active", contact: "", notes: "",
+    createdAt: "2026-11-17T00:00:00.000Z", surveyNumber: "", ownershipDetails: "",
+    areaValue: "", areaUnit: "sq ft", dimensions: "", ratePerUnit: "", moduleData: {}
+  };
+  const restoredProperty = { ...seedProperty, id: "backup-restored", title: "Restored from backup" };
+  const backup = {
+    format: "AXIVESTRA_WORKSPACE_BACKUP",
+    schemaVersion: 1,
+    exportedAt: "2026-11-17T00:00:00.000Z",
+    collections: {
+      properties: [restoredProperty],
+      contacts: [{ id: "backup-contact", name: "Backup contact", phone: "9000000000", role: "Owner", notes: "" }],
+      whatsappGroups: [], tasks: [], financials: [], riskRecords: [], approvalRequests: [], auditEvents: []
+    }
+  };
+  await page.evaluate((property) => {
+    localStorage.setItem("axivestra.workspaceMode", "local");
+    localStorage.setItem("estateflow.properties", JSON.stringify([property]));
+    localStorage.setItem("estateflow.contacts", JSON.stringify([]));
+    localStorage.setItem("estateflow.tasks", JSON.stringify([]));
+    localStorage.setItem("estateflow.whatsappGroups", JSON.stringify([]));
+  }, seedProperty);
+  await page.reload();
+
+  const openSettings = async () => {
+    if ((page.viewportSize()?.width || 1440) <= 720) await page.getByRole("button", { name: "Open menu" }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+  };
+  await openSettings();
+  page.once("dialog", dialog => dialog.accept());
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: "Import workspace JSON" }).click()
+  ]);
+  await chooser.setFiles({
+    name: "axivestra-workspace-backup-test.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(backup))
+  });
+  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("estateflow.properties") || "[]")[0]?.id || "")).toBe("backup-restored");
+
+  await page.reload();
+  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem("estateflow.properties") || "[]")[0]?.title || "")).toBe("Restored from backup");
+  await openSettings();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Export workspace JSON" }).click()
+  ]);
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const exported = JSON.parse(readFileSync(downloadPath!, "utf8"));
+  expect(exported.format).toBe("AXIVESTRA_WORKSPACE_BACKUP");
+  expect(exported.collections.properties[0].id).toBe("backup-restored");
 });
