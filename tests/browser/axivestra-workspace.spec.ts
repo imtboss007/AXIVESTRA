@@ -580,7 +580,7 @@ test("workspace JSON backup imports, persists and exports the restored records",
 
   const openSettings = async () => {
     if ((page.viewportSize()?.width || 1440) <= 720) await page.getByRole("button", { name: "Open menu" }).click();
-    await page.locator(".nav-list").getByRole("button", { name: /^Settings/ }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
   };
   await openSettings();
   page.once("dialog", dialog => dialog.accept());

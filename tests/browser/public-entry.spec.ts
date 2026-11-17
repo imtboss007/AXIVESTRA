@@ -6,7 +6,7 @@ test("desktop and mobile: first launch opens the existing AXIVESTRA app workspac
   const mobile = (page.viewportSize()?.width || 1440) <= 720;
   if (mobile) await page.getByRole("button", { name: "Open menu" }).click();
   await expect(page.locator(".nav-list")).toBeVisible();
-  await page.locator(".nav-list").getByRole("button", { name: /^Settings/ }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("button", { name: "Export workspace JSON" })).toBeVisible();
 
   await page.reload();
