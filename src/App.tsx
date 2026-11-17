@@ -582,16 +582,6 @@ function safeExportFileName(fileName: string): string {
   const cleaned = fileName.replace(/[\\/:*?"<>|]+/g, "_").replace(/^\.+/, "").trim();
   return cleaned || "axivestra-export.json";
 }
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
-  }
-  return btoa(binary);
-}
-
 async function saveAppFile(
   fileName: string, contents: string, encoding: AppFileEncoding, mimeType = "application/json;charset=utf-8"
 ): Promise<AppFileSaveResult> {
