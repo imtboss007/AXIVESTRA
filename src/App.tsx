@@ -1651,7 +1651,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
         documents.push({
           id: record.id, propertyId: record.propertyId, property: record.property, contactId: record.contactId || "",
           name: record.name, category: record.category, storagePath: record.storagePath, mimeType: record.mimeType,
-          sizeBytes: record.sizeBytes, expiresOn: record.expiresOn, notes: record.notes, createdAt: record.createdAt,
+          sizeBytes: bytes.byteLength, expiresOn: record.expiresOn, notes: record.notes, createdAt: record.createdAt,
           fileBase64: btoa(binary)
         });
       }

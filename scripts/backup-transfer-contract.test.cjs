@@ -18,6 +18,7 @@ assert.match(app, /window\.axivestraDesktop[\s\S]{0,300}openTextFile/);
 assert.match(app, /readBrowserFileText\(file\)/);
 assert.match(app, /await localDb\.documents\.bulkPut\(restored\)/);
 assert.match(app, /expectedSize !== bytes\.byteLength/);
+assert.match(app, /sizeBytes: bytes\.byteLength,[\s\S]{0,180}fileBase64: btoa\(binary\)/);
 assert.match(main, /ipcMain\.handle\("axivestra:save-file"/);
 assert.match(main, /dialog\.showSaveDialog/);
 assert.match(main, /ipcMain\.handle\("axivestra:open-text-file"/);
