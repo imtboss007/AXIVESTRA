@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, Tray, Menu } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, Tray, Menu, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { createWhatsAppService } = require("./whatsapp-service.cjs");
@@ -18,6 +18,49 @@ let mainWindow = null;
 let tray = null;
 let whatsappService = null;
 let isQuitting = false;
+
+
+// Native backup/export dialogs keep PC file transfer out of renderer Blob URLs.
+function assertTrustedBackupSender(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+    throw new Error("AXIVESTRA file access is available only to the application window.");
+  }
+}
+
+ipcMain.handle("axivestra:save-file", async (event, payload = {}) => {
+  assertTrustedBackupSender(event);
+  const requestedName = String(payload.fileName || "axivestra-export.json").slice(0, 180);
+  const safeName = path.basename(requestedName).replace(/[<>:"\/\\|?*]+/g, "_") || "axivestra-export.json";
+  const encoding = payload.encoding === "base64" ? "base64" : "utf8";
+  const contents = typeof payload.contents === "string" ? payload.contents : "";
+  const buffer = Buffer.from(contents, encoding);
+  if (buffer.byteLength > 150 * 1024 * 1024) throw new Error("This export exceeds the 150 MB file limit.");
+  const extension = path.extname(safeName).replace(/^\./, "").toLowerCase() || "json";
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Save AXIVESTRA file",
+    defaultPath: path.join(app.getPath("downloads"), safeName),
+    filters: [{ name: "AXIVESTRA file", extensions: [extension] }, { name: "All files", extensions: ["*"] }]
+  });
+  if (result.canceled || !result.filePath) return { canceled: true };
+  await fs.promises.writeFile(result.filePath, buffer);
+  return { canceled: false, fileName: path.basename(result.filePath), bytesWritten: buffer.byteLength };
+});
+
+ipcMain.handle("axivestra:open-text-file", async event => {
+  assertTrustedBackupSender(event);
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Choose AXIVESTRA JSON backup",
+    properties: ["openFile"],
+    filters: [{ name: "JSON backup", extensions: ["json"] }, { name: "All files", extensions: ["*"] }]
+  });
+  if (result.canceled || !result.filePaths[0]) return { canceled: true };
+  const filePath = result.filePaths[0];
+  const stat = await fs.promises.stat(filePath);
+  if (!stat.isFile()) throw new Error("The selected path is not a file.");
+  if (stat.size > 150 * 1024 * 1024) throw new Error("This JSON backup exceeds the 150 MB import limit.");
+  const contents = await fs.promises.readFile(filePath, "utf8");
+  return { canceled: false, fileName: path.basename(filePath), contents };
+});
 
 function createWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {

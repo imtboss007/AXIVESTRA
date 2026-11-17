@@ -16,9 +16,10 @@ const checks = [
   ["local mode does not require sign-out or destroy the account session", /if \(localMode\) return <App onSwitchCompany=\{switchToCloudMode\} \/>/.test(gate)],
   ["local mode can return to cloud login from Settings", /Sign in \/ switch to cloud mode/.test(app)],
   ["workspace export uses a versioned envelope", /createWorkspaceBackup\([\s\S]{0,350}properties, contacts, whatsappGroups: savedWhatsAppGroups, tasks/.test(app)],
-  ["workspace import validates before applying state", /parseWorkspaceBackup\(parsed\)[\s\S]{0,2500}All collections are parsed and validated before any state changes are committed/.test(app)],
-  ["workspace backup file picker is attached before opening", (() => { const start = app.indexOf("const importWorkspaceBackup = () => {"); const end = app.indexOf("\n  };", start); const handler = start < 0 || end < 0 ? "" : app.slice(start, end); const appended = handler.indexOf("document.body.appendChild(input)"); const clicked = handler.indexOf("input.click()"); return appended >= 0 && clicked > appended; })()],
-  ["workspace backup picker is removed after the selection window", /const importWorkspaceBackup = \(\) => \{[\s\S]*?window\.setTimeout\(\(\) => \{ if \(input\.isConnected\) input\.remove\(\); \}, 120000\)/.test(app)],
+  ["workspace import persists to the active scope before updating state", /parseWorkspaceBackup\(parsed\)[\s\S]{0,2500}persistImportedWorkspaceCollections\(collections\)[\s\S]{0,900}setProperties\(collections\.properties/.test(app)],
+  ["workspace restore confirms only after records are persisted", /persistImportedWorkspaceCollections\(collections\)[\s\S]{0,1400}Workspace backup imported and saved/.test(app)],
+  ["JSON import chooser is attached, cancel-aware and bounded", /async function chooseJsonBackupText[\s\S]{0,1400}input\.addEventListener\("cancel"\)[\s\S]{0,900}document\.body\.appendChild\(input\)[\s\S]{0,120}input\.click\(\)[\s\S]{0,300}120000/.test(app)],
+  ["Document Vault import uses the cross-platform chooser", /const importDocumentVault = async \(\) => \{[\s\S]{0,1000}chooseJsonBackupText\(\)/.test(app)],
   ["older mobile WebViews have a FileReader fallback", /async function readBrowserFileText[\s\S]{0,500}new FileReader\(\)/.test(app)],
   ["download URL is revoked after a delay", /window\.setTimeout\(\(\) => URL\.revokeObjectURL\(url\), 60000\)/.test(app)],
   ["document-file backup remains explicitly separate", /document files are backed up separately from the Documents workspace/.test(app)]
