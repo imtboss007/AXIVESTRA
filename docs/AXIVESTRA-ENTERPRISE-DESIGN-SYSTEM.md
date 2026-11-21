@@ -44,7 +44,11 @@ Use dedicated semantic colours for success, warning and danger. Do not repurpose
 7. Motion is brief and purposeful. Respect `prefers-reduced-motion`.
 8. The orbital explorer may remain a distinct dark visualization surface, with lower saturation and no excessive glow.
 
-## 4. Existing capability preservation
+## 4. Authentication and company selection
+
+The sign-in, account-creation, password-recovery and company-selection screens use the same pearl canvas, white card surfaces, marine identity, teal primary action and neutral input treatment. Authentication errors, informational messages and warnings retain distinct semantic colours. This avoids a dark neon login screen leading into a light enterprise workspace.
+
+## 5. Existing capability preservation
 
 The theme is scoped to `.ax-modern-shell` and the existing authentication shell. It does not replace or restructure:
 
@@ -56,7 +60,7 @@ The theme is scoped to `.ax-modern-shell` and the existing authentication shell.
 - Desktop Electron and Android Capacitor support.
 - The functional orbital workspace explorer and its record-derived metrics.
 
-## 5. Candidate open-source component inventory
+## 6. Candidate open-source component inventory
 
 The repositories below are component sources to evaluate, not wholesale applications to clone. Copy only the components needed, retain upstream attribution/licence notices and document any changes.
 
@@ -80,7 +84,7 @@ The repositories below are component sources to evaluate, not wholesale applicat
 
 Ruflo and gstack are development orchestration/process tools, not runtime dependencies of the AXIVESTRA client. Their setup and agent permissions must be handled separately. Do not treat a free repository or a successful install as proof that model usage, hosting or premium components are free.
 
-## 6. Delivery gates
+## 7. Delivery gates
 
 - Visual: screenshots on desktop, tablet and Android; verify typography, contrast, responsive states and no horizontal overflow.
 - Functional: run the complete existing test suite and E2E suite where configured.
@@ -89,6 +93,6 @@ Ruflo and gstack are development orchestration/process tools, not runtime depend
 - Access control: verify read-only role remains read-only; test cloud mode and local-only mode.
 - Release: no merge to `main`, public deployment or production release without explicit approval.
 
-## 7. Known verification boundary
+## 8. Known verification boundary
 
 The current change set adds the initial presentation layer and a static contract test. It does not claim that browser screenshots, physical Android testing, Electron packaging, or the production build have been executed. Those remain required before the redesign is considered fully validated.
