@@ -14,12 +14,12 @@ assert.match(app, /className=\{company\?\.role === "read_only" \? "app-shell ax-
   "The theme must stay scoped to the existing AXIVESTRA application shell.");
 
 const requiredTokens = [
-  "--axiv-canvas: #f3f6f5",
-  "--axiv-surface: #ffffff",
-  "--axiv-ink: #20343d",
-  "--axiv-primary: #246a67",
-  "--axiv-navy: #173746",
-  "--axiv-brass: #a77f48"
+  "--axiv-canvas: #0b1420",
+  "--axiv-surface: #132333",
+  "--axiv-ink: #e8f0f4",
+  "--axiv-primary: #3b9189",
+  "--axiv-navy: #091725",
+  "--axiv-brass: #b99a68"
 ];
 for (const token of requiredTokens) {
   assert.ok(theme.includes(token), `Missing approved design token: ${token}`);
@@ -55,10 +55,12 @@ for (const selector of [
 ]) {
   assert.ok(theme.includes(selector), `Missing authentication theme override: ${selector}`);
 }
-assert.match(theme, /\.auth-card\s*\{[^}]*background:\s*#fff/s,
-  "The authentication card must use the shared white surface.");
-assert.match(theme, /\.auth-primary[\s\S]*?background:\s*var\(--axiv-primary\)/,
-  "The authentication primary action must use the shared muted teal token.");
+assert.match(theme, /\.auth-card\s*\{[^}]*background:\s*linear-gradient\(155deg,#14293b,#0f2030\)/s,
+  "The authentication card must use the shared dark marine surface.");
+assert.match(theme, /\.auth-primary,[\s\S]*?background:\s*#286e6a/,
+  "The authentication primary action must use the muted teal token.");
+assert.match(theme, /color-scheme:\s*dark/,
+  "The application must use a dark browser colour scheme.");
 
 function luminance(hex) {
   const channels = hex.replace("#", "").match(/.{2}/g).map(value => parseInt(value, 16) / 255);
@@ -69,11 +71,11 @@ function contrast(a, b) {
   const values = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
-assert.ok(contrast("#20343d", "#f3f6f5") >= 7,
-  "Main text must meet a strong contrast target on the canvas.");
-assert.ok(contrast("#5b6d75", "#ffffff") >= 4.5,
-  "Muted text must remain readable on white surfaces.");
-assert.ok(contrast("#ffffff", "#246a67") >= 4.5,
-  "Primary button text must be readable against its fill.");
+assert.ok(contrast("#e8f0f4", "#0b1420") >= 12,
+  "Main text must meet a strong contrast target on the dark canvas.");
+assert.ok(contrast("#9aafbd", "#132333") >= 6,
+  "Muted text must remain readable on dark surfaces.");
+assert.ok(contrast("#f4fbfa", "#286e6a") >= 4.5,
+  "Primary button text must be readable against its muted teal fill.");
 
 console.log("AXIVESTRA enterprise design-system contract passed.");
