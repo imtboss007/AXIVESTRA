@@ -490,3 +490,256 @@ body {
     transition-duration: .01ms !important;
   }
 }
+
+
+/* Additional domain workbench surfaces that previously inherited the neon dark palette. */
+.ax-modern-shell .control-strip,
+.ax-modern-shell .control-metric,
+.ax-modern-shell .finance-summary > div,
+.ax-modern-shell .linked-stakeholder,
+.ax-modern-shell .ax-record-followup-people,
+.ax-modern-shell .ax-intelligence-kpis article,
+.ax-modern-shell .ax-shift-kpis article,
+.ax-modern-shell .ax-followup-kpis button,
+.ax-modern-shell .ax-intelligence-followup-metrics button,
+.ax-modern-shell .ax-followup-person-group,
+.ax-modern-shell .ax-hub-checklist,
+.ax-modern-shell .ax-hub-filter-field,
+.ax-modern-shell .ax-hub-export-panel,
+.ax-modern-shell .ax-record-group-links,
+.ax-modern-shell .ax-followup-export,
+.ax-modern-shell .ax-intent-search-results button,
+.ax-modern-shell .ax-intent-toolbar-actions > button,
+.ax-modern-shell .ax-intent-panel-picker button,
+.ax-modern-shell .ax-intent-four-stats button,
+.ax-modern-shell .ax-intent-finance-columns > div,
+.ax-modern-shell .ax-intent-focus-notice,
+.ax-modern-shell .ax-intent-integrity-note {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: #fff;
+  box-shadow: none;
+}
+.ax-modern-shell .control-metric:hover {
+  background: #f7faf9;
+  border-color: var(--axiv-line-strong);
+}
+.ax-modern-shell .control-metric-icon,
+.ax-modern-shell .ax-followup-contact,
+.ax-modern-shell .ax-followup-contact-add,
+.ax-modern-shell .ax-record-add-followup,
+.ax-modern-shell .ax-shift-count {
+  color: var(--axiv-primary);
+  border-color: #d4e3df;
+  background: var(--axiv-primary-soft);
+  box-shadow: none;
+}
+.ax-modern-shell .module-group {
+  color: #41665f;
+  border-color: #d8e7e1;
+  background: #edf4f0;
+}
+.ax-modern-shell .linked-stakeholder { color: var(--axiv-body); }
+.ax-modern-shell .ax-record-followup-people__heading,
+.ax-modern-shell .ax-record-followup-people__content,
+.ax-modern-shell .ax-followup-contact__name,
+.ax-modern-shell .ax-followup-contact-add label,
+.ax-modern-shell .ax-followup-contact-empty {
+  color: var(--axiv-body);
+}
+.ax-modern-shell .ax-followup-contact__remove { color: var(--axiv-muted); }
+.ax-modern-shell .ax-followup-contact-add select {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line-strong);
+  background: #fff;
+}
+.ax-modern-shell .ax-followup-filter-grid select,
+.ax-modern-shell .ax-followup-filter-grid input,
+.ax-modern-shell .ax-followup-calendar input,
+.ax-modern-shell .ax-followup-contact-options label {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line-strong);
+  background: #fff;
+}
+.ax-modern-shell .ax-followup-tabs button,
+.ax-modern-shell .ax-followup-view-switch button,
+.ax-modern-shell .ax-intent-panel-picker button {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line);
+  background: #f8faf9;
+}
+.ax-modern-shell .ax-followup-tabs button.active,
+.ax-modern-shell .ax-followup-view-switch button.active,
+.ax-modern-shell .ax-intent-panel-picker button.selected {
+  color: #174f4b;
+  border-color: #b9d2cc;
+  background: #e6f0ed;
+}
+.ax-modern-shell .ax-followup-card {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: #fff;
+  box-shadow: 0 4px 15px rgba(27,52,62,.045);
+}
+.ax-modern-shell .ax-followup-card :is(h3, strong, p, small, span, time, label) {
+  color: var(--axiv-body);
+}
+.ax-modern-shell .ax-followup-card :is(h3, .ax-followup-card__title, .ax-followup-person-heading strong) {
+  color: var(--axiv-ink);
+}
+.ax-modern-shell .ax-followup-priority {
+  color: #5c6870;
+  border: 1px solid #dce5e4;
+  background: #f1f4f3;
+}
+.ax-modern-shell .ax-followup-priority.priority-urgent {
+  color: #8a3935;
+  border-color: #edcecb;
+  background: #fbefee;
+}
+.ax-modern-shell .ax-followup-priority.priority-high {
+  color: #865c24;
+  border-color: #ecddc2;
+  background: #faf4e8;
+}
+.ax-modern-shell .ax-followup-priority.priority-low {
+  color: #346a55;
+  border-color: #d2e6d9;
+  background: #edf6f0;
+}
+.ax-modern-shell .ax-followup-status {
+  color: #4e6068;
+  border-color: #dce5e4;
+  background: #f2f5f4;
+}
+.ax-modern-shell .ax-followup-status.status-completed {
+  color: #286247;
+  border-color: #d2e6d9;
+  background: #edf6f0;
+}
+.ax-modern-shell .ax-followup-status.status-cancelled {
+  color: #86514f;
+  border-color: #ead9d7;
+  background: #f8efee;
+}
+.ax-modern-shell .ax-followup-done,
+.ax-modern-shell .ax-followup-reopen {
+  color: #fff;
+  border-color: var(--axiv-primary);
+  background: var(--axiv-primary);
+}
+.ax-modern-shell .ax-followup-reopen { color: var(--axiv-body); background: #f4f7f6; border-color: var(--axiv-line-strong); }
+.ax-modern-shell .ax-followup-source-context,
+.ax-modern-shell .ax-followup-contact-options label.selected {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line);
+  background: #f6f9f8;
+}
+.ax-modern-shell .ax-intent-panel {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: #fff;
+}
+.ax-modern-shell .ax-intent-panel :is(h2, h3, p, strong, label, span) { color: var(--axiv-body); }
+.ax-modern-shell .ax-intent-panel :is(h2, h3, .ax-intent-panel-title) { color: var(--axiv-ink); }
+.ax-modern-shell .ax-intent-panel-controls button,
+.ax-modern-shell .ax-intent-examples button,
+.ax-modern-shell .ax-intent-four-stats button {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line);
+  background: #f8faf9;
+}
+.ax-modern-shell .ax-intent-module-bars i,
+.ax-modern-shell .ax-intent-workflow-stages i { background: #e1ebe8; }
+.ax-modern-shell .ax-intent-module-bars i b,
+.ax-modern-shell .ax-intent-workflow-stages i b { background: linear-gradient(90deg, #397f78, #7ba99c); }
+.ax-modern-shell .ax-intent-focus-notice { color: #285e4e; background: #edf6f1; }
+.ax-modern-shell .ax-intent-integrity-note { color: var(--axiv-muted); background: #f7f9f8; }
+.ax-modern-shell .ax-hub-explorer {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+}
+.ax-modern-shell .ax-hub-explorer :is(h2, h3, strong, label, p, span, small) { color: var(--axiv-body); }
+.ax-modern-shell .ax-hub-explorer :is(h2, h3, .ax-hub-explorer__head strong) { color: var(--axiv-ink); }
+.ax-modern-shell .ax-hub-checklist > input,
+.ax-modern-shell .ax-hub-filter-field > input,
+.ax-modern-shell .ax-hub-range input,
+.ax-modern-shell .ax-hub-range select,
+.ax-modern-shell .ax-followup-export__options select,
+.ax-modern-shell .ax-module-export-tools select {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line-strong);
+  background: #fff;
+}
+.ax-modern-shell .ax-hub-results-wrap { border-color: var(--axiv-line); }
+.ax-modern-shell .ax-hub-results th {
+  color: #37565e;
+  background: #edf3f1;
+}
+.ax-modern-shell .ax-hub-results td { color: var(--axiv-body); border-color: var(--axiv-line); }
+.ax-modern-shell .ax-hub-results tbody tr:nth-child(even) { background: #f7faf9; }
+.ax-modern-shell .ax-hub-record-link strong { color: var(--axiv-ink); }
+.ax-modern-shell .ax-hub-record-link small { color: var(--axiv-muted); }
+.ax-modern-shell .ax-hub-text-link { color: var(--axiv-primary); }
+.ax-modern-shell .ax-hub-modal-backdrop { background: rgba(18,45,58,.48); }
+.ax-modern-shell .ax-hub-record-modal {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(18,45,58,.18);
+}
+.ax-modern-shell .ax-hub-record-modal__head { border-color: var(--axiv-line); }
+.ax-modern-shell .ax-hub-record-modal__head h2 { color: var(--axiv-ink); }
+.ax-modern-shell .ax-hub-record-modal__head p,
+.ax-modern-shell .ax-hub-record-modal__grid span { color: var(--axiv-muted); }
+.ax-modern-shell .ax-hub-record-modal__head > button,
+.ax-modern-shell .ax-hub-record-modal__grid article,
+.ax-modern-shell .ax-hub-modal-followups article,
+.ax-modern-shell .ax-record-group-links__options label,
+.ax-modern-shell .ax-followup-export {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line);
+  background: #f8faf9;
+}
+.ax-modern-shell .ax-hub-record-modal__grid strong,
+.ax-modern-shell .ax-hub-modal-followups article strong,
+.ax-modern-shell .ax-followup-export__head { color: var(--axiv-ink); }
+.ax-modern-shell .ax-hub-modal-followups article small,
+.ax-modern-shell .ax-hub-modal-followups > p,
+.ax-modern-shell .ax-hub-footnote,
+.ax-modern-shell .ax-followup-export__head span,
+.ax-modern-shell .ax-module-export-tools label { color: var(--axiv-muted); }
+.ax-modern-shell .ax-record-group-links__set > div:first-child strong { color: var(--axiv-ink); }
+.ax-modern-shell .ax-record-group-links__set > div:first-child button,
+.ax-modern-shell .ax-hub-checklist__actions button { color: var(--axiv-primary); }
+.ax-modern-shell .ax-followup-export__options label { color: var(--axiv-body); }
+
+/* Keep the orbital scene dark but quiet; its controls and detail panels remain readable. */
+.ax-modern-shell .ax-orbit-hub .ax-orbit-core__aura { opacity: .55; }
+.ax-modern-shell .ax-orbit-hub .ax-orbit-beacon,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-live,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-telemetry__pulse {
+  background: #a2c9bd;
+  box-shadow: 0 0 0 3px rgba(162,201,189,.12);
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node {
+  border-color: rgba(213,230,226,.22);
+  background: linear-gradient(145deg, rgba(42,72,82,.96), rgba(25,50,63,.98));
+  box-shadow: 0 8px 20px rgba(5,20,29,.18);
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node:hover,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node:focus-visible,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node.is-focused {
+  border-color: rgba(189,220,210,.65);
+  background: linear-gradient(145deg, rgba(55,91,98,.98), rgba(29,61,72,.98));
+  box-shadow: 0 9px 22px rgba(5,20,29,.24);
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node::before { display: none; }
+.ax-modern-shell .ax-orbit-hub .ax-orbit-distribution,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-distribution-card,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-detail,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-metric {
+  border-color: rgba(213,230,226,.16);
+  background: rgba(11,32,43,.36);
+  box-shadow: none;
+}
