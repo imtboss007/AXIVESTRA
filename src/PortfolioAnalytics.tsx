@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
+import type { EChartsOption } from "echarts";
 import { formatIndianCompactAmount, parseIndianAmount } from "./lib/indian-amount.mjs";
 import { ArrowUpRight, BarChart3, TrendingUp, CircleDollarSign, PieChart, Sparkles } from "lucide-react";
+const PortfolioEChart=lazy(()=>import("./components/PortfolioEChart"));
 
 type PropertyRow = { id: string; title: string; module: string; value: string; status: string };
 type FinancialRow = { id: string; type: string; amount: string; date: string };
@@ -15,10 +17,22 @@ type Props = {
   onOpenModule: (name: string) => void;
 };
 
-const PALETTE = ["#20d9ef", "#2578ff", "#7a6dff", "#28c78a", "#ffbf68", "#fc7796", "#57b4d4", "#a7b8cd"];
+const PALETTE = ["#69b9ae","#7694bd","#b99a68","#8ba6a0","#9e8fad","#d17c79","#709aaf","#8f9c84"];
 const INFLOW = new Set(["Sale", "Advance", "Loan Disbursal", "Receipt"]);
 const OUTFLOW = new Set(["Purchase", "Loan Repayment", "Interest", "Instalment", "Brokerage", "Expense", "Settlement"]);
 const compact = (value: number) => formatIndianCompactAmount(value) || "—";
+
+type CItem={name:string;value:number;color:string;count?:number};type MFlow={key:string;name:string;fullName:string;inflow:number;outflow:number;net:number;count:number};
+function buildPortfolioChartOption(focus:"allocation"|"pipeline"|"cashflow",type:"donut"|"bar"|"line",metric:"value"|"count",items:CItem[],months:MFlow[],selected:string,labels:boolean):EChartsOption{
+ const axis={color:"#9aafbd",fontSize:11},grid="#294254",money=(v:number)=>formatIndianCompactAmount(v)||"0";
+ const common={backgroundColor:"transparent",animationDuration:240,textStyle:{color:"#c3d1da",fontFamily:"Inter,system-ui,sans-serif"},tooltip:{trigger:"item" as const,confine:true},aria:{enabled:true,decal:{show:true}}};
+ if(focus==="cashflow"&&type==="donut"){const a=months.reduce((s,r)=>s+r.inflow,0),b=months.reduce((s,r)=>s+r.outflow,0);return {...common,color:["#69b9ae","#d17c79"],legend:{bottom:0,textStyle:axis},series:[{type:"pie",radius:["48%","74%"],center:["50%","44%"],label:{show:labels,color:"#c3d1da",formatter:"{b}: {d}%"},data:[{name:"Inflow",value:a},{name:"Outflow",value:b}]}]};}
+ if(focus==="cashflow"){const st:"bar"|"line"=type==="bar"?"bar":"line";return {...common,color:["#69b9ae","#d17c79"],legend:{bottom:0,textStyle:axis},grid:{left:84,right:24,top:24,bottom:58},xAxis:{type:"category",data:months.map(x=>x.name),axisLabel:axis,axisLine:{lineStyle:{color:grid}},axisTick:{show:false}},yAxis:{type:"value",axisLabel:{...axis,formatter:(v:string|number)=>money(Number(v))},splitLine:{lineStyle:{color:grid,type:"dashed"}}},series:[{name:"Inflow",type:st,smooth:true,barMaxWidth:22,data:months.map(x=>x.inflow),itemStyle:{color:"#69b9ae"},lineStyle:{width:3},areaStyle:type==="line"?{opacity:.08}:undefined,label:{show:labels,position:"top"}},{name:"Outflow",type:st,smooth:true,barMaxWidth:22,data:months.map(x=>x.outflow),itemStyle:{color:"#d17c79"},lineStyle:{width:3},areaStyle:type==="line"?{opacity:.06}:undefined,label:{show:labels,position:"top"}}]};}
+ if(type==="donut")return {...common,color:items.map(x=>x.color),legend:{bottom:0,type:"scroll",textStyle:axis},series:[{type:"pie",radius:["48%","74%"],center:["50%","44%"],label:{show:labels,color:"#c3d1da",formatter:"{b}: {d}%"},data:items.map(x=>({name:x.name,value:x.value,itemStyle:{opacity:(selected&&selected!==x.name)?0.32:1}}))}]};
+ if(type==="bar")return {...common,grid:{left:150,right:48,top:18,bottom:28,containLabel:true},xAxis:{type:"value",axisLabel:{...axis,formatter:(v:string|number)=>metric==="value"?money(Number(v)):Number(v).toLocaleString("en-IN")},splitLine:{lineStyle:{color:grid,type:"dashed"}}},yAxis:{type:"category",inverse:true,data:items.map(x=>x.name),axisLabel:axis,axisLine:{show:false},axisTick:{show:false}},series:[{type:"bar",barMaxWidth:24,data:items.map(x=>({name:x.name,value:x.value,itemStyle:{color:x.color,opacity:(selected&&selected!==x.name)?0.38:1,borderRadius:[0,5,5,0]}})),label:{show:labels,position:"right",color:"#c3d1da"}}]};
+ return {...common,grid:{left:72,right:24,top:26,bottom:58},xAxis:{type:"category",data:items.map(x=>x.name),axisLabel:{...axis,interval:0,rotate:items.length>5?18:0},axisLine:{lineStyle:{color:grid}},axisTick:{show:false}},yAxis:{type:"value",axisLabel:{...axis,formatter:(v:string|number)=>metric==="value"?money(Number(v)):Number(v).toLocaleString("en-IN")},splitLine:{lineStyle:{color:grid,type:"dashed"}}},series:[{type:"line",smooth:.28,symbol:"circle",symbolSize:8,data:items.map(x=>({name:x.name,value:x.value})),lineStyle:{color:"#69b9ae",width:3},itemStyle:{color:"#69b9ae",borderColor:"#0b1420",borderWidth:2},areaStyle:{color:"rgba(105,185,174,.08)"},label:{show:labels,position:"top",color:"#c3d1da"}}]};
+}
+
 
 export default function PortfolioAnalytics({ properties, financials, tasks, modules, onOpenModule }: Props) {
   const [focus, setFocus] = useState<"allocation" | "pipeline" | "cashflow">("allocation");
@@ -70,6 +84,7 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
   const title = focus === "allocation" ? metric === "value" ? "Recorded value / exposure by workspace" : "Records by workspace" : focus === "pipeline" ? "Portfolio status mix" : "Cashflow movement";
   const subtitle = focus === "allocation" ? "Select any segment to open that module." : focus === "pipeline" ? "Real status values from your saved records." : "Recorded inflows and outflows by month; no forecast is fabricated.";
   const activeModuleName = selected && moduleRows.some(row => row.name === selected) ? selected : "";
+  const chartOption=useMemo(()=>buildPortfolioChartOption(focus,chartType,metric,visibleItems,cashflowRows,selected,showLabels),[focus,chartType,metric,visibleItems,cashflowRows,selected,showLabels]);
 
   const setFocusView = (next: "allocation" | "pipeline" | "cashflow") => {
     setFocus(next);
@@ -99,11 +114,8 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
     <div className="ax-analytics-grid">
       <div className="ax-chart-stage">
         <div className="ax-chart-mode-title"><strong>{title}</strong><p>{subtitle}</p></div>
-        {empty ? <div className="ax-chart-empty"><PortfolioEmptyChartPreview type={chartType}/><strong>Waiting for your data</strong><p>{focus === "cashflow" ? "Add financial transactions to compare monthly inflows and outflows." : focus === "pipeline" || properties.length === 0 ? "Add your first property/deal record to activate interactive charts." : "No record values have been entered yet. Switch to Count to inspect saved records, or enter the relevant value or exposure in its workspace."}</p><small>Empty states are intentional—no sample data is counted as real.</small></div>
-        : focus === "cashflow" ? <CashflowChart rows={cashflowRows} type={chartType} showLabels={showLabels} onSelect={setSelected} selected={selected}/>
-        : chartType === "donut" ? <DonutChart items={visibleItems} total={totalChart} selected={selected} onSelect={setSelected} centerLabel={focus === "allocation" ? "RECORDED VALUE" : "RECORDS"} centerValue={focus === "allocation" && metric === "value" ? compact(totalChart) : String(totalChart)} showLabels={showLabels}/>
-        : chartType === "bar" ? <HorizontalBars items={visibleItems} selected={selected} onSelect={setSelected} showLabels={showLabels}/>
-        : <TrendChart items={visibleItems} selected={selected} onSelect={setSelected} showLabels={showLabels}/>}
+        {empty ? <div className="ax-chart-empty"><PortfolioEmptyChartPreview type={chartType}/><strong>Waiting for your data</strong><p>{focus==="cashflow"?"Add financial transactions to compare monthly inflows and outflows.":focus==="pipeline"||properties.length===0?"Add your first property/deal record to activate interactive charts.":"No record values have been entered yet. Switch to Count to inspect saved records, or enter the relevant value or exposure in its workspace."}</p><small>Empty states are intentional—no sample data is counted as real.</small></div>
+        : <Suspense fallback={<div className="ax-echart-loading" role="status">Loading interactive analytics…</div>}><PortfolioEChart option={chartOption} ariaLabel={title+". "+subtitle} onSelect={setSelected}/></Suspense>}
       </div>
       <aside className="ax-chart-inspector">
         <div className="ax-inspector-head"><span>LIVE SUMMARY</span><CircleDollarSign size={18}/></div>
@@ -148,83 +160,3 @@ function PortfolioEmptyChartPreview({ type }: { type: "donut" | "bar" | "line" }
   return <svg className="ax-empty-chart-line" viewBox="0 0 220 150" role="img" aria-label="Empty trend chart preview">{[0,1,2,3].map(n=><line key={n} x1="24" x2="208" y1={18+n*32} y2={18+n*32} stroke="#1a354a" strokeDasharray="4 6"/>)}<polyline points="24,114 80,92 136,104 208,72" fill="none" stroke="#244b61" strokeWidth="2" strokeDasharray="5 7"/><text x="116" y="139" textAnchor="middle" fill="#6b8ca2" fontSize="9">EMPTY TREND PREVIEW</text></svg>;
 }
 
-function DonutChart({ items, total, selected, onSelect, centerLabel, centerValue, showLabels }: {
-  items: { name: string; value: number; color: string; count?: number }[];
-  total: number; selected: string; onSelect: (value: string) => void; centerLabel: string; centerValue: string; showLabels: boolean;
-}) {
-  const radius = 72;
-  const circumference = 2 * Math.PI * radius;
-  let offset = 0;
-  return <div className="ax-donut-wrap"><svg viewBox="0 0 220 220" role="img" aria-label="Interactive donut chart">
-    <circle cx="110" cy="110" r={radius} fill="none" stroke="#12253b" strokeWidth="23"/>
-    {items.map(item => {
-      const length = total > 0 ? circumference * item.value / total : 0;
-      const currentOffset = offset;
-      offset += length;
-      return <circle key={item.name} cx="110" cy="110" r={radius} fill="none" stroke={item.color} strokeWidth={selected && selected !== item.name ? 15 : 23} strokeDasharray={length + " " + Math.max(0, circumference - length)} strokeDashoffset={-currentOffset} transform="rotate(-90 110 110)" strokeLinecap="butt" tabIndex={0} role="button" aria-label={item.name + ": " + item.value} onClick={() => onSelect(selected === item.name ? "" : item.name)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onSelect(selected === item.name ? "" : item.name); }} className="ax-donut-segment"><title>{item.name}: {item.value.toLocaleString("en-IN")}</title></circle>;
-    })}
-    <circle cx="110" cy="110" r="52" fill="#0e2034"/>
-    <text x="110" y="103" textAnchor="middle" fill="#8aa4bd" fontSize="9" letterSpacing="1.4">{centerLabel}</text>
-    <text x="110" y="125" textAnchor="middle" fill="#f2f8ff" fontSize="17" fontWeight="700">{centerValue.length > 12 ? centerValue.slice(0, 11) + "…" : centerValue}</text>
-  </svg>
-  {showLabels && <div className="ax-donut-callout"><span>{items.length} categories</span><span>{items.reduce((sum, item) => sum + (item.count || 0), 0)} records represented</span></div>}</div>;
-}
-
-function HorizontalBars({ items, selected, onSelect, showLabels }: {
-  items: { name: string; value: number; color: string }[]; selected: string; onSelect: (value: string) => void; showLabels: boolean;
-}) {
-  const max = Math.max(1, ...items.map(item => item.value));
-  return <div className="ax-horizontal-bars">{items.slice(0, 10).map(item => <button key={item.name} className={"ax-bar-row " + (selected === item.name ? "selected" : "")} onClick={() => onSelect(selected === item.name ? "" : item.name)}>
-    <span className="ax-bar-label">{item.name}</span><span className="ax-bar-track"><i style={{ width: (item.value / max * 100) + "%", background: item.color }}/></span>{showLabels && <strong>{item.value.toLocaleString("en-IN")}</strong>}
-  </button>)}</div>;
-}
-
-function TrendChart({ items, selected, onSelect, showLabels }: {
-  items: { name: string; value: number; color: string }[]; selected: string; onSelect: (value: string) => void; showLabels: boolean;
-}) {
-  const max = Math.max(1, ...items.map(item => item.value));
-  const width = 640, height = 260, left = 38, right = 18, top = 28, bottom = 40;
-  const points = items.map((item, index) => ({ ...item, x: left + (items.length < 2 ? (width - left - right) / 2 : index * (width - left - right) / (items.length - 1)), y: top + (1 - item.value / max) * (height - top - bottom) }));
-  return <div className="ax-line-chart"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Interactive trend chart">
-    {[0, 1, 2, 3, 4].map(n => <g key={n}><line x1={left} x2={width-right} y1={top + n * (height-top-bottom) / 4} y2={top + n * (height-top-bottom) / 4} stroke="#1c3550" strokeDasharray="4 6"/><text x={left-8} y={top+n*(height-top-bottom)/4+4} fill="#7893ac" textAnchor="end" fontSize="10">{Math.round(max * (1-n/4))}</text></g>)}
-    <polyline points={points.map(point => point.x + "," + point.y).join(" ")} fill="none" stroke="#2ee7ff" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>
-    {points.map(point => <g key={point.name} onClick={() => onSelect(selected === point.name ? "" : point.name)} role="button" tabIndex={0} className="ax-chart-point"><circle cx={point.x} cy={point.y} r={selected === point.name ? 7 : 5} fill="#2ee7ff" stroke="#071728" strokeWidth="3"/>{showLabels && <text x={point.x} y={point.y-13} textAnchor="middle" fill="#e4f5ff" fontSize="11">{point.value}</text>}<text x={point.x} y={height-15} textAnchor="middle" fill="#8da6be" fontSize="11">{point.name.length > 10 ? point.name.slice(0,9)+"…" : point.name}</text></g>)}
-  </svg></div>;
-}
-
-function CashflowChart({ rows, type, showLabels, onSelect, selected }: {
-  rows: { key: string; name: string; fullName: string; inflow: number; outflow: number; net: number; count: number }[];
-  type: "donut" | "bar" | "line"; showLabels: boolean; onSelect: (value: string) => void; selected: string;
-}) {
-  const max = Math.max(1, ...rows.flatMap(row => [row.inflow, row.outflow]));
-  const width = 640, height = 280, left = 40, right = 16, top = 25, bottom = 42;
-  const xAt = (index: number) => left + (index + 0.5) * (width-left-right) / rows.length;
-  const yAt = (value: number) => top + (1 - value / max) * (height-top-bottom);
-  if (type === "donut") {
-    const inflow = rows.reduce((sum, row) => sum + row.inflow, 0);
-    const outflow = rows.reduce((sum, row) => sum + row.outflow, 0);
-    return <DonutChart items={[{name:"Inflow",value:inflow,color:"#20d9ef"},{name:"Outflow",value:outflow,color:"#fc7796"}].filter(item => item.value > 0)} total={inflow+outflow} selected={selected} onSelect={onSelect} centerLabel="NET CASHFLOW" centerValue={compact(inflow-outflow)} showLabels={showLabels}/>;
-  }
-  if (type === "line") {
-    const points = (key: "inflow" | "outflow") => rows.map((row, index) => ({ x: xAt(index), y: yAt(row[key]), name: row.name, value: row[key], key: row.key }));
-    const inflowPoints = points("inflow"), outflowPoints = points("outflow");
-    return <div className="ax-line-chart"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Monthly cashflow line chart">
-      {[0,1,2,3,4].map(n=><g key={n}><line x1={left} x2={width-right} y1={top+n*(height-top-bottom)/4} y2={top+n*(height-top-bottom)/4} stroke="#1c3550" strokeDasharray="4 6"/><text x={left-8} y={top+n*(height-top-bottom)/4+4} textAnchor="end" fill="#7893ac" fontSize="10">{compact(max*(1-n/4))}</text></g>)}
-      <polyline points={inflowPoints.map(point=>point.x+","+point.y).join(" ")} fill="none" stroke="#20d9ef" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-      <polyline points={outflowPoints.map(point=>point.x+","+point.y).join(" ")} fill="none" stroke="#fc7796" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-      {inflowPoints.map(point=><g key={"in-"+point.key} onClick={()=>onSelect(selected===point.key?"":point.key)} className="ax-chart-point"><circle cx={point.x} cy={point.y} r={5} fill="#20d9ef"/>{showLabels&&<text x={point.x} y={point.y-12} textAnchor="middle" fill="#dffcff" fontSize="9">{compact(point.value)}</text>}</g>)}
-      {outflowPoints.map(point=><g key={"out-"+point.key} onClick={()=>onSelect(selected===point.key?"":point.key)} className="ax-chart-point"><circle cx={point.x} cy={point.y} r={5} fill="#fc7796"/>{showLabels&&<text x={point.x} y={point.y+18} textAnchor="middle" fill="#ffdce3" fontSize="9">{compact(point.value)}</text>}</g>)}
-      {rows.map((row,index)=><text key={row.key} x={xAt(index)} y={height-15} textAnchor="middle" fill="#8da6be" fontSize="11">{row.name}</text>)}
-    </svg></div>;
-  }
-  const slot=(width-left-right)/rows.length, barWidth=Math.min(22,slot*.27);
-  return <div className="ax-cashflow-bars"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Monthly cashflow bar chart">
-    {[0,1,2,3,4].map(n=><g key={n}><line x1={left} x2={width-right} y1={top+n*(height-top-bottom)/4} y2={top+n*(height-top-bottom)/4} stroke="#1c3550" strokeDasharray="4 6"/><text x={left-8} y={top+n*(height-top-bottom)/4+4} textAnchor="end" fill="#7893ac" fontSize="10">{compact(max*(1-n/4))}</text></g>)}
-    {rows.map((row,index)=><g key={row.key} onClick={()=>onSelect(selected===row.key?"":row.key)} className="ax-chart-point">
-      <rect x={xAt(index)-barWidth-2} y={yAt(row.inflow)} width={barWidth} height={height-bottom-yAt(row.inflow)} rx="3" fill="#20d9ef" opacity={selected && selected !== row.key ? 0.7 : 1}/>
-      <rect x={xAt(index)+2} y={yAt(row.outflow)} width={barWidth} height={height-bottom-yAt(row.outflow)} rx="3" fill="#fc7796" opacity={selected&&selected!==row.key?.7:1}/>
-      {showLabels&&<text x={xAt(index)} y={height-15} textAnchor="middle" fill="#8da6be" fontSize="11">{row.name}</text>}
-      <title>{row.fullName}: inflow {compact(row.inflow)}, outflow {compact(row.outflow)}</title>
-    </g>)}
-  </svg><div className="ax-chart-legend-inline"><span><i className="inflow-dot"/> Inflow</span><span><i className="outflow-dot"/> Outflow</span></div></div>;
-}

@@ -79,3 +79,8 @@ assert.ok(contrast("#f4fbfa", "#286e6a") >= 4.5,
   "Primary button text must be readable against its muted teal fill.");
 
 console.log("AXIVESTRA enterprise design-system contract passed.");
+
+
+assert.match(theme,/\.ax-modern-shell\s*\{[^}]*color-scheme:\s*dark/s,"Shell remains dark.");
+assert.match(theme,/\.ax-enterprise-grid__viewport/,"Enterprise table dark styling exists.");
+assert.match(theme,/\.ax-echart-host/,"Chart container styling exists.");

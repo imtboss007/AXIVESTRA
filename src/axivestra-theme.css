@@ -1,6 +1,6 @@
 /*
  * AXIVESTRA visual system
- * Direction: Pearl canvas, deep marine navigation, muted teal actions, restrained brass accents.
+ * Direction: Night Marine canvas, layered dark surfaces, muted teal actions, restrained brass accents.
  * This file is intentionally layered after styles.css: presentation only, no business logic.
  */
 
@@ -1175,3 +1175,51 @@ body { background: #0b1420; color: #e8f0f4; }
   .auth-shell { padding: 16px 12px; }
   .auth-card { border-radius: 18px; }
 }
+
+
+/* Enterprise integrations — Night Marine */
+.ax-modern-shell{color-scheme:dark;--ax-modern-elevated:#132638;--ax-modern-line:rgba(41,64,82,.82);--ax-modern-line-strong:rgba(75,130,137,.66)}
+.ax-modern-shell .ax-enterprise-grid{display:grid;gap:12px;min-width:0}
+.ax-modern-shell .ax-enterprise-grid__toolbar{display:flex;align-items:end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.ax-modern-shell .ax-enterprise-grid__toolbar label{display:grid;gap:6px;width:min(100%,440px);color:#c3d1da;font-size:12px}
+.ax-modern-shell .ax-enterprise-grid__toolbar input{width:100%;min-height:40px;padding:9px 12px;color:#e8f0f4;border:1px solid #365165;border-radius:9px;background:#0f2030}
+.ax-modern-shell .ax-enterprise-grid__count{color:#9aafbd;font-size:12px}
+.ax-modern-shell .ax-enterprise-grid__viewport{max-height:min(64vh,620px);overflow:auto;border:1px solid #294254;border-radius:12px;background:#102234}
+.ax-modern-shell .ax-enterprise-grid__viewport:focus-visible{outline:2px solid #72bdb4;outline-offset:2px}
+.ax-modern-shell .ax-enterprise-grid__table{border-collapse:separate;border-spacing:0;color:#c3d1da;font-size:12px}
+.ax-modern-shell .ax-enterprise-grid__table th{padding:0;color:#dce8ed;border-bottom:1px solid #365165;background:#1b3447;text-align:left}
+.ax-modern-shell .ax-enterprise-grid__sort{display:flex;align-items:center;gap:5px;width:100%;min-height:42px;padding:9px 10px;color:inherit;border:0;background:transparent;font:inherit;font-weight:700;text-align:left}
+.ax-modern-shell .ax-enterprise-grid__table td{display:flex;align-items:center;min-height:58px;padding:9px 10px;color:#c3d1da;border-bottom:1px solid #263e50;background:#122638;overflow-wrap:anywhere}
+.ax-modern-shell .ax-enterprise-grid__table tbody tr:nth-child(even) td{background:#172d3e}
+.ax-modern-shell .ax-enterprise-grid__table tbody tr:hover td{background:#1b3948}
+.ax-modern-shell .ax-echart-host{position:relative;width:100%;min-height:320px;height:clamp(300px,38vw,410px)}
+.ax-modern-shell .ax-echart-description{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;clip-path:inset(50%)}
+.ax-modern-shell .ax-echart-loading{min-height:320px;display:grid;place-items:center;color:#9aafbd}
+.ax-modern-shell .ax-field-error{display:block;margin-top:4px;color:#efb0a9}
+.ax-modern-shell [aria-invalid=true]{border-color:#b56d6a!important}
+.ax-modern-shell .ax-agent-ui-renderer{display:grid;gap:12px}
+.ax-modern-shell .ax-agent-content-card,.ax-modern-shell .ax-agent-metric-card,.ax-modern-shell .ax-agent-record-card,.ax-modern-shell .ax-agent-action-preview,.ax-modern-shell .ax-agent-invalid{min-width:0;padding:16px;color:#dce7ed;border:1px solid #294254;border-radius:13px;background:#132638}
+.ax-modern-shell .ax-agent-content-card h3,.ax-modern-shell .ax-agent-action-preview h3{margin:4px 0 8px;color:#edf4f7}
+.ax-modern-shell .ax-agent-content-card p,.ax-modern-shell .ax-agent-invalid p{margin:0;color:#b4c5cf;line-height:1.55}
+.ax-modern-shell .ax-agent-metric-card{display:grid;gap:5px}
+.ax-modern-shell .ax-agent-metric-card span,.ax-modern-shell .ax-agent-record-card>span{color:#9aafbd;font-size:12px}
+.ax-modern-shell .ax-agent-metric-card strong{color:#eaf1f5;font-size:24px;font-variant-numeric:tabular-nums}
+.ax-modern-shell .ax-agent-record-card{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ax-modern-shell .ax-agent-action-preview{display:grid;gap:14px}
+.ax-modern-shell .ax-agent-action-preview__header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.ax-modern-shell .ax-agent-kicker{color:#82b9b1;font-size:10px;font-weight:800;letter-spacing:.09em}
+.ax-modern-shell .ax-agent-consequence{padding:4px 8px;border:1px solid #3b596d;border-radius:999px;color:#c3d1da;font-size:11px}
+.ax-modern-shell .ax-agent-consequence--irreversible{color:#efb0a9;border-color:#70413f;background:#3d2527}
+.ax-modern-shell .ax-agent-consequence--undoable{color:#e3c58e;border-color:#695638;background:#382f20}
+.ax-modern-shell .ax-agent-consequence--reversible{color:#a9d8bf;border-color:#315b4d;background:#17362f}
+.ax-modern-shell .ax-agent-injection-flag{display:grid;gap:6px;padding:12px;color:#efc1ae;border:1px solid #70413f;border-radius:9px;background:#3d2527}
+.ax-modern-shell .ax-agent-injection-flag span{color:#e1bcb5;font-size:12px}
+.ax-modern-shell .ax-agent-action-facts{display:grid;gap:0;margin:0;border-top:1px solid #294254}
+.ax-modern-shell .ax-agent-action-facts>div{display:grid;grid-template-columns:minmax(110px,.35fr) minmax(0,1fr);gap:12px;padding:9px 0;border-bottom:1px solid #294254}
+.ax-modern-shell .ax-agent-action-facts dt{color:#9aafbd;font-size:12px}
+.ax-modern-shell .ax-agent-action-facts dd{margin:0;color:#e5edf2;overflow-wrap:anywhere;white-space:pre-wrap}
+.ax-modern-shell .ax-agent-undo-note,.ax-modern-shell .ax-agent-policy-note{margin:0;color:#9aafbd;font-size:11px;line-height:1.5}
+.ax-modern-shell .ax-agent-confirm-field{display:grid;gap:6px;color:#efb0a9;font-size:12px}
+.ax-modern-shell .ax-agent-confirm-field input{width:min(100%,260px)}
+.ax-modern-shell .ax-agent-action-preview__footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+@media(max-width:640px){.ax-modern-shell .ax-agent-action-facts>div{grid-template-columns:1fr;gap:4px}.ax-modern-shell .ax-agent-action-preview__header{flex-direction:column}.ax-modern-shell .ax-agent-action-preview__footer>button{width:100%}.ax-modern-shell .ax-echart-host{height:320px}}

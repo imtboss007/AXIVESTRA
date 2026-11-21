@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import EnterpriseDataTable from "./components/EnterpriseDataTable";
 import { CalendarClock, Download, FileDown, Filter, MapPin, X } from "lucide-react";
 import { formatIndianCompactAmount, isIndianAmountLabel, parseIndianAmount } from "./lib/indian-amount.mjs";
 import { legacyRecordFollowUp, parseFollowUps, type FollowUpEntry, type FollowUpRecordLike } from "./lib/follow-ups";
@@ -132,6 +134,18 @@ export default function IntelligenceHubExplorer({properties,contacts,modules,mod
   const totals=useMemo(()=>filtered.reduce((acc,record)=>({value:acc.value+(parseIndianAmount(record.value||"")||0),count:acc.count+1}),{value:0,count:0}),[filtered]);
   const clearFilters=()=>{setModuleIds([]);setLocation("");setAreaMin("");setAreaMax("");setAreaUnit("sq ft");setSrMin("");setSrMax("");setValueMin("");setValueMax("");setMarketMin("");setMarketMax("");setPrimaryIds([]);setFollowIds([]);setPrimaryGroups([]);setFollowGroups([]);};
   const labelNames=(ids:string[])=>ids.map(id=>contacts.find(person=>person.id===id)?.name).filter(Boolean).join(", ");
+  const hubColumns=useMemo<ColumnDef<HubRecord,unknown>[]>(()=>[
+ {id:"record",header:"Record / module",size:260,accessorFn:r=>[r.title,r.module,r.status||""].join(" "),cell:({row})=><button type="button" className="ax-hub-record-link" onClick={()=>setSelectedRecord(row.original)}><strong>{row.original.title}</strong><small>{row.original.module} · {row.original.status||"Unspecified"}</small></button>},
+ {id:"location",header:"Location",size:170,accessorFn:r=>r.location||"—",cell:({row})=>row.original.location||"—"},
+ {id:"value",header:"Value / exposure",size:150,accessorFn:r=>parseIndianAmount(r.value||"")??-1,cell:({row})=>money(row.original.value||"")},
+ {id:"srRate",header:"SR rate",size:130,accessorFn:r=>parseIndianAmount(r.ratePerUnit||findMoney(r,moduleFields[r.module]||[],"sr"))??-1,cell:({row})=>money(row.original.ratePerUnit||findMoney(row.original,moduleFields[row.original.module]||[],"sr"))},
+ {id:"marketRate",header:"Market rate",size:140,accessorFn:r=>parseIndianAmount(findMoney(r,moduleFields[r.module]||[],"market"))??-1,cell:({row})=>money(findMoney(row.original,moduleFields[row.original.module]||[],"market"))},
+ {id:"settlementValue",header:"Settlement value",size:160,accessorFn:r=>parseIndianAmount(findMoney(r,moduleFields[r.module]||[],"settlement"))??-1,cell:({row})=>money(findMoney(row.original,moduleFields[row.original.module]||[],"settlement"))},
+ {id:"area",header:"Area",size:110,accessorFn:r=>r.areaValue||"",cell:({row})=>row.original.areaValue?row.original.areaValue+" "+(row.original.areaUnit||"sq ft"):"—"},
+ {id:"contacts",header:"Primary / follow-up",size:240,accessorFn:r=>labelNames(recordPrimaryIds(r,contacts))+" "+labelNames(recordFollowIds(r)),cell:({row})=>{const p=labelNames(recordPrimaryIds(row.original,contacts)),q=labelNames(recordFollowIds(row.original));return <button type="button" className="ax-hub-text-link" onClick={()=>setSelectedRecord(row.original)}>{p?"P: "+p:"Primary: —"}<br/>{q?"F: "+q:"Follow-up: —"}</button>;}},
+ {id:"next",header:"Follow-up date / time",size:190,accessorFn:r=>parseFollowUps(r.moduleData)[0]?.date||r.nextFollowUpDate||"",cell:({row})=>{const next=parseFollowUps(row.original.moduleData)[0]||null;return <button type="button" className="ax-hub-text-link" aria-haspopup="dialog" data-testid={"hub-date-open-"+row.original.id} onClick={()=>setSelectedRecord(row.original)}>{next?next.date+(next.time?" · "+next.time:""):(row.original.nextFollowUpDate||"No follow-up date")}</button>;}}
+ ],[contacts,moduleFields]);
+
   const reportRows=()=>{
     const data=filtered.map(record=>{
       const prim=labelNames(recordPrimaryIds(record,contacts));
@@ -180,14 +194,8 @@ export default function IntelligenceHubExplorer({properties,contacts,modules,mod
       </div>
       <div className="ax-hub-export-buttons"><button type="button" className="secondary-button" disabled={reportBusy} onClick={()=>exportReport("pdf")}><FileDown size={15}/> Download PDF</button><button type="button" className="primary-button" disabled={reportBusy} onClick={()=>exportReport("pptx")}><Download size={15}/> Download PPT</button></div>
     </div>
-    <div className="ax-hub-results-wrap"><table className="ax-hub-results"><thead><tr><th>Record / module</th><th>Location</th><th>Value / exposure</th><th>SR rate</th><th>Market rate</th><th>Settlement value</th><th>Area</th><th>Primary / follow-up</th><th>Follow-up date / time</th></tr></thead><tbody>
-      {filtered.map(record=>{
-        const primary=labelNames(recordPrimaryIds(record,contacts)),follow=labelNames(recordFollowIds(record)),entries=parseFollowUps(record.moduleData),next=entries[0]||null;
-        const sr=record.ratePerUnit||findMoney(record,moduleFields[record.module]||[],"sr");
-        return <tr key={record.id}><td><button type="button" className="ax-hub-record-link" onClick={()=>setSelectedRecord(record)}><strong>{record.title}</strong><small>{record.module} · {record.status||"Unspecified"}</small></button></td><td>{record.location||"—"}</td><td>{money(record.value||"")}</td><td>{money(sr)}</td><td>{money(findMoney(record,moduleFields[record.module]||[],"market"))}</td><td>{money(findMoney(record,moduleFields[record.module]||[],"settlement"))}</td><td>{record.areaValue?record.areaValue+" "+(record.areaUnit||"sq ft"):"—"}</td><td><button type="button" className="ax-hub-text-link" onClick={()=>setSelectedRecord(record)}>{primary?"P: "+primary:"Primary: —"}<br/>{follow?"F: "+follow:"Follow-up: —"}</button></td><td><button type="button" className="ax-hub-text-link" aria-haspopup="dialog" data-testid={"hub-date-open-"+record.id} onClick={()=>setSelectedRecord(record)}>{next?next.date+(next.time?" · "+next.time:""):(record.nextFollowUpDate||"No follow-up date")}</button></td></tr>;
-      })}
-      {filtered.length===0&&<tr><td colSpan={9}>No saved records match the selected filters.</td></tr>}
-    </tbody></table></div>
+    <EnterpriseDataTable data={filtered} columns={hubColumns} getRowId={record=>record.id} ariaLabel="Intelligence Hub filtered property and deal records" emptyLabel="No saved records match the selected filters."/>
+
     {activeSelectedRecord&&<div className="ax-hub-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setSelectedRecord(null);}}><section className="ax-hub-record-modal" role="dialog" aria-modal="true" aria-label={"Record details: "+activeSelectedRecord.title}>
       <div className="ax-hub-record-modal__head"><div><span className="section-kicker">{activeSelectedRecord.module}</span><h2>{activeSelectedRecord.title}</h2><p>{activeSelectedRecord.location||"Location not entered"} · {activeSelectedRecord.status||"Unspecified"}</p></div><button type="button" aria-label="Close record details" onClick={()=>setSelectedRecord(null)}><X size={18}/></button></div>
       <div className="ax-hub-record-modal__grid">

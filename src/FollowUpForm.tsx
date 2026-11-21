@@ -1,80 +1,35 @@
-import { useState } from "react";
+import { useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import type { FieldPath } from "react-hook-form";
 import type { FollowUpEntry, FollowUpPriority, FollowUpStatus } from "./lib/follow-ups";
 import { normalizeIndianAmount, formatIndianCompactAmount } from "./lib/indian-amount.mjs";
-
-type Property = { id:string; title:string; module:string; value:string; status?:string };
-type Contact = { id:string; name:string; phone?:string; role?:string };
-export type FollowUpDraft = { propertyId:string; entry:FollowUpEntry };
-type Props = {
-  properties:Property[];
-  contacts:Contact[];
-  defaultPropertyId?:string;
-  defaultContactId?:string;
-  initial?:FollowUpEntry|null;
-  onSave:(draft:FollowUpDraft)=>void;
-  onCancel:()=>void;
-};
-
-export default function FollowUpForm({properties,contacts,defaultPropertyId,defaultContactId,initial,onSave,onCancel}:Props) {
-  const [amountError,setAmountError]=useState("");
-  const [form,setForm]=useState(()=>{
-    const property=properties.find(item=>item.id===defaultPropertyId);
-    return {
-      propertyId:defaultPropertyId||"",
-      contactIds:initial?.contactIds ?? (defaultContactId ? [defaultContactId] : []),
-      description:initial?.description ?? "",
-      amount:initial?.amount ? (formatIndianCompactAmount(initial.amount) || initial.amount) : (property?.value ? formatIndianCompactAmount(property.value) : ""),
-      date:initial?.date ?? new Date().toISOString().slice(0,10),
-      time:initial?.time ?? "10:00",
-      priority:initial?.priority ?? "Normal" as FollowUpPriority,
-      status:initial?.status ?? "Open" as FollowUpStatus,
-      notes:initial?.notes ?? "",
-      nextAction:initial?.nextAction ?? ""
-    };
-  });
-  const update=(key:string,value:string)=>setForm(previous=>({...previous,[key]:value}));
-  const selectedProperty=properties.find(item=>item.id===form.propertyId);
-  const toggleContact=(id:string)=>{
-    setForm(previous=>({...previous,contactIds:previous.contactIds.includes(id)
-      ? previous.contactIds.filter(value=>value!==id)
-      : [...previous.contactIds,id]}));
-  };
-  return <form className="form-card ax-followup-form" onSubmit={event=>{
-    event.preventDefault();
-    if(!form.propertyId || !form.description.trim() || !form.date) return;
-    const normalizedAmount=normalizeIndianAmount(form.amount);
-    if(form.amount.trim() && normalizedAmount===null){setAmountError("Enter a valid INR amount, such as 4 Cr or 25 Lakhs.");return;}
-    setAmountError("");
-    onSave({
-      propertyId:form.propertyId,
-      entry:{
-        id:initial?.id || (typeof crypto!=="undefined" && "randomUUID" in crypto ? crypto.randomUUID() : "fu-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8)),
-        contactIds:form.contactIds,
-        description:form.description.trim(),
-        amount:form.amount.trim()?String(normalizedAmount):"",
-        date:form.date,
-        time:form.time,
-        priority:form.priority,
-        status:form.status,
-        notes:form.notes.trim(),
-        nextAction:form.nextAction.trim(),
-        assignedAt:initial?.assignedAt || new Date().toISOString()
-      }
-    });
-  }}>
-    <label>Related module record *<select required value={form.propertyId} onChange={event=>{
-      const id=event.target.value;
-      const item=properties.find(property=>property.id===id);
-      setForm(previous=>({...previous,propertyId:id,amount:previous.amount || (item?.value ? (formatIndianCompactAmount(item.value) || item.value) : "")}));
-    }}><option value="">Choose source record</option>{properties.map(item=><option key={item.id} value={item.id}>{item.module} · {item.title}</option>)}</select></label>
-    {selectedProperty && <div className="ax-followup-source-context"><strong>{selectedProperty.module}</strong><span>{selectedProperty.title}</span><small>Record value / amount: {formatIndianCompactAmount(selectedProperty.value)}</small></div>}
-    <label>Follow-up description *<input required value={form.description} onChange={event=>update("description",event.target.value)} placeholder="What specifically must be followed up?"/></label>
-    <div className="form-two"><label>Follow-up date *<input required type="date" value={form.date} onChange={event=>update("date",event.target.value)}/></label><label>Follow-up time<input type="time" value={form.time} onChange={event=>update("time",event.target.value)}/></label></div>
-    <div className="form-two"><label>Priority<select value={form.priority} onChange={event=>update("priority",event.target.value)}>{(["Urgent","High","Normal","Low"] as FollowUpPriority[]).map(value=><option key={value}>{value}</option>)}</select></label><label>Status<select value={form.status} onChange={event=>update("status",event.target.value)}>{(["Open","In Progress","Completed","Cancelled"] as FollowUpStatus[]).map(value=><option key={value}>{value}</option>)}</select></label></div>
-    <label>Follow-up amount (₹)<input inputMode="decimal" value={form.amount} onChange={event=>{update("amount",event.target.value);setAmountError("");}} placeholder="e.g. 4 Cr or 25 Lakhs (optional)"/></label>{amountError&&<p className="ax-inr-amount-error" role="alert">{amountError}</p>}
-    <fieldset className="ax-followup-contact-picker"><legend>Follow-up people</legend><p>Select one or more people responsible for this follow-up.</p><div className="ax-followup-contact-options">{contacts.length ? contacts.map(person=><label key={person.id} className={form.contactIds.includes(person.id)?"selected":""}><input type="checkbox" checked={form.contactIds.includes(person.id)} onChange={()=>toggleContact(person.id)}/><span><strong>{person.name}</strong><small>{person.role || person.phone || "Contact"}</small></span></label>) : <small>No contacts saved yet. Add contacts first.</small>}</div></fieldset>
-    <label>Next action<input value={form.nextAction} onChange={event=>update("nextAction",event.target.value)} placeholder="Specific next step after this contact"/></label>
-    <label>Notes<textarea rows={3} value={form.notes} onChange={event=>update("notes",event.target.value)} placeholder="Call notes, pending documents, commitments and context"/></label>
-    <div className="form-actions"><button type="button" className="secondary-button" onClick={onCancel}>Cancel</button><button type="submit" className="primary-button">{initial?"Save follow-up changes":"Save follow-up"}</button></div>
-  </form>;
+type Property={id:string;title:string;module:string;value:string;status?:string};
+type Contact={id:string;name:string;phone?:string;role?:string};
+export type FollowUpDraft={propertyId:string;entry:FollowUpEntry};
+type Props={properties:Property[];contacts:Contact[];defaultPropertyId?:string;defaultContactId?:string;initial?:FollowUpEntry|null;onSave:(draft:FollowUpDraft)=>void;onCancel:()=>void};
+function validDate(v:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(v))return false;const [y,m,d]=v.split("-").map(Number);const x=new Date(Date.UTC(y,m-1,d));return x.getUTCFullYear()===y&&x.getUTCMonth()===m-1&&x.getUTCDate()===d;}
+const Schema=z.object({propertyId:z.string().min(1,"Choose the related module record."),contactIds:z.array(z.string()).max(100),description:z.string().trim().min(1,"Enter a follow-up description.").max(1000),amount:z.string().max(80).refine(v=>!v.trim()||normalizeIndianAmount(v)!==null,"Enter a valid INR amount, such as 4 Cr or 25 Lakhs."),date:z.string().refine(validDate,"Choose a valid calendar date."),time:z.string().refine(v=>!v||/^([01]\d|2[0-3]):[0-5]\d$/.test(v),"Enter a valid time."),priority:z.enum(["Urgent","High","Normal","Low"]),status:z.enum(["Open","In Progress","Completed","Cancelled"]),notes:z.string().max(5000),nextAction:z.string().max(1000)});
+type Values=z.infer<typeof Schema>;
+function makeId(){return typeof crypto!=="undefined"&&"randomUUID" in crypto?crypto.randomUUID():"fu-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);}
+export default function FollowUpForm({properties,contacts,defaultPropertyId,defaultContactId,initial,onSave,onCancel}:Props){
+ const source=properties.find(x=>x.id===defaultPropertyId);
+ const defaults=useMemo<Values>(()=>({propertyId:defaultPropertyId||"",contactIds:initial?.contactIds??(defaultContactId?[defaultContactId]:[]),description:initial?.description??"",amount:initial?.amount?(formatIndianCompactAmount(initial.amount)||initial.amount):(source?.value?(formatIndianCompactAmount(source.value)||source.value):""),date:initial?.date??new Date().toISOString().slice(0,10),time:initial?.time??"10:00",priority:initial?.priority??"Normal",status:initial?.status??"Open",notes:initial?.notes??"",nextAction:initial?.nextAction??""}),[defaultPropertyId,defaultContactId,initial,source?.value]);
+ const {register,handleSubmit,watch,getValues,setValue,setError,clearErrors,formState:{errors,isSubmitting}}=useForm<Values>({defaultValues:defaults,mode:"onBlur"});
+ const propertyId=watch("propertyId"),contactIds=watch("contactIds")||[],selected=properties.find(x=>x.id===propertyId);
+ const showError=(field:FieldPath<Values>)=>errors[field]?.message?<small className="ax-field-error" role="alert">{errors[field]?.message}</small>:null;
+ const save=(values:Values)=>{const parsed=Schema.safeParse(values);if(!parsed.success){clearErrors();parsed.error.issues.forEach(issue=>{const field=issue.path[0];if(typeof field==="string"&&["propertyId","contactIds","description","amount","date","time","priority","status","notes","nextAction"].includes(field))setError(field as FieldPath<Values>,{type:"schema",message:issue.message});});return;}const v=parsed.data,a=v.amount.trim()?normalizeIndianAmount(v.amount):null;onSave({propertyId:v.propertyId,entry:{id:initial?.id||makeId(),contactIds:v.contactIds,description:v.description.trim(),amount:v.amount.trim()?String(a):"",date:v.date,time:v.time,priority:v.priority as FollowUpPriority,status:v.status as FollowUpStatus,notes:v.notes.trim(),nextAction:v.nextAction.trim(),assignedAt:initial?.assignedAt||new Date().toISOString()}});};
+ const amountField=register("amount"),propertyField=register("propertyId");
+ return <form className="form-card ax-followup-form" noValidate onSubmit={handleSubmit(save)}>
+ <label>Related module record *<select {...propertyField} onChange={e=>{propertyField.onChange(e);const x=properties.find(y=>y.id===e.target.value);if(!getValues("amount")&&x?.value)setValue("amount",formatIndianCompactAmount(x.value)||x.value);}} required aria-invalid={!!errors.propertyId}><option value="">Choose source record</option>{properties.map(x=><option key={x.id} value={x.id}>{x.module} · {x.title}</option>)}</select>{showError("propertyId")}</label>
+ {selected&&<div className="ax-followup-source-context"><strong>{selected.module}</strong><span>{selected.title}</span><small>Record value / amount: {formatIndianCompactAmount(selected.value)}</small></div>}
+ <label>Follow-up description *<input required aria-invalid={!!errors.description} {...register("description")} placeholder="What specifically must be followed up?"/>{showError("description")}</label>
+ <div className="form-two"><label>Follow-up date *<input required type="date" aria-invalid={!!errors.date} {...register("date")}/>{showError("date")}</label><label>Follow-up time<input type="time" aria-invalid={!!errors.time} {...register("time")}/>{showError("time")}</label></div>
+ <div className="form-two"><label>Priority<select {...register("priority")}>{(["Urgent","High","Normal","Low"] as FollowUpPriority[]).map(x=><option key={x}>{x}</option>)}</select></label><label>Status<select {...register("status")}>{(["Open","In Progress","Completed","Cancelled"] as FollowUpStatus[]).map(x=><option key={x}>{x}</option>)}</select></label></div>
+ <label>Follow-up amount (₹)<input inputMode="decimal" aria-invalid={!!errors.amount} {...amountField} onChange={e=>{amountField.onChange(e);clearErrors("amount");}} placeholder="e.g. 4 Cr or 25 Lakhs (optional)"/>{showError("amount")}</label>
+ <fieldset className="ax-followup-contact-picker"><legend>Follow-up people</legend><p>Select one or more people responsible for this follow-up.</p><div className="ax-followup-contact-options">{contacts.length?contacts.map(x=><label key={x.id} className={contactIds.includes(x.id)?"selected":""}><input type="checkbox" value={x.id} {...register("contactIds")}/><span><strong>{x.name}</strong><small>{x.role||x.phone||"Contact"}</small></span></label>):<small>No contacts saved yet. Add contacts first.</small>}</div>{showError("contactIds")}</fieldset>
+ <label>Next action<input aria-invalid={!!errors.nextAction} {...register("nextAction")} placeholder="Specific next step after this contact"/>{showError("nextAction")}</label>
+ <label>Notes<textarea rows={3} aria-invalid={!!errors.notes} {...register("notes")} placeholder="Call notes, pending documents, commitments and context"/>{showError("notes")}</label>
+ <div className="form-actions"><button type="button" className="secondary-button" onClick={onCancel}>Cancel</button><button type="submit" className="primary-button" disabled={isSubmitting}>{initial?"Save follow-up changes":"Save follow-up"}</button></div>
+ </form>;
 }
