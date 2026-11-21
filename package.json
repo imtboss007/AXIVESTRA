@@ -82,5 +82,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "AXIVESTRA"
     }
+  },
+  "overrides": {
+    "rollup": "4.68.7"
   }
 }
