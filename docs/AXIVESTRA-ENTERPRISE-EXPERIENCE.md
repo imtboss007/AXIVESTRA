@@ -18,6 +18,8 @@
 - \`react-hook-form@^7.92.0\` — MIT.
 - \`zod@^4.6.7\` — MIT.
 
+- npm `overrides` pins Vite's transitive `rollup` dependency to stable `4.68.7`, avoiding a clean-install 404 encountered while the next release's tarball was propagating.
+
 No React 19 migration, Tailwind, Mantine or global UI framework rewrite. UI collections were treated as references rather than copied wholesale.
 
 ## Agent safety / deferred work
