@@ -1,0 +1,492 @@
+/*
+ * AXIVESTRA visual system
+ * Direction: Pearl canvas, deep marine navigation, muted teal actions, restrained brass accents.
+ * This file is intentionally layered after styles.css: presentation only, no business logic.
+ */
+
+:root {
+  color-scheme: light;
+  --axiv-canvas: #f3f6f5;
+  --axiv-surface: #ffffff;
+  --axiv-surface-alt: #f8faf9;
+  --axiv-ink: #20343d;
+  --axiv-body: #3e535c;
+  --axiv-muted: #5b6d75;
+  --axiv-dim: #7a8b91;
+  --axiv-line: #dce5e4;
+  --axiv-line-strong: #c6d5d3;
+  --axiv-navy: #173746;
+  --axiv-navy-deep: #122d3a;
+  --axiv-primary: #246a67;
+  --axiv-primary-hover: #1b5553;
+  --axiv-primary-soft: #e7f1ef;
+  --axiv-brass: #a77f48;
+  --axiv-brass-soft: #f4eee4;
+  --axiv-success: #287052;
+  --axiv-warning: #91652c;
+  --axiv-danger: #a64c48;
+  --axiv-shadow: 0 12px 34px rgba(27, 52, 62, .07);
+}
+
+html { color-scheme: light; }
+body {
+  background: var(--axiv-canvas);
+  color: var(--axiv-ink);
+}
+::selection { color: #fff; background: #246a67; }
+
+.ax-modern-shell {
+  --ax-modern-bg: var(--axiv-canvas);
+  --ax-modern-surface: var(--axiv-surface);
+  --ax-modern-raised: var(--axiv-surface-alt);
+  --ax-modern-elevated: #fff;
+  --ax-modern-line: rgba(32, 52, 61, .12);
+  --ax-modern-line-strong: rgba(36, 106, 103, .28);
+  --ax-modern-text: var(--axiv-ink);
+  --ax-modern-muted: var(--axiv-muted);
+  --ax-modern-dim: var(--axiv-dim);
+  --ax-modern-jade: var(--axiv-primary);
+  --ax-modern-cyan: #4b8790;
+  --ax-modern-copper: var(--axiv-brass);
+  color: var(--axiv-ink);
+  color-scheme: light;
+  background: var(--axiv-canvas);
+  background-image: none;
+}
+.ax-modern-shell::before {
+  opacity: .035;
+  background-image:
+    linear-gradient(rgba(23, 55, 70, .14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 55, 70, .14) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.42) 34%, transparent 76%);
+}
+
+/* Navigation: strong marine anchor, quiet active state. */
+.ax-modern-shell .sidebar {
+  background: linear-gradient(180deg, #173746 0%, #193d4b 100%);
+  border-right: 1px solid rgba(255,255,255,.08);
+  box-shadow: 8px 0 28px rgba(20, 48, 60, .08);
+}
+.ax-modern-shell .brand-mark.ax-brand-mark {
+  border: 1px solid rgba(255,255,255,.45);
+  border-radius: 12px;
+  color: #173746;
+  background: linear-gradient(145deg, #f7f5ed, #dce9e5);
+  box-shadow: none;
+}
+.ax-modern-shell .brand strong { color: #f6f8f5; text-shadow: none; }
+.ax-modern-shell .brand span,
+.ax-modern-shell .profile-text span { color: #b6c9cd; }
+.ax-modern-shell .workspace-label { color: #91afb5; }
+.ax-modern-shell .nav-item { color: #c6d5d8; }
+.ax-modern-shell .nav-item:hover {
+  color: #fff;
+  background: rgba(255,255,255,.075);
+  border-color: rgba(255,255,255,.09);
+  transform: none;
+}
+.ax-modern-shell .nav-item.active {
+  color: #173746;
+  border-color: rgba(255,255,255,.55);
+  background: #e8f0ed;
+  box-shadow: inset 3px 0 0 var(--axiv-primary);
+}
+.ax-modern-shell .nav-item.active svg { color: var(--axiv-primary); filter: none; }
+.ax-modern-shell .ax-sidebar-modules { border-color: rgba(255,255,255,.12); }
+.ax-modern-shell .ax-sidebar-module { color: #c0d0d3; }
+.ax-modern-shell .ax-sidebar-module:hover,
+.ax-modern-shell .ax-sidebar-module.active {
+  color: #fff;
+  background: rgba(255,255,255,.075);
+  border-color: rgba(255,255,255,.12);
+}
+.ax-modern-shell .ax-sidebar-module.active svg { color: #9dc7be; }
+.ax-modern-shell .help-card {
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.065);
+  box-shadow: none;
+}
+.ax-modern-shell .help-icon {
+  color: #e2f0e9;
+  background: rgba(255,255,255,.1);
+  border-color: rgba(255,255,255,.13);
+}
+.ax-modern-shell .profile { border-color: rgba(255,255,255,.13); }
+.ax-modern-shell .avatar.ax-avatar {
+  border: 1px solid rgba(255,255,255,.35);
+  background: #e4eeea;
+  color: #173746;
+  box-shadow: none;
+}
+
+/* Main frame and type hierarchy. */
+.ax-modern-shell .main-panel { background: transparent; }
+.ax-modern-shell .topbar {
+  background: rgba(255,255,255,.96);
+  border-bottom: 1px solid var(--axiv-line);
+  box-shadow: 0 3px 14px rgba(27,52,62,.035);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.ax-modern-shell .breadcrumb { color: var(--axiv-dim); }
+.ax-modern-shell .breadcrumb strong { color: var(--axiv-ink); }
+.ax-modern-shell .content { color: var(--axiv-ink); }
+.ax-modern-shell h1,
+.ax-modern-shell h2,
+.ax-modern-shell h3 { color: var(--axiv-ink); text-shadow: none; }
+.ax-modern-shell .eyebrow,
+.ax-modern-shell .section-kicker { color: #547b78; }
+.ax-modern-shell .live-dot {
+  background: var(--axiv-primary);
+  box-shadow: 0 0 0 4px rgba(36,106,103,.10);
+}
+.ax-modern-shell .subtitle { color: var(--axiv-muted); }
+.ax-modern-shell .search-box {
+  border-color: var(--axiv-line);
+  background: #fff;
+  color: var(--axiv-muted);
+  box-shadow: 0 1px 2px rgba(27,52,62,.025);
+}
+.ax-modern-shell .search-box:focus-within {
+  border-color: #75a6a0;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(36,106,103,.10);
+}
+.ax-modern-shell .search-box input { color: var(--axiv-ink); }
+.ax-modern-shell .search-box input::placeholder { color: #829197; }
+.ax-modern-shell .search-box kbd {
+  color: #61747b;
+  background: #f5f8f7;
+  border-color: var(--axiv-line);
+}
+.ax-modern-shell .icon-button {
+  color: #425b64;
+  border-color: var(--axiv-line);
+  background: #fff;
+  box-shadow: none;
+}
+.ax-modern-shell .icon-button:hover {
+  color: var(--axiv-primary);
+  border-color: #a9c7c2;
+  background: var(--axiv-primary-soft);
+  transform: none;
+}
+
+/* Actions and feedback. */
+.ax-modern-shell .primary-button,
+.ax-modern-shell .hero-button {
+  color: #fff;
+  border: 1px solid var(--axiv-primary);
+  background: var(--axiv-primary);
+  box-shadow: 0 4px 12px rgba(36,106,103,.14);
+}
+.ax-modern-shell .primary-button:hover:not(:disabled),
+.ax-modern-shell .hero-button:hover:not(:disabled) {
+  color: #fff;
+  background: var(--axiv-primary-hover);
+  border-color: var(--axiv-primary-hover);
+  box-shadow: 0 6px 16px rgba(36,106,103,.16);
+  filter: none;
+  transform: translateY(-1px);
+}
+.ax-modern-shell .secondary-button {
+  color: #335a59;
+  border-color: #d1e0dd;
+  background: #f8fbfa;
+}
+.ax-modern-shell .secondary-button:hover:not(:disabled) {
+  color: var(--axiv-primary-hover);
+  border-color: #afcbc5;
+  background: var(--axiv-primary-soft);
+  transform: none;
+}
+.ax-modern-shell .text-button { color: var(--axiv-primary); }
+.ax-modern-shell .text-button:hover { color: var(--axiv-primary-hover); }
+.ax-modern-shell .notice {
+  color: #285e4e;
+  border: 1px solid #c8dfd4;
+  background: #edf6f1;
+  box-shadow: none;
+}
+.ax-modern-shell .notice-warn {
+  color: #765323;
+  border-color: #ead9b9;
+  background: #fbf5e9;
+}
+
+/* Dashboard surfaces and KPI hierarchy. */
+.ax-modern-shell .institutional-banner {
+  border: 1px solid #d5e2df;
+  border-radius: 20px;
+  background: linear-gradient(112deg, #e7efed 0%, #eff3ef 58%, #f4f0e8 100%);
+  box-shadow: 0 12px 30px rgba(27,52,62,.055);
+}
+.ax-modern-shell .institutional-banner::before,
+.ax-modern-shell .institutional-banner::after {
+  opacity: .28;
+  border-color: rgba(36,106,103,.12);
+  box-shadow: none;
+}
+.ax-modern-shell .institutional-label { color: #557b75; }
+.ax-modern-shell .institutional-copy,
+.ax-modern-shell .institutional-copy h1,
+.ax-modern-shell .institutional-copy h2,
+.ax-modern-shell .institutional-copy h3 { color: var(--axiv-ink); }
+.ax-modern-shell .institutional-copy p { color: var(--axiv-muted); }
+.ax-modern-shell .banner-aside {
+  border-color: rgba(36,106,103,.15);
+  background: rgba(255,255,255,.48);
+  box-shadow: none;
+}
+.ax-modern-shell .banner-aside-row { color: var(--axiv-body); }
+.ax-modern-shell .banner-divider { background: var(--axiv-line-strong); }
+.ax-modern-shell .stats-grid { gap: 13px; }
+.ax-modern-shell .stat-card,
+.ax-modern-shell .control-strip,
+.ax-modern-shell .panel-card,
+.ax-modern-shell .data-panel,
+.ax-modern-shell .settings-card,
+.ax-modern-shell .wa-form {
+  color: var(--axiv-ink);
+  border: 1px solid var(--axiv-line);
+  background: var(--axiv-surface);
+  box-shadow: var(--axiv-shadow);
+}
+.ax-modern-shell .stat-card {
+  border-radius: 14px;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.ax-modern-shell .stat-card:hover {
+  border-color: var(--axiv-line-strong);
+  box-shadow: 0 14px 30px rgba(27,52,62,.09);
+  transform: translateY(-2px);
+}
+.ax-modern-shell .stat-card > span {
+  color: var(--axiv-primary);
+  background: var(--axiv-primary-soft);
+}
+.ax-modern-shell .stat-card strong { color: var(--axiv-ink); }
+.ax-modern-shell .stat-card small { color: var(--axiv-muted); }
+.ax-modern-shell .control-strip-heading,
+.ax-modern-shell .section-heading h2,
+.ax-modern-shell .panel-heading h2 { color: var(--axiv-ink); }
+.ax-modern-shell .section-heading p,
+.ax-modern-shell .panel-heading p { color: var(--axiv-muted); }
+
+/* Workspace directory and record surfaces. */
+.ax-modern-shell .module-card {
+  border: 1px solid var(--axiv-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 5px 17px rgba(27,52,62,.045);
+}
+.ax-modern-shell .module-card::before { display: none; }
+.ax-modern-shell .module-card:hover {
+  border-color: #b9cfca;
+  box-shadow: 0 12px 25px rgba(27,52,62,.085);
+  transform: translateY(-2px);
+}
+.ax-modern-shell .module-number { color: #8b9a9e; }
+.ax-modern-shell .module-card h3 { color: var(--axiv-ink); }
+.ax-modern-shell .module-card p { color: var(--axiv-muted); }
+.ax-modern-shell .module-link { color: var(--axiv-primary); }
+.ax-modern-shell .module-icon.mint,
+.ax-modern-shell .module-icon.green { color: #286b56; background: #e8f2ed; }
+.ax-modern-shell .module-icon.blue { color: #365f78; background: #eaf1f5; }
+.ax-modern-shell .module-icon.violet { color: #645d82; background: #f0eef5; }
+.ax-modern-shell .module-icon.amber { color: #87622e; background: #f6f0e5; }
+.ax-modern-shell .module-icon.rose { color: #895a58; background: #f6eceb; }
+.ax-modern-shell .record-card,
+.ax-modern-shell .ax-module-record-card,
+.ax-modern-shell .ax-followup-card,
+.ax-modern-shell .ax-followup-person-group,
+.ax-modern-shell .ax-followup-contact-picker,
+.ax-modern-shell .ax-intent-panel,
+.ax-modern-shell .ax-chart-inspector {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(27,52,62,.045);
+}
+.ax-modern-shell .record-main h3,
+.ax-modern-shell .record-side strong,
+.ax-modern-shell .task-details strong { color: var(--axiv-ink); }
+.ax-modern-shell .record-main p,
+.ax-modern-shell .record-main small,
+.ax-modern-shell .task-details p,
+.ax-modern-shell .task-details small { color: var(--axiv-muted); }
+.ax-modern-shell .record-symbol,
+.ax-modern-shell .empty-icon {
+  color: var(--axiv-primary);
+  background: var(--axiv-primary-soft);
+}
+.ax-modern-shell .task-row { border-color: var(--axiv-line); }
+.ax-modern-shell .status-pill {
+  color: #2c684f;
+  background: #eaf4ee;
+  border: 1px solid #d6e8dc;
+}
+
+/* Forms, search, filters and modal surfaces. */
+.ax-modern-shell .form-card label,
+.ax-modern-shell .searchable-contact-picker__label { color: var(--axiv-body); }
+.ax-modern-shell .form-card input,
+.ax-modern-shell .form-card select,
+.ax-modern-shell .form-card textarea,
+.ax-modern-shell input:not([type="checkbox"]):not([type="radio"]),
+.ax-modern-shell select,
+.ax-modern-shell textarea {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line-strong);
+  background-color: #fff;
+}
+.ax-modern-shell .form-card input::placeholder,
+.ax-modern-shell .form-card textarea::placeholder,
+.ax-modern-shell input::placeholder,
+.ax-modern-shell textarea::placeholder { color: #89999e; }
+.ax-modern-shell .form-card input:focus,
+.ax-modern-shell .form-card select:focus,
+.ax-modern-shell .form-card textarea:focus,
+.ax-modern-shell input:focus-visible,
+.ax-modern-shell select:focus-visible,
+.ax-modern-shell textarea:focus-visible {
+  border-color: #76a8a2;
+  outline-color: #76a8a2;
+  box-shadow: 0 0 0 3px rgba(36,106,103,.10);
+}
+.ax-modern-shell input[type="checkbox"],
+.ax-modern-shell input[type="radio"] { accent-color: var(--axiv-primary); }
+.ax-modern-shell .modal-backdrop { background: rgba(18,45,58,.42); }
+.ax-modern-shell .modal {
+  color: var(--axiv-ink);
+  border: 1px solid var(--axiv-line);
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(18,45,58,.18);
+}
+.ax-modern-shell .modal-heading h2 { color: var(--axiv-ink); }
+.ax-modern-shell .modal-heading button {
+  color: var(--axiv-body);
+  background: #f1f5f4;
+}
+
+/* Analytics: data is the focus; decoration stays quiet. */
+.ax-modern-shell .ax-analytics-panel {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: #fff;
+  box-shadow: var(--axiv-shadow);
+}
+.ax-modern-shell .ax-analytics-heading h2 { color: var(--axiv-ink); }
+.ax-modern-shell .ax-analytics-heading p,
+.ax-modern-shell .ax-chart-legend { color: var(--axiv-muted); }
+.ax-modern-shell .ax-chart-stage {
+  border-color: var(--axiv-line);
+  background: linear-gradient(180deg, #f9fbfa, #f1f6f4);
+}
+.ax-modern-shell .ax-chart-inspector { border-color: var(--axiv-line); }
+.ax-modern-shell .ax-intent-command {
+  border-color: #d5e2e0;
+  background: linear-gradient(125deg, #edf3f1, #f7f8f4);
+  box-shadow: 0 8px 22px rgba(27,52,62,.05);
+}
+.ax-modern-shell .ax-intent-command__title h2 { color: var(--axiv-ink); }
+.ax-modern-shell .ax-intent-command__title p { color: var(--axiv-muted); }
+.ax-modern-shell .ax-intent-composer {
+  border-color: #d0dfdc;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(27,52,62,.035);
+}
+.ax-modern-shell .ax-intent-composer > svg { color: var(--axiv-primary); }
+.ax-modern-shell .ax-intent-composer input { color: var(--axiv-ink); }
+.ax-modern-shell .ax-intent-composer input::placeholder { color: #89999e; }
+.ax-modern-shell .ax-intent-composer button {
+  color: #fff;
+  border-color: var(--axiv-primary);
+  background: var(--axiv-primary);
+}
+
+/* Keep the orbital explorer as a distinct visualization surface, but remove neon glare. */
+.ax-modern-shell .ax-orbit-hub {
+  border-color: #c5d5d4;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(80,133,132,.18), transparent 40%),
+    linear-gradient(145deg, #203e4b 0%, #193544 58%, #24434f 100%);
+  box-shadow: 0 15px 38px rgba(25,54,67,.13);
+}
+.ax-modern-shell .ax-orbit-kicker { color: #c0d5d4; }
+.ax-modern-shell .ax-orbit-hub__heading h2 { color: #f3f6f3; }
+.ax-modern-shell .ax-orbit-hub__heading p { color: #c4d2d3; }
+.ax-modern-shell .ax-orbit-shortcut,
+.ax-modern-shell .ax-orbit-all {
+  border-color: rgba(226,239,236,.22);
+  color: #edf4f1;
+  background: rgba(255,255,255,.075);
+}
+.ax-modern-shell .ax-orbit-shortcut:hover,
+.ax-modern-shell .ax-orbit-all:hover {
+  border-color: rgba(226,239,236,.42);
+  background: rgba(255,255,255,.12);
+}
+.ax-modern-shell .ax-orbit-telemetry { border-color: rgba(223,238,235,.18); }
+.ax-modern-shell .ax-orbit-telemetry__brand,
+.ax-modern-shell .ax-orbit-telemetry__metric span,
+.ax-modern-shell .ax-orbit-telemetry__state { color: #c1d1d2; }
+.ax-modern-shell .ax-orbit-telemetry__metric strong { color: #f0f5f2; }
+.ax-modern-shell .ax-orbit-group-filters button,
+.ax-modern-shell .ax-orbit-view-switch button {
+  border-color: rgba(223,238,235,.19);
+  color: #d8e4e3;
+  background: rgba(255,255,255,.055);
+}
+.ax-modern-shell .ax-orbit-group-filters button.is-active,
+.ax-modern-shell .ax-orbit-view-switch button.is-active {
+  border-color: #a5c5bd;
+  color: #173746;
+  background: #e2eeea;
+}
+.ax-modern-shell .ax-orbit-search {
+  border-color: rgba(223,238,235,.22);
+  color: #dce8e6;
+  background: rgba(8,26,36,.35);
+}
+.ax-modern-shell .ax-orbit-search input { color: #fff; }
+.ax-modern-shell .ax-orbit-search input::placeholder { color: #b4c5c7; }
+
+/* Shared interaction and accessibility treatment. */
+.ax-modern-shell button:focus-visible,
+.ax-modern-shell a:focus-visible,
+.ax-modern-shell input:focus-visible,
+.ax-modern-shell select:focus-visible,
+.ax-modern-shell textarea:focus-visible {
+  outline: 2px solid #438984;
+  outline-offset: 2px;
+}
+.ax-modern-shell :disabled { cursor: not-allowed; }
+.ax-modern-shell .footer { color: #829197; }
+
+.auth-shell {
+  background: linear-gradient(145deg, #f3f6f5, #e9efed);
+}
+.auth-card {
+  border-color: var(--axiv-line);
+  box-shadow: 0 18px 52px rgba(27,52,62,.09);
+}
+.auth-eyebrow { color: var(--axiv-primary); }
+.auth-card h1 { color: var(--axiv-ink); }
+.auth-card > p { color: var(--axiv-muted); }
+
+@media (max-width: 720px) {
+  .ax-modern-shell .topbar { background: rgba(255,255,255,.97); }
+  .ax-modern-shell .institutional-banner { border-radius: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ax-modern-shell *,
+  .ax-modern-shell *::before,
+  .ax-modern-shell *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
