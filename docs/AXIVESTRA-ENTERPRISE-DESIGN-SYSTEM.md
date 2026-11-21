@@ -66,9 +66,9 @@ The repositories below are component sources to evaluate, not wholesale applicat
 | [Magic UI](https://github.com/magicuidesign/magicui) | Selected visual components and restrained effects | Per-component licence and dependency review required |
 | [Motion Primitives](https://github.com/ibelick/motion-primitives) | Focused motion patterns | Check component licence and current peer dependencies |
 | [Skiper UI](https://skiper-ui.com/) | Interaction and layout references | Verify commercial/free status per component |
-| [Unlumen UI](https://unlumen.com/) | Micro-interactions and polished controls | Official source/licensing verification required before reuse |
-| [SmoothUI](https://smoothui.dev/) | Motion-oriented controls | Verify React/Tailwind compatibility before reuse |
-| [Animmaster Lib](https://www.animmasterlib.dev/) | Specific animation references | Confirm actual source package and licence before reuse |
+| [Unlumen UI documentation](https://github.com/leovvx/unlumen-ui-docs) | Micro-interactions and polished controls | Official source/licensing verification required before reuse |
+| [SmoothUI candidate repository](https://github.com/educlopez/smoothui) | Motion-oriented controls | Verify React/Tailwind compatibility before reuse |
+| [Animmaster Lib candidate repository](https://github.com/manaogabs/animmaster-library) | Specific animation references | Confirm actual source package and licence before reuse |
 | [ThreeUI](https://github.com/MengTo/threeui) | Selected 3D/WebGL experiences | Use sparingly; review asset/font terms separately |
 | [AI Elements](https://github.com/vercel/ai-elements) | AI conversation and tool-call UI | Evaluate individual components against AG-UI |
 | [Assistant UI](https://github.com/assistant-ui/assistant-ui) | Conversation interface patterns | Avoid introducing a competing agent runtime |
