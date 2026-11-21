@@ -1223,3 +1223,27 @@ body { background: #0b1420; color: #e8f0f4; }
 .ax-modern-shell .ax-agent-confirm-field input{width:min(100%,260px)}
 .ax-modern-shell .ax-agent-action-preview__footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
 @media(max-width:640px){.ax-modern-shell .ax-agent-action-facts>div{grid-template-columns:1fr;gap:4px}.ax-modern-shell .ax-agent-action-preview__header{flex-direction:column}.ax-modern-shell .ax-agent-action-preview__footer>button{width:100%}.ax-modern-shell .ax-echart-host{height:320px}}
+
+
+/* Explicit-ID relationship graph — responsive, read-only visualisation */
+.ax-modern-shell .ax-relationship-view-toggle{display:flex;gap:6px;justify-content:flex-end;margin:10px 0}
+.ax-modern-shell .ax-relationship-view-toggle button{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;color:#a9bfcb;border:1px solid #365165;border-radius:9px;background:#102234;font:inherit;font-size:12px}
+.ax-modern-shell .ax-relationship-view-toggle button.is-active{color:#d9f2ed;border-color:#4c817d;background:#173a40}
+.ax-modern-shell .ax-relationship-graph-scroll{max-width:100%;overflow:auto;border:1px solid #294254;border-radius:13px;background:linear-gradient(180deg,#0d1e2d,#102234)}
+.ax-modern-shell .ax-relationship-graph{position:relative;width:840px;min-width:840px}
+.ax-modern-shell .ax-relationship-graph__heading{position:absolute;top:0;z-index:3;display:flex;align-items:center;gap:8px;padding:12px 14px;color:#82b9b1;font-size:10px;font-weight:800;letter-spacing:.1em}
+.ax-modern-shell .ax-relationship-graph__heading span{padding:2px 6px;color:#c5d8df;border:1px solid #365165;border-radius:999px;font-size:10px;letter-spacing:0}
+.ax-modern-shell .ax-relationship-graph__heading--people{left:12px;width:246px}
+.ax-modern-shell .ax-relationship-graph__heading--records{left:438px;width:390px}
+.ax-modern-shell .ax-relationship-graph__edges{position:absolute;inset:0;z-index:0;width:100%;height:100%;overflow:visible}
+.ax-modern-shell .ax-relationship-graph__edges path{fill:none;stroke:#477d80;stroke-width:1.6;stroke-opacity:.58}
+.ax-modern-shell .ax-relationship-graph__node{position:absolute;z-index:2;display:flex;align-items:center;gap:10px;min-height:62px;padding:10px 12px;color:#dce7ed;border:1px solid #365165;border-radius:11px;background:#142b3d;box-shadow:0 5px 16px #06142166}
+.ax-modern-shell .ax-relationship-graph__node--person{left:12px;width:246px;min-height:82px;border-color:#3c6c70;background:#15323d}
+.ax-modern-shell .ax-relationship-graph__node--record{left:438px;width:390px;min-height:62px}
+.ax-modern-shell .ax-relationship-graph__node>span:nth-child(2){display:grid;gap:4px;min-width:0;flex:1}
+.ax-modern-shell .ax-relationship-graph__node strong{overflow-wrap:anywhere;color:#edf4f7;font-size:12px}
+.ax-modern-shell .ax-relationship-graph__node small{overflow-wrap:anywhere;color:#9fb4c1;font-size:10px;line-height:1.35}
+.ax-modern-shell .ax-relationship-graph__node-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;color:#8ccac0;border:1px solid #3c6c70;border-radius:9px;background:#173d45}
+.ax-modern-shell .ax-relationship-graph__node .text-button{flex:0 0 auto}
+.ax-modern-shell .ax-relationship-graph__limit{margin:8px 0;color:#9aafbd;font-size:11px}
+@media(max-width:640px){.ax-modern-shell .ax-relationship-view-toggle{justify-content:stretch}.ax-modern-shell .ax-relationship-view-toggle button{flex:1;justify-content:center}.ax-modern-shell .ax-relationship-graph-scroll{max-height:65vh}}
