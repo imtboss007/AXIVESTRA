@@ -27,7 +27,7 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
       const target = recordIndex.get(record.key);
       return target === undefined ? [] : [{ personIndex, recordIndex: target, relations: record.relations.join(", ") }];
     }));
-    return { visiblePeople, recordNodes, edges, height: Math.max(260, visiblePeople.length * 104, recordNodes.length * 82) };
+    return { visiblePeople, recordNodes, edges, height: Math.max(300, visiblePeople.length * 104 + 44, recordNodes.length * 82 + 44) };
   }, [people]);
 
   if (!graph.recordNodes.length) return <p className="ax-relationship-unlinked">No explicit saved contact-ID links are available to draw. Add a contact link to a workspace, task, financial record, risk, approval or document.</p>;
@@ -38,16 +38,16 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
       <div className="ax-relationship-graph__heading ax-relationship-graph__heading--records">LINKED RECORDS <span>{graph.recordNodes.length}</span></div>
       <svg className="ax-relationship-graph__edges" viewBox={`0 0 840 ${graph.height}`} preserveAspectRatio="none" aria-hidden="true">
         {graph.edges.map((edge, index) => {
-          const y1 = edge.personIndex * 104 + 52;
-          const y2 = edge.recordIndex * 82 + 43;
+          const y1 = edge.personIndex * 104 + 88;
+          const y2 = edge.recordIndex * 82 + 79;
           return <path key={index} d={`M 258 ${y1} C 330 ${y1}, 365 ${y2}, 438 ${y2}`}><title>{edge.relations || "Explicit saved contact link"}</title></path>;
         })}
       </svg>
-      {graph.visiblePeople.map((person, index) => <article className="ax-relationship-graph__node ax-relationship-graph__node--person" style={{ top: index * 104 + 12 }} key={person.id}>
+      {graph.visiblePeople.map((person, index) => <article className="ax-relationship-graph__node ax-relationship-graph__node--person" style={{ top: index * 104 + 48 }} key={person.id}>
         <span className="ax-relationship-graph__node-icon"><Users size={15}/></span>
         <span><strong>{person.name}</strong><small>{person.roles.join(" · ") || "Role not specified"}</small><small>{person.recordCount} linked records · ID {person.id}</small></span>
       </article>)}
-      {graph.recordNodes.map((record, index) => <article className="ax-relationship-graph__node ax-relationship-graph__node--record" style={{ top: index * 82 + 12 }} key={record.key}>
+      {graph.recordNodes.map((record, index) => <article className="ax-relationship-graph__node ax-relationship-graph__node--record" style={{ top: index * 82 + 48 }} key={record.key}>
         <span className="ax-relationship-graph__node-icon"><Link2 size={15}/></span>
         <span><strong>{record.title}</strong><small>{record.workspace || record.kind} · {record.relations.join(" · ")}</small><small>Source ID: {record.recordId || "not supplied"}</small></span>
         {record.workspace && <button type="button" className="text-button" onClick={() => onOpenWorkspace(record.workspace)} aria-label={`Open ${record.workspace} workspace`}><ArrowUpRight size={14}/></button>}
