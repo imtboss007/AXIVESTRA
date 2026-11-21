@@ -45,6 +45,21 @@ assert.match(theme, /@media\s*\(prefers-reduced-motion:\s*reduce\)/,
 assert.ok(packageJson.scripts.test.includes("axivestra-theme.test.cjs"),
   "The new theme contract test must be part of the standard test command.");
 
+
+for (const selector of [
+  ".auth-shell",
+  ".auth-card",
+  ".auth-primary",
+  ".auth-input",
+  ".auth-company-row"
+]) {
+  assert.ok(theme.includes(selector), `Missing authentication theme override: ${selector}`);
+}
+assert.match(theme, /\.auth-card\s*\{[^}]*background:\s*#fff/s,
+  "The authentication card must use the shared white surface.");
+assert.match(theme, /\.auth-primary[\s\S]*?background:\s*var\(--axiv-primary\)/,
+  "The authentication primary action must use the shared muted teal token.");
+
 function luminance(hex) {
   const channels = hex.replace("#", "").match(/.{2}/g).map(value => parseInt(value, 16) / 255);
   const linear = channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
