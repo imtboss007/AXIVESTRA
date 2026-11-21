@@ -79,12 +79,11 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
   const openTasks = tasks.filter(task => !task.done).length;
   const overdueTasks = tasks.filter(task => !task.done && task.date < new Date().toISOString().slice(0, 10)).length;
   const chartItems = focus === "allocation" ? moduleRows.map(row => ({ name: row.name, value: metric === "value" ? row.value : row.count, count: row.count, color: row.color })) : stageRows;
-  const totalChart = chartItems.reduce((sum, item) => sum + item.value, 0);
   const visibleItems = chartItems.filter(item => item.value > 0);
   const title = focus === "allocation" ? metric === "value" ? "Recorded value / exposure by workspace" : "Records by workspace" : focus === "pipeline" ? "Portfolio status mix" : "Cashflow movement";
   const subtitle = focus === "allocation" ? "Select any segment to open that module." : focus === "pipeline" ? "Real status values from your saved records." : "Recorded inflows and outflows by month; no forecast is fabricated.";
   const activeModuleName = selected && moduleRows.some(row => row.name === selected) ? selected : "";
-  const chartOption=useMemo(()=>buildPortfolioChartOption(focus,chartType,metric,visibleItems,cashflowRows,selected,showLabels),[focus,chartType,metric,visibleItems,cashflowRows,selected,showLabels]);
+  const chartOption=useMemo(()=>buildPortfolioChartOption(focus,chartType,focus==="pipeline"?"count":metric,visibleItems,cashflowRows,selected,showLabels),[focus,chartType,metric,visibleItems,cashflowRows,selected,showLabels]);
 
   const setFocusView = (next: "allocation" | "pipeline" | "cashflow") => {
     setFocus(next);
@@ -147,7 +146,7 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
     </div>
     {focus !== "cashflow" && <div className="ax-chart-legend">
       {visibleItems.slice(0, 8).map((item, index) => <button key={item.name} className={selected === item.name ? "selected" : ""} onClick={() => { setSelected(selected === item.name ? "" : item.name); if (focus === "allocation" && modules.some(module => module.name === item.name)) onOpenModule(item.name); }}>
-        <i style={{ background: item.color || PALETTE[index % PALETTE.length] }}/><span>{item.name}</span><strong>{metric === "value" ? compact(item.value) : item.value}</strong>
+        <i style={{ background: item.color || PALETTE[index % PALETTE.length] }}/><span>{item.name}</span><strong>{focus === "allocation" && metric === "value" ? compact(item.value) : item.value}</strong>
       </button>)}
       {visibleItems.length === 0 && <span className="ax-muted">No module allocation until you add records.</span>}
     </div>}
