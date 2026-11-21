@@ -2,7 +2,7 @@ const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("n
 for(const [n,v] of Object.entries({"echarts":"^6.1.0","@tanstack/react-table":"^8.21.3","@tanstack/react-virtual":"^3.14.24","react-hook-form":"^7.92.0","zod":"^4.6.7"}))assert.equal(pkg.dependencies[n],v);
 const form=read("src/FollowUpForm.tsx");assert.match(form,/useForm<Values>/);assert.match(form,/Schema\.safeParse/);
 const grid=read("src/components/EnterpriseDataTable.tsx");assert.match(grid,/useReactTable/);assert.match(grid,/useVirtualizer/);assert.match(read("src/IntelligenceHubExplorer.tsx"),/<EnterpriseDataTable/);
-const analytics=read("src/PortfolioAnalytics.tsx");assert.match(analytics,/lazy\(\(\) => import\("\.\/components\/PortfolioEChart"\)/);assert.match(analytics,/buildPortfolioChartOption/);
+const analytics=read("src/PortfolioAnalytics.tsx");assert.match(analytics,/lazy\(\(\)\s*=>\s*import\("\.\/components\/PortfolioEChart"\)\)/);assert.match(analytics,/buildPortfolioChartOption/);
 const schema=read("src/lib/agent-ui-contract.ts");assert.match(schema,/z\.discriminatedUnion\("type"/);assert.match(schema,/blocks:z\.array\(AgentUiBlockSchema\)\.max\(20\)/);
 const renderer=read("src/components/AgentUiRenderer.tsx");assert.match(renderer,/parseAgentUiResponse/);assert.doesNotMatch(renderer,/dangerouslySetInnerHTML/);
 const action=read("src/components/AgentActionPreview.tsx");assert.match(action,/untrustedSource/);assert.match(action,/confirmation!=="CONFIRM"/);assert.match(action,/Approval is not execution/);assert.ok(pkg.scripts.test.includes("enterprise-experience.test.cjs"));console.log("AXIVESTRA enterprise experience contract passed.");
