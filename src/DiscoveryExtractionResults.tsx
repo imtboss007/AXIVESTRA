@@ -133,7 +133,7 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
             const review=latestReview(fact.id);
             return <article className="discovery-fact-card" key={fact.id}>
               <div className="discovery-fact-top">
-                <div><strong>{fact.field_name.replaceAll("_"," ")}</strong><small>{fact.value_type} · Confidence {(Number(fact.confidence)*100).toFixed(1)}%</small></div>
+                <div><strong>{fact.field_name.replaceAll("_"," ")}</strong><small>{fact.value_type} · Heuristic parser confidence {(Number(fact.confidence)*100).toFixed(1)}%</small></div>
                 <div className="discovery-fact-state">
                   <span className={"discovery-fact-validity "+(fact.validation_status==="valid"?"is-valid":"is-invalid")}>{fact.validation_status}</span>
                   {review&&<span className={"discovery-fact-review review-"+review.decision}>{review.decision.replaceAll("_"," ")}</span>}
