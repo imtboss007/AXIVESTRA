@@ -16,6 +16,7 @@ import IntelligenceHubExplorer from "./IntelligenceHubExplorer";
 import RelationshipIntelligencePanel from "./RelationshipIntelligencePanel";
 import MagicAnimatedGridPattern from "./components/MagicAnimatedGridPattern";
 import MotionAnimatedNumber from "./components/MotionAnimatedNumber";
+import UnlumenGlowButton from "./components/UnlumenGlowButton";
 import ModuleWorkbench from "./ModuleWorkbench";
 import UniversalInterface, { type UniversalEntity, type QuickAddAction } from "./UniversalInterface";
 import FollowUpRegistry from "./FollowUpRegistry";
@@ -2454,7 +2455,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
                 <span className="institutional-label"><span className="live-dot"/> AXIVESTRA ASSET INTELLIGENCE</span>
                 <h2>Every asset. Every obligation. One intelligence layer.</h2>
                 <p>Unify property operations, lending, investments, legal matters and follow-ups in one connected operating and intelligence system.</p>
-                <div className="banner-actions"><button className="hero-button" onClick={()=>go("All Properties")}>Open deal pipeline <ArrowUpRight size={16}/></button><button className="banner-ghost" onClick={()=>go("Risk & Compliance")}>Review risk signals <ShieldCheck size={15}/></button></div>
+                <div className="banner-actions"><UnlumenGlowButton type="button" className="hero-button" onClick={()=>go("All Properties")}>Open deal pipeline <ArrowUpRight size={16}/></UnlumenGlowButton><button className="banner-ghost" onClick={()=>go("Risk & Compliance")}>Review risk signals <ShieldCheck size={15}/></button></div>
               </div>
               <div className="banner-aside">
                 <span>RECORDED VALUE / EXPOSURE</span>
