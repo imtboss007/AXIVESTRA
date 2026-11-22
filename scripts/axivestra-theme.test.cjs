@@ -142,3 +142,11 @@ assert.match(theme, /\.ax-modern-shell \.ax-enterprise-grid__viewport\s*\{[\s\S]
   "Virtualized table scrolling must remain contained within its own viewport.");
 assert.match(theme, /\.ax-modern-shell \.ax-enterprise-grid__sort\s*\{[^}]*min-height:\s*44px/s,
   "Table sort controls must provide touch-friendly targets.");
+
+
+assert.match(theme, /\.ax-modern-shell \.ax-followup-form \.ax-followup-contact-picker\s*\{[^}]*background:\s*#102638/s,
+  "Follow-up contact selection must use a readable Night Marine fieldset.");
+assert.match(theme, /\.ax-modern-shell \.ax-followup-form \.ax-field-error\s*\{[^}]*color:\s*#ffc0b7/s,
+  "Follow-up validation errors must be readable on dark form surfaces.");
+assert.match(theme, /@media \(max-width: 640px\)\s*\{[\s\S]*?\.ax-modern-shell \.ax-followup-form \.ax-followup-contact-options\s*\{[^}]*grid-template-columns:\s*minmax\(0,1fr\)/s,
+  "Follow-up contact options must collapse to a single touch-friendly column on mobile.");
