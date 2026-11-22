@@ -13,6 +13,7 @@ import WhatsAppScheduler from "./WhatsAppScheduler";
 import PortfolioAnalytics from "./PortfolioAnalytics";
 import IntentCanvas from "./IntentCanvas";
 import IntelligenceHubExplorer from "./IntelligenceHubExplorer";
+import DiscoverySourceManager from "./DiscoverySourceManager";
 import RelationshipIntelligencePanel from "./RelationshipIntelligencePanel";
 import ModuleWorkbench from "./ModuleWorkbench";
 import UniversalInterface, { type UniversalEntity, type QuickAddAction } from "./UniversalInterface";
@@ -31,7 +32,7 @@ import {
   Search, Plus, ArrowUpRight, Clock3, CheckCircle2, Menu, X, ChevronDown,
   Trash2, Phone, CalendarDays, CircleCheck, Pencil, Download,
   Rocket, PieChart, BriefcaseBusiness, UserRound, House, Scale, ShieldCheck, ClipboardCheck,
-  BrainCircuit, Workflow, ListTodo, Orbit
+  BrainCircuit, Workflow, ListTodo, Orbit, Globe
 } from "lucide-react";
 
 type PropertyRecord = {
@@ -125,6 +126,7 @@ const navigation = [
   { name: "Overview", label: "Asset Intelligence", icon: LayoutDashboard },
   { name: "Workspace Explorer", icon: Orbit },
   { name: "Intelligence Hub", icon: BrainCircuit },
+  { name: "Discovery Sources", icon: Globe },
   { name: "AXIVESTRA Shift", icon: Workflow },
   { name: "All Properties", icon: LandPlot },
   { name: "Contacts", icon: Users },
@@ -2332,7 +2334,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
         </header>
         <div className="content">
           <div className="welcome-row"><div><div className="eyebrow"><span className="live-dot" /> {active === "Overview" ? "ASSET INTELLIGENCE DASHBOARD" : active === "Workspace Explorer" ? "WORKSPACE NAVIGATION" : "AXIVESTRA WORKSPACE"}</div><h1>{active === "Overview" ? "Understand assets, capital and exposure." : active}</h1><p className="subtitle">{active === "Overview" ? "A connected operating view across property, lending, investments, funds, investors, legal matters, risk and execution." : active === "Workspace Explorer" ? "Explore the 16 domain workspaces. The orbital map is navigation—not the intelligence engine." : `Manage your ${active.toLowerCase()} in one connected workspace.`}</p></div>
-            <button className="primary-button" onClick={() => active === "Workspace Explorer" ? go("All Properties") : active === "Contacts" ? openContactForm() : active === "Follow-up Registry" || active === "Intelligence Hub" ? openFollowUpForm() : active === "Schedule & Tasks" || active === "AXIVESTRA Shift" ? openTaskForm() : active === "Financials" ? openFinancialForm() : active === "Risk & Compliance" ? setShowRiskForm(true) : active === "Approvals" ? setShowApprovalForm(true) : openPropertyForm()}><Plus size={17} /> {active === "Workspace Explorer" ? "View all records" : active === "Contacts" ? "New contact" : active === "Follow-up Registry" || active === "Intelligence Hub" ? "Add follow-up" : active === "Schedule & Tasks" ? "New task" : active === "AXIVESTRA Shift" ? "New shift action" : active === "Financials" ? "New transaction" : active === "Risk & Compliance" ? "Log risk" : active === "Approvals" ? "Request approval" : active === "Client & Deal Hub" ? "New deal / property" : "New record"}</button></div>
+            {active !== "Discovery Sources" &&             <button className="primary-button" onClick={() => active === "Workspace Explorer" ? go("All Properties") : active === "Contacts" ? openContactForm() : active === "Follow-up Registry" || active === "Intelligence Hub" ? openFollowUpForm() : active === "Schedule & Tasks" || active === "AXIVESTRA Shift" ? openTaskForm() : active === "Financials" ? openFinancialForm() : active === "Risk & Compliance" ? setShowRiskForm(true) : active === "Approvals" ? setShowApprovalForm(true) : openPropertyForm()}><Plus size={17} /> {active === "Workspace Explorer" ? "View all records" : active === "Contacts" ? "New contact" : active === "Follow-up Registry" || active === "Intelligence Hub" ? "Add follow-up" : active === "Schedule & Tasks" ? "New task" : active === "AXIVESTRA Shift" ? "New shift action" : active === "Financials" ? "New transaction" : active === "Risk & Compliance" ? "Log risk" : active === "Approvals" ? "Request approval" : active === "Client & Deal Hub" ? "New deal / property" : "New record"}</button>}</div>
           {notice && <div className="notice"><CheckCircle2 size={17}/>{notice}<button onClick={() => setNotice("")} aria-label="Dismiss"><X size={15}/></button></div>}
           {rangeSearches.length > 0 && <section className="ax-property-range-results" aria-live="polite">
             <div className="ax-property-range-results__head">
@@ -2606,6 +2608,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             </div>
           </section>}
 
+          {active === "Discovery Sources" && <DiscoverySourceManager companyId={company?.id} companyRole={company?.role}/>}
           {active === "All Properties" || modules.some(m=>m.name===active) ? <ModuleWorkbench
             moduleName={active === "All Properties" ? "All Properties" : active}
             description={active === "All Properties" ? "Search, inspect, compare and action every property, deal, loan, investment and legal workstream from one live register." : modules.find(item=>item.name===active)?.description || "Manage every detail, stakeholder, date, value and next action for this workstream."}
