@@ -888,7 +888,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(revenueObservation.currency_code,"INR");
     assert.equal(revenueObservation.source_published_at,null,"E10 must not invent a source publication timestamp when the source did not provide one");
     assert.ok(revenueObservation.evidence_captured_at,"E10 must preserve the evidence capture timestamp");
-    assert.ok(enrichmentObservations.every(x=>x.review_state==="pending_review"));
+    assert.ok(enrichmentObservations.rows.every(x=>x.review_state==="pending_review"));
     await assert.rejects(
       pool.query(
         "select * from public.record_discovery_enrichment_review($1,$2,$3,'accepted',$4)",
