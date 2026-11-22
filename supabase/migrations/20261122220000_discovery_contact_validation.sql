@@ -332,10 +332,12 @@ begin
     if v_type is null or v_type not in ('email','phone')
       or v_field is null or not (v_field=any(v_job.allowed_fields_snapshot))
       or v_job.field_schema_snapshot->v_field->>'type' is distinct from v_type
-      or v_candidate->>'validation_method'<>'syntax_only'
+      or v_candidate->>'validation_method' is distinct from 'syntax_only'
+      or v_candidate->>'validation_result' is null
       or v_candidate->>'validation_result' not in ('syntax_valid','syntax_invalid')
+      or nullif(v_candidate->>'validation_confidence','') is null
       or (v_candidate->>'validation_confidence')::numeric not between 0 and 1
-      or v_candidate->>'encryption_version'<>'aes-256-gcm-v1'
+      or v_candidate->>'encryption_version' is distinct from 'aes-256-gcm-v1'
       or coalesce(v_candidate->>'value_fingerprint','') !~ '^[a-f0-9]{64}$'
       or coalesce(v_candidate->>'value_ciphertext','') !~ '^[A-Za-z0-9+/]+={0,2}$'
       or coalesce(v_candidate->>'value_nonce','') !~ '^[A-Za-z0-9+/]+={0,2}$'
