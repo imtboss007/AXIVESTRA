@@ -234,7 +234,7 @@ async function parsePdfEvidence(buffer, observations) {
 function parseLocaleIndependentNumber(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
   const text = textOf(value);
-  const match = text.match(/^-?(?:(?:\\d+)|(?:\\d{1,3}(?:,\\d{3})+)|(?:\\d{1,2}(?:,\\d{2})+,\\d{3}))(?:\\.\\d+)?$/);
+  const match = text.match(/^-?(?:(?:\d+)|(?:\d{1,3}(?:,\d{3})+)|(?:\d{1,2}(?:,\d{2})+,\d{3}))(?:\.\d+)?$/);
   return match ? Number(text.replace(/,/g, "")) : NaN;
 }
 
@@ -319,7 +319,7 @@ function normalizeTypedValue(value, type) {
         return { valid: true, normalized: { amount, currency }, message: null };
       }
     }
-    const match = text.match(/^(INR|USD|EUR|GBP|AED|SGD|JPY|CAD|AUD)\\s+(.+)$/i);
+    const match = text.match(/^(INR|USD|EUR|GBP|AED|SGD|JPY|CAD|AUD)\s+(.+)$/i);
     const amount = match ? parseLocaleIndependentNumber(match[2]) : NaN;
     if (!match || !Number.isFinite(amount)) return { valid: false, normalized: null, message: "Currency must explicitly include an ISO code and unambiguous amount." };
     return { valid: true, normalized: { amount, currency: match[1].toUpperCase() }, message: null };
