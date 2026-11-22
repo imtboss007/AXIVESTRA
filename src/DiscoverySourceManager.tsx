@@ -17,6 +17,7 @@ type Source = {
   license_ref: string;
   allowed_purposes: string[];
   allowed_fields: string[];
+  field_schema?: Record<string, { type?: string; aliases?: string[]; required?: boolean; entityKind?: string }>;
   allowed_paths: string[];
   attribution: string;
   legal_basis: string;
@@ -86,6 +87,7 @@ const initialSourceDraft = {
   allowedPaths: "",
   allowedPurposes: "",
   allowedFields: "",
+  fieldSchemaJson: "",
   attribution: "",
   policyNotes: ""
 };
@@ -179,7 +181,8 @@ export default function DiscoverySourceManager({
         ...sourceDraft,
         allowedPaths: splitList(sourceDraft.allowedPaths),
         allowedPurposes: splitList(sourceDraft.allowedPurposes),
-        allowedFields: splitList(sourceDraft.allowedFields)
+        allowedFields: splitList(sourceDraft.allowedFields),
+        fieldSchema: sourceDraft.fieldSchemaJson.trim() ? JSON.parse(sourceDraft.fieldSchemaJson) : {}
       });
       setSourceDraft(initialSourceDraft);
       setNotice(result.message || "Source registered as pending.");
@@ -378,6 +381,9 @@ export default function DiscoverySourceManager({
             <label>Permitted purposes<textarea required rows={2} value={sourceDraft.allowedPurposes} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, allowedPurposes: event.target.value })} placeholder={"company identity verification\nlender product research"}/></label>
             <label>Allowed fields<textarea required rows={2} value={sourceDraft.allowedFields} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, allowedFields: event.target.value })} placeholder={"legal_name\nregistration_id\nstatus"}/></label>
           </div>
+          <label>Field schema <span className="discovery-optional">(optional JSON; every key must also appear in Allowed fields)</span>
+            <textarea rows={5} value={sourceDraft.fieldSchemaJson} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, fieldSchemaJson: event.target.value })} placeholder={'{\n  "legal_name": { "type": "string", "aliases": ["legalName", "companyName"], "required": true, "entityKind": "organization" },\n  "registration_id": { "type": "identifier", "aliases": ["cin", "registrationNumber"] }\n}'}/>
+          </label>
           <label>Attribution instruction<input required value={sourceDraft.attribution} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, attribution: event.target.value })} placeholder="How AXIVESTRA should attribute this source"/></label>
           <label>Policy notes <span className="discovery-optional">(optional)</span><textarea rows={2} value={sourceDraft.policyNotes} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, policyNotes: event.target.value })} placeholder="Terms restrictions, quota notes, exclusions…"/></label>
           <button className="primary-button" type="submit" disabled={!canManage || busyKey === "add-source"}><Plus size={16}/>{busyKey === "add-source" ? "Registering…" : "Register as pending"}</button>
