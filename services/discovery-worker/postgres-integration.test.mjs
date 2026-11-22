@@ -617,6 +617,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId,evidenceId]
     );
     assert.equal(durableRelationship.rows[0].count,1,"accepted entity relationships must survive evidence purge");
+    const durableProfessionalReview = await pool.query(
+      "select count(*)::int as count,count(candidate_id)::int as linked_count,min(candidate_snapshot->>'roleTitle') as role_title from public.discovery_professional_role_review_events where company_id=$1 and decision='created_new'",
+      [companyId]
+    );
+    assert.equal(durableProfessionalReview.rows[0].count,1,"E07 professional review receipt must survive evidence purge");
+    assert.equal(durableProfessionalReview.rows[0].linked_count,0,"E07 review receipt must detach from the purged candidate");
+    assert.equal(durableProfessionalReview.rows[0].role_title,"Chief Financial Officer","E07 review snapshot must retain the reviewed role, without retaining the person's name");
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
