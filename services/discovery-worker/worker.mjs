@@ -322,11 +322,20 @@ async function renderCandidateWithPlaywright(admin, job, source, workerId, url, 
     context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false, permissions: [] });
     context.setDefaultTimeout(10_000);
     const page = await context.newPage();
+    await context.addInitScript(() => {
+      const blocked = class {
+        constructor() { throw new Error("This browser capability is disabled in the AXIVESTRA fetch sandbox."); }
+      };
+      for (const key of ["WebSocket", "EventSource", "WebTransport", "RTCPeerConnection", "webkitRTCPeerConnection"]) {
+        try { Object.defineProperty(window, key, { value: blocked, configurable: false, writable: false }); } catch { /* immutable browser property */ }
+      }
+      try { Object.defineProperty(navigator, "sendBeacon", { value: () => false, configurable: false }); } catch { /* immutable browser property */ }
+    });
     page.on("websocket", socket => { try { socket.close(); } catch { /* closed by browser */ } });
-    page.on("popup", popup => { void popup.close(); });
+    context.on("page", popup => { if (popup !== page) void popup.close(); });
     let initialResponseUsed = false;
 
-    await page.route("**/*", async route => {
+    await context.route("**/*", async route => {
       const request = route.request();
       const requestUrl = request.url();
       const parsed = new URL(requestUrl);
@@ -338,7 +347,7 @@ async function renderCandidateWithPlaywright(admin, job, source, workerId, url, 
         await route.abort("blockedbyclient");
         return;
       }
-      if (request.isNavigationRequest() && requestUrl !== url) {
+      if (request.frame().page() !== page || (request.isNavigationRequest() && requestUrl !== url)) {
         await route.abort("blockedbyclient");
         return;
       }
