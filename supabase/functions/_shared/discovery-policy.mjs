@@ -202,6 +202,15 @@ export function assertSourceCanBeAttached(profile, source) {
   if (profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER") {
     throw new Error("Personal Loan customer profiles cannot use external person-discovery sources.");
   }
+  const allowedPurposes = Array.isArray(source.allowed_purposes) ? source.allowed_purposes : [];
+  if (!allowedPurposes.includes(profile.purpose)) {
+    throw new Error("The source's approved purposes do not include this workspace profile's exact purpose.");
+  }
+  const requestedFields = Array.isArray(profile.criteria?.requiredFields) ? profile.criteria.requiredFields : [];
+  const allowedFields = new Set((Array.isArray(source.allowed_fields) ? source.allowed_fields : []).map(field => String(field).toLowerCase()));
+  if (requestedFields.some(field => !allowedFields.has(String(field).toLowerCase()))) {
+    throw new Error("The profile requests fields that are not in the source's approved field allow-list.");
+  }
   return true;
 }
 

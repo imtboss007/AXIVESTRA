@@ -139,3 +139,15 @@ test("manual research connector accepts explicit user-supplied evidence only", a
   assert.equal(received, true);
   await assert.rejects(() => registry.recordManual(source, "not-an-object"), /must be an object/);
 });
+
+test("source attachment enforces exact approved purpose and field allow-lists", () => {
+  const profile = {
+    workspace_key: "startup",
+    discovery_mode: "LENDER",
+    purpose: "company identity verification",
+    criteria: { requiredFields: ["legal_name", "registration_id"] }
+  };
+  assert.equal(assertSourceCanBeAttached(profile, approvedSource()), true);
+  assert.throws(() => assertSourceCanBeAttached({ ...profile, purpose: "lead generation" }, approvedSource()), /exact purpose/);
+  assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { requiredFields: ["private_credit_score"] } }, approvedSource()), /field allow-list/);
+});
