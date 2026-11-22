@@ -11,14 +11,15 @@ alter table public.discovery_audit_events
     'profile_created','profile_updated','profile_enabled','profile_disabled',
     'profile_source_attached','profile_source_detached',
     'discovery_job_queued','discovery_worker_grant_enabled','discovery_worker_grant_disabled',
-    'extraction_review_recorded','entity_resolution_review_recorded'
+    'extraction_review_recorded','entity_resolution_review_recorded',
+    'entity_relationship_review_recorded'
   ));
 alter table public.discovery_audit_events
   drop constraint if exists discovery_audit_events_entity_type_check;
 alter table public.discovery_audit_events
   add constraint discovery_audit_events_entity_type_check check (entity_type in (
     'source','profile','profile_source','discovery_job','discovery_worker_control',
-    'extraction_review_event','entity_resolution_candidate','canonical_entity'
+    'extraction_review_event','entity_resolution_candidate','canonical_entity','entity_relationship'
   ));
 
 create table if not exists public.discovery_canonical_entities (
@@ -589,6 +590,97 @@ begin
 end;
 $review$;
 
+create or replace function public.record_discovery_entity_relationship_review(
+  p_company_id uuid,
+  p_actor_user_id uuid,
+  p_from_entity_id uuid,
+  p_to_entity_id uuid,
+  p_relationship_type text,
+  p_evidence_id uuid,
+  p_source_span jsonb,
+  p_review_state text,
+  p_reason text
+) returns public.discovery_entity_relationships
+language plpgsql security definer
+set search_path=public,pg_temp
+as $relationship_review$
+declare
+  v_role text;
+  v_relationship public.discovery_entity_relationships%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null
+    or p_from_entity_id is null or p_to_entity_id is null or p_evidence_id is null then
+    raise exception 'Company, reviewer, both entities and source evidence are required' using errcode='22023';
+  end if;
+  if p_from_entity_id=p_to_entity_id then
+    raise exception 'An entity cannot have a relationship to itself' using errcode='22023';
+  end if;
+  if p_relationship_type not in (
+    'parent','subsidiary','holding_company','branch_of','affiliate','joint_venture','successor','other'
+  ) then
+    raise exception 'Unsupported legal-entity relationship type' using errcode='22023';
+  end if;
+  if p_review_state not in ('needs_verification','owner_accepted','rejected') then
+    raise exception 'Unsupported relationship review state' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'Relationship review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  if p_source_span is null or jsonb_typeof(p_source_span)<>'object'
+    or octet_length(p_source_span::text)>8192 then
+    raise exception 'Relationship source span must be a bounded JSON object' using errcode='22023';
+  end if;
+
+  select role into v_role
+    from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id
+    for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review entity relationships' using errcode='42501';
+  end if;
+
+  if not exists (
+    select 1 from public.discovery_canonical_entities
+    where company_id=p_company_id and id=p_from_entity_id and status='active'
+  ) or not exists (
+    select 1 from public.discovery_canonical_entities
+    where company_id=p_company_id and id=p_to_entity_id and status='active'
+  ) then
+    raise exception 'Both relationship endpoints must be active canonical entities in this company' using errcode='42501';
+  end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=p_evidence_id
+  ) then
+    raise exception 'Relationship source evidence is not available in this company' using errcode='P0002';
+  end if;
+
+  insert into public.discovery_entity_relationships(
+    company_id,from_entity_id,to_entity_id,relationship_type,
+    evidence_id,source_span,review_state
+  ) values (
+    p_company_id,p_from_entity_id,p_to_entity_id,p_relationship_type,
+    p_evidence_id,p_source_span,p_review_state
+  ) returning * into v_relationship;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values (
+    p_company_id,p_actor_user_id,'entity_relationship_review_recorded',
+    'entity_relationship',v_relationship.id,
+    jsonb_build_object(
+      'fromEntityId',p_from_entity_id,
+      'toEntityId',p_to_entity_id,
+      'relationshipType',p_relationship_type,
+      'reviewState',p_review_state,
+      'evidenceId',p_evidence_id,
+      'reason',trim(p_reason)
+    )
+  );
+  return v_relationship;
+end;
+$relationship_review$;
+
 create or replace function public.prevent_discovery_entity_record_update()
 returns trigger language plpgsql as $guard$
 begin
@@ -613,11 +705,13 @@ revoke all on function public.heartbeat_discovery_entity_resolution_job(uuid,tex
 revoke all on function public.complete_discovery_entity_resolution(uuid,text,jsonb) from public,anon,authenticated;
 revoke all on function public.fail_discovery_entity_resolution_job(uuid,text,text,text) from public,anon,authenticated;
 revoke all on function public.record_discovery_entity_resolution_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_entity_relationship_review(uuid,uuid,uuid,uuid,text,uuid,jsonb,text,text) from public,anon,authenticated;
 grant execute on function public.claim_discovery_entity_resolution_job(text,integer) to service_role;
 grant execute on function public.heartbeat_discovery_entity_resolution_job(uuid,text,integer) to service_role;
 grant execute on function public.complete_discovery_entity_resolution(uuid,text,jsonb) to service_role;
 grant execute on function public.fail_discovery_entity_resolution_job(uuid,text,text,text) to service_role;
 grant execute on function public.record_discovery_entity_resolution_review(uuid,uuid,uuid,text,text) to service_role;
+grant execute on function public.record_discovery_entity_relationship_review(uuid,uuid,uuid,uuid,text,uuid,jsonb,text,text) to service_role;
 
 comment on table public.discovery_canonical_entities is
   'Canonical organization identity created only after explicit company owner/admin resolution review. source_evidence_id remains a historical UUID reference after raw evidence retention purge.';
