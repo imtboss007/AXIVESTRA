@@ -35,7 +35,7 @@ test("E06 resolution work is enqueued only from a completed E05 extraction run",
 test("E06 commits company-scoped candidates without rewriting immutable E05 facts", () => {
   assert.match(migration, /complete_discovery_entity_resolution/);
   assert.match(migration, /discovery_extracted_entities/);
-  assert.match(migration, /discovery_extracted_facts/);
+  assert.match(worker, /from\("discovery_extracted_facts"\)/);
   assert.match(worker, /complete_discovery_entity_resolution/);
   assert.doesNotMatch(worker, /update\([^)]*\)\.from\("discovery_extracted_facts"\)/);
 });
