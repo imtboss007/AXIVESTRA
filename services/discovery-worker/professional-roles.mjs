@@ -96,6 +96,8 @@ export function buildProfessionalRoleCandidates({
       ROLE_FIELDS.get(keyOf(fact.field_name)) === "job_title");
     const role = normalizeProfessionalRole(roleFact ? valueOf(roleFact) : "");
     const employer = resolveEmployer(facts, organizations, assignments, canonicalEntities);
+    const confidenceValues = [person.confidence, roleFact?.confidence, employer?.relationFact?.confidence]
+      .filter(value => Number.isFinite(Number(value))).map(Number);
     const candidate = {
       extracted_person_id: person.id,
       person_name: name,
@@ -112,7 +114,7 @@ export function buildProfessionalRoleCandidates({
         role: roleFact?.source_span || {},
         relationship: employer?.relationFact?.source_span || {}
       },
-      confidence: Math.min(person.confidence ?? 0, roleFact?.confidence ?? 0, employer?.relationFact?.confidence ?? 0),
+      confidence: confidenceValues.length ? Math.min(...confidenceValues) : 0,
       relationship_method: employer?.linkMethod || null,
       review_state: "pending_review",
       rationale: {
