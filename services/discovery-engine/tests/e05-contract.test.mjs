@@ -53,7 +53,7 @@ test("E05 extraction uses bounded parallel slots backed by PostgreSQL SKIP LOCKE
 });
 
 test("E05 accepts CSV evidence from approved open-data sources and keeps extraction bounded", () => {
-  assert.match(worker, /"text\/csv"/);
+  assert.match(fetchWorker, /"text\/csv"/);
   assert.match(migration, /array\['text\/csv','application\/csv'\]/);
   assert.match(migration, /'text\/csv','application\/csv'/);
   assert.match(extractor, /function parseCsvRows/);
