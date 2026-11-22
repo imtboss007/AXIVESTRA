@@ -139,11 +139,14 @@ export function buildContactCandidate({ fact, entity, fieldSchema, allowedFields
     field_name: fieldName,
     ...encrypted,
     masked_value: maskContactValue(contactType, normalizedValue),
+    validation_method: "syntax_only",
+    validation_result: validation.result,
+    validation_confidence: 0.99,
     validation: {
       method: "syntax_only",
       result: validation.result,
       reason: validation.reason,
-      confidence: validation.result === "syntax_valid" ? 0.99 : 0.99,
+      confidence: 0.99,
       catch_all_result: null,
       bounce_type: null
     },
