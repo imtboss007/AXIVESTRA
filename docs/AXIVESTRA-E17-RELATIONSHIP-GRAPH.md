@@ -15,6 +15,10 @@ E17 exposes a company-scoped graph projection over explicit E16 deal-party links
 - Deleted deal/contact source records are excluded from the graph.
 - Reads require an authenticated company member. The graph view and RPC have least-privilege grants.
 
+## Workspace integration
+
+The AXIVESTRA overview now includes the normalized relationship panel. Owner, admin, manager and staff users can record a deal-to-contact role, review or update its verification state, attach existing document metadata and set an effective end date. The graph reads through the E17 company-scoped RPC and only labels the safe display fields returned by that projection.
+
 ## Boundaries
 
 - No fuzzy matching, transitive relationship inference, automated deduplication or identity merges.

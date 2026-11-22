@@ -15,6 +15,8 @@ import IntentCanvas from "./IntentCanvas";
 import IntelligenceHubExplorer from "./IntelligenceHubExplorer";
 import DiscoverySourceManager from "./DiscoverySourceManager";
 import RelationshipIntelligencePanel from "./RelationshipIntelligencePanel";
+import NormalizedRelationshipGraphPanel from "./NormalizedRelationshipGraphPanel";
+import CompanyCommitmentWorkspace from "./CompanyCommitmentWorkspace";
 import ModuleWorkbench from "./ModuleWorkbench";
 import UniversalInterface, { type UniversalEntity, type QuickAddAction } from "./UniversalInterface";
 import FollowUpRegistry from "./FollowUpRegistry";
@@ -2556,6 +2558,17 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
               approvals={approvalRequests}
               documents={documents}
               onOpenWorkspace={name => go(name)}
+            />
+            <NormalizedRelationshipGraphPanel
+              companyId={company?.id}
+              companyRole={company?.role}
+              contacts={contacts}
+              properties={properties}
+            />\n            <CompanyCommitmentWorkspace
+              companyId={company?.id}
+              companyRole={company?.role}
+              contacts={contacts}
+              properties={properties}
             />
             <div className="ax-intelligence-kpis">
               <article><span>RECORDED VALUE / EXPOSURE</span><strong>{formatIndianCompactAmount(portfolioValue)}</strong><small>Sum of entered record values across all workspaces; not a net asset valuation</small></article>

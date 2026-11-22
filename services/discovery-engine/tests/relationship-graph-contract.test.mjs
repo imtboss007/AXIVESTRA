@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const migration=await readFile(new URL("../../../supabase/migrations/20261122320000_axivestra_relationship_graph.sql",import.meta.url),"utf8");
+const ui=await readFile(new URL("../../../src/NormalizedRelationshipGraphPanel.tsx",import.meta.url),"utf8");
 
 test("E17 graph is sourced exclusively from explicit E16 relationship records",()=>{
   assert.match(migration,/from public\.company_deal_parties p/);
@@ -37,4 +38,13 @@ test("E17 filters deleted source records and does not create or mutate relations
   assert.match(migration,/d\.deleted_at is null/);
   assert.match(migration,/c\.deleted_at is null/);
   assert.doesNotMatch(migration,/insert into public\.company_deal_parties|update public\.company_deal_parties|delete from public\.company_deal_parties/i);
+});
+
+test("E17 overview panel reads the company graph and supports evidence-backed relationship review",()=>{
+  assert.match(ui,/get_company_relationship_graph/);
+  assert.match(ui,/company_deal_parties/);
+  assert.match(ui,/verification_state/);
+  assert.match(ui,/document_metadata/);
+  assert.match(ui,/evidence_supported.*verified|verified.*evidence_supported/);
+  assert.match(ui,/No identity was inferred/);
 });

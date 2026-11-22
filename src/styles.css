@@ -5989,3 +5989,29 @@ h2,h3{color:#e5f2fc}
 .discovery-lead-message.is-error{background:#fff2ed;color:#a14e3a}
 @media(max-width:760px){.discovery-lead-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.discovery-lead-controls{grid-template-columns:1fr 1fr}.discovery-lead-controls label:first-child{grid-column:1/-1}.discovery-match-actions{align-items:stretch;flex-direction:column}.discovery-match-actions>label{width:100%}.discovery-lead-next{grid-template-columns:1fr 1fr}.discovery-lead-next button{grid-column:1/-1;width:100%}}
 @media(max-width:520px){.discovery-lead-panel{padding:13px;border-radius:13px}.discovery-lead-heading{display:grid}.discovery-lead-heading .secondary-button{justify-self:start}.discovery-lead-controls,.discovery-lead-next{grid-template-columns:1fr}.discovery-lead-controls label:first-child,.discovery-lead-next button{grid-column:auto}.discovery-match-top{display:grid}.discovery-match-score{text-align:left}.discovery-lead-card-head{display:grid}.discovery-lead-stage{justify-self:start}}
+
+/* E16–E18 canonical relationships and commitments */
+.ax-normalized-relationship-panel,.ax-commitment-workspace{display:grid;gap:14px;min-width:0}
+.ax-normalized-relationship-form,.ax-commitment-create{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;padding:12px;border:1px solid #e4ebe2;border-radius:11px;background:#f9fbf8}
+.ax-normalized-relationship-form label,.ax-normalized-relationship-controls label,.ax-commitment-create label,.ax-commitment-card-controls label{display:grid;gap:5px;min-width:0;color:#6c7a6e;font-size:9px;font-weight:700}
+.ax-normalized-relationship-form select,.ax-normalized-relationship-controls select,.ax-normalized-relationship-controls input,.ax-commitment-create select,.ax-commitment-create input,.ax-commitment-card-controls select,.ax-commitment-card-controls input{width:100%;min-width:0;padding:8px 9px;border:1px solid #dfe6dd;border-radius:8px;background:#fff;color:#263b2d;font:500 10px "DM Sans",sans-serif}
+.ax-normalized-relationship-form button,.ax-commitment-create button{align-self:end;min-height:34px;font-size:10px}
+.ax-normalized-relationship-list,.ax-commitment-list{display:grid;gap:9px}
+.ax-normalized-relationship-card,.ax-commitment-card{display:grid;gap:10px;padding:12px;border:1px solid #e5eae2;border-radius:11px;background:#fff;min-width:0}
+.ax-normalized-relationship-card>div:first-child,.ax-commitment-card-head>div:first-child{min-width:0}
+.ax-normalized-relationship-card strong,.ax-commitment-card strong{display:block;color:#24392b;font-size:12px;overflow-wrap:anywhere}
+.ax-normalized-relationship-card strong span{padding:0 5px;color:#77917d}
+.ax-normalized-relationship-card small,.ax-commitment-card small{display:block;margin-top:4px;color:#859087;font-size:9px;line-height:1.5;overflow-wrap:anywhere}
+.ax-normalized-relationship-controls,.ax-commitment-card-controls{display:grid;align-items:end;gap:8px;padding-top:9px;border-top:1px solid #edf0eb}.ax-normalized-relationship-controls{grid-template-columns:repeat(4,minmax(0,1fr))}.ax-commitment-card-controls{grid-template-columns:repeat(6,minmax(0,1fr))}
+.ax-normalized-relationship-controls button,.ax-commitment-card-controls button{padding:8px 10px;font-size:9px}
+.ax-commitment-create .ax-commitment-title{grid-column:span 2}
+.ax-commitment-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ax-commitment-summary article{display:grid;gap:4px;padding:10px;border:1px solid #e7ece5;border-radius:10px;background:#f9fbf8}
+.ax-commitment-summary strong{font-size:18px;color:#263b2d}
+.ax-commitment-summary span,.ax-commitment-card-meta{font-size:9px;color:#7b897d}
+.ax-commitment-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.ax-commitment-card-meta{display:flex;flex-wrap:wrap;gap:8px}
+.ax-commitment-card-meta span{padding:4px 6px;border-radius:6px;background:#f3f6f2}
+.ax-commitment-card>p{margin:0;color:#78847a;font-size:10px;line-height:1.5}
+@media(max-width:760px){.ax-normalized-relationship-form,.ax-commitment-create{grid-template-columns:repeat(2,minmax(0,1fr))}.ax-normalized-relationship-controls,.ax-commitment-card-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.ax-commitment-create .ax-commitment-title{grid-column:1/-1}}
+@media(max-width:520px){.ax-normalized-relationship-form,.ax-commitment-create,.ax-normalized-relationship-controls,.ax-commitment-card-controls{grid-template-columns:1fr}.ax-commitment-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ax-commitment-card-head{display:grid}}

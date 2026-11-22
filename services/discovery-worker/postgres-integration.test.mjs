@@ -81,6 +81,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(dealPartyMigration);
     const relationshipGraphMigration = await readFile(new URL("../../supabase/migrations/20261122320000_axivestra_relationship_graph.sql", import.meta.url), "utf8");
     await pool.query(relationshipGraphMigration);
+    const commitmentWorkspaceMigration = await readFile(new URL("../../supabase/migrations/20261122330000_axivestra_commitment_workspace.sql", import.meta.url), "utf8");
+    await pool.query(commitmentWorkspaceMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -478,6 +480,81 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         [companyId]
       );
       assert.equal(expiredGraph.rows[0].graph.counts.relationship_count,0);
+      // E18: structured commitments link to the canonical deal-party edge and retain a full event history.
+      const commitment=await partyClient.query(
+        "insert into public.company_action_commitments(company_id,record_key,commitment_type,title,status,priority,due_at,responsible_user_id,deal_record_key,party_record_key,relationship_id) values($1,'e18-record-1','promise','Review verified counterparty documents','open','high',now()-interval '2 days',$2,'deal-e16','party-e16',$3) returning *",
+        [companyId,actorId,partyId]
+      );
+      const commitmentId=commitment.rows[0].id;
+      assert.equal(commitment.rows[0].created_by,actorId);
+      await partyClient.query(
+        "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values($1,'property','deal-other-e18',$2::jsonb,$3,$3)",
+        [companyId,'{"title":"Different Deal"}',actorId]
+      );
+      await assert.rejects(
+        partyClient.query(
+          "insert into public.company_action_commitments(company_id,record_key,commitment_type,title,responsible_user_id,deal_record_key,party_record_key,relationship_id) values($1,'e18-wrong-edge','task','Invalid relationship',$2,'deal-other-e18','party-e16',$3)",
+          [companyId,actorId,partyId]
+        ),
+        /selected relationship must connect this deal and party/
+      );
+      await assert.rejects(
+        partyClient.query(
+          "insert into public.company_action_commitments(company_id,record_key,commitment_type,title,responsible_user_id) values($1,'e18-foreign-assignee','task','Invalid assignee','88888888-8888-4888-8888-888888888888')",
+          [companyId]
+        ),
+        /Responsible user must be a member/
+      );
+      const inbox=await partyClient.query(
+        "select due_state,days_overdue,deal_label,party_label from public.company_commitment_inbox where company_id=$1 and id=$2",
+        [companyId,commitmentId]
+      );
+      assert.equal(inbox.rows[0].due_state,"overdue");
+      assert.ok(inbox.rows[0].days_overdue>=1);
+      assert.equal(inbox.rows[0].deal_label,"E16 Deal");
+      assert.equal(inbox.rows[0].party_label,"E16 Counterparty");
+      const started=await partyClient.query(
+        "update public.company_action_commitments set status='in_progress',change_reason_code='progress' where company_id=$1 and id=$2 returning *",
+        [companyId,commitmentId]
+      );
+      assert.equal(started.rows[0].status,"in_progress");
+      const completed=await partyClient.query(
+        "update public.company_action_commitments set status='completed',change_reason_code='completed' where company_id=$1 and id=$2 returning *",
+        [companyId,commitmentId]
+      );
+      assert.equal(completed.rows[0].status,"completed");
+      assert.ok(completed.rows[0].closed_at);
+      const closedInbox=await partyClient.query(
+        "select due_state from public.company_commitment_inbox where company_id=$1 and id=$2",
+        [companyId,commitmentId]
+      );
+      assert.equal(closedInbox.rows[0].due_state,"closed");
+      await assert.rejects(
+        partyClient.query("update public.company_action_commitments set status='open',change_reason_code='progress' where id=$1",[commitmentId]),
+        /only be reopened to in_progress/
+      );
+      const reopened=await partyClient.query(
+        "update public.company_action_commitments set status='in_progress',change_reason_code='reopened' where company_id=$1 and id=$2 returning *",
+        [companyId,commitmentId]
+      );
+      assert.equal(reopened.rows[0].status,"in_progress");
+      assert.equal(reopened.rows[0].closed_at,null);
+      const commitmentEvents=await partyClient.query(
+        "select count(*)::int as count from public.company_commitment_events where company_id=$1 and commitment_id=$2",
+        [companyId,commitmentId]
+      );
+      assert.equal(commitmentEvents.rows[0].count,4);
+      await assert.rejects(
+        partyClient.query("update public.company_commitment_events set reason_code='details_updated' where commitment_id=$1",[commitmentId]),
+        /history is immutable/
+      );
+      await partyClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      await assert.rejects(
+        partyClient.query("update public.company_action_commitments set priority='urgent',change_reason_code='details_updated' where id=$1",[commitmentId]),
+        /authorised company member/
+      );
+      await partyClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+
     } finally { partyClient.release(); }
 
     // E06 queues the completed E05 run and requires explicit owner/admin approval
