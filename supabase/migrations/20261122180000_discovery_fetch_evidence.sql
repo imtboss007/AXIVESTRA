@@ -7,6 +7,7 @@ create table if not exists public.discovery_company_worker_controls (
   enabled boolean not null default false,
   updated_by uuid references auth.users(id) on delete set null,
   reason text check (reason is null or length(reason) <= 500),
+  expires_at timestamptz not null default (now() + interval '1 hour'),
   updated_at timestamptz not null default now()
 );
 
@@ -145,7 +146,7 @@ begin
     join public.discovery_profile_sources ps
       on ps.company_id = j.company_id and ps.profile_id = j.profile_id and ps.source_id = j.source_id
     join public.discovery_company_worker_controls wc
-      on wc.company_id = j.company_id and wc.enabled = true
+      on wc.company_id = j.company_id and wc.enabled = true and wc.expires_at > v_now
     where j.status = 'queued' and j.available_at <= v_now and j.attempts < j.max_attempts
     order by j.available_at, j.created_at
     for update of j skip locked
@@ -166,6 +167,41 @@ begin
   return next v_job;
 end;
 $$;
+
+
+-- Heartbeats also verify the temporary company-level grant. Turning it off or
+-- letting it expire causes active workers to abort on their next heartbeat.
+create or replace function public.heartbeat_discovery_job(
+  p_job_id uuid,
+  p_worker_id text,
+  p_lease_seconds integer default 90
+) returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare v_updated integer;
+begin
+  if p_lease_seconds < 15 or p_lease_seconds > 300 then
+    raise exception 'Lease duration must be between 15 and 300 seconds' using errcode = '22023';
+  end if;
+  update public.discovery_jobs j
+    set heartbeat_at = clock_timestamp(),
+        lease_expires_at = clock_timestamp() + make_interval(secs => p_lease_seconds),
+        updated_at = clock_timestamp()
+    where j.id = p_job_id and j.status = 'running'
+      and j.lease_owner = p_worker_id and j.lease_expires_at > clock_timestamp()
+      and exists (
+        select 1 from public.discovery_company_worker_controls wc
+        where wc.company_id = j.company_id and wc.enabled = true
+          and wc.expires_at > clock_timestamp()
+      );
+  get diagnostics v_updated = row_count;
+  return v_updated = 1;
+end;
+$;
+revoke all on function public.heartbeat_discovery_job(uuid,text,integer) from public, anon, authenticated;
+grant execute on function public.heartbeat_discovery_job(uuid,text,integer) to service_role;
 
 -- The quota reservation re-checks live source/profile/attachment/control state.
 -- Workers MUST reserve immediately before each outbound request, including robots.txt and redirects.
@@ -206,7 +242,7 @@ begin
     join public.discovery_profile_sources ps
       on ps.company_id = j.company_id and ps.profile_id = j.profile_id and ps.source_id = j.source_id
     join public.discovery_company_worker_controls wc
-      on wc.company_id = j.company_id and wc.enabled = true
+      on wc.company_id = j.company_id and wc.enabled = true and wc.expires_at > v_now
     where j.id = p_job_id and j.company_id = p_company_id
       and j.source_id = p_source_id and j.status = 'running'
       and j.lease_owner = p_worker_id and j.lease_expires_at > v_now
