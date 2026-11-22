@@ -5,10 +5,11 @@
   "description": "AXIVESTRA governed fetch and deterministic extraction worker.",
   "scripts": {
     "start": "node worker.mjs",
-    "test": "node worker-policy.test.mjs && node extractor.test.mjs && node extraction-worker.test.mjs && node entity-resolution.test.mjs && node entity-resolution-worker.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs && node retention.test.mjs",
+    "test": "node worker-policy.test.mjs && node extractor.test.mjs && node extraction-worker.test.mjs && node entity-resolution.test.mjs && node entity-resolution-worker.test.mjs && node people-intelligence.test.mjs && node people-intelligence-worker.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs && node retention.test.mjs",
     "install:browser": "playwright install chromium",
     "start:extraction": "node extraction-worker.mjs",
     "start:entity-resolution": "node entity-resolution-worker.mjs",
+    "start:people-intelligence": "node people-intelligence-worker.mjs",
     "retention": "node retention-sweeper.mjs",
     "bench:extractor": "node extractor.bench.mjs"
   },
