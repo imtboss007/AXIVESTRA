@@ -170,6 +170,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           extractor_version: "deterministic-v1.0.0",
           schema_hash: "b".repeat(64),
           source_content_hash: "a".repeat(64),
+          source_field_schema_snapshot: {
+            legal_name: { type: "string", aliases: ["legal_name"], required: true, entityKind: "organization" },
+            registration_id: { type: "identifier", aliases: ["registration_id"] },
+            status: { type: "string", aliases: ["status"] }
+          },
+          source_allowed_fields_snapshot: ["legal_name","registration_id","status"],
           invalid_fact_count: 0,
           warnings: []
         }),
