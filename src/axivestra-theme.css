@@ -1857,3 +1857,9 @@ body { background: #0b1420; color: #e8f0f4; }
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+
+
+/* Analytics category legend — keep every workspace and status discoverable. */
+.ax-modern-shell .ax-chart-legend {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+}
