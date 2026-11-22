@@ -1560,3 +1560,43 @@ body { background: #0b1420; color: #e8f0f4; }
   .ax-modern-shell .ax-chart-legend { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .ax-modern-shell .ax-chart-legend button { padding: 9px 8px; }
 }
+
+
+/* Relationship graph — evidence summary and keyboard-scroll clarity. */
+.ax-modern-shell .ax-relationship-graph-scroll:focus-visible {
+  outline: 2px solid #82b9b1;
+  outline-offset: 3px;
+}
+.ax-modern-shell .ax-relationship-graph__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 8px 14px;
+  color: #9aafbd;
+  border-bottom: 1px solid #294254;
+  background: #102638;
+  font-size: 11px;
+}
+.ax-modern-shell .ax-relationship-graph__summary strong {
+  color: #b9e1d8;
+  font-variant-numeric: tabular-nums;
+}
+.ax-modern-shell .ax-relationship-graph__summary span:last-child {
+  color: #829ba9;
+  text-align: right;
+}
+.ax-modern-shell .ax-relationship-graph__limit {
+  padding: 7px 3px;
+}
+@media (max-width: 640px) {
+  .ax-modern-shell .ax-relationship-graph__summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ax-modern-shell .ax-relationship-graph__summary span:last-child {
+    text-align: left;
+  }
+}
