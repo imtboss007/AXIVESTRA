@@ -343,7 +343,7 @@ assert.match(relationships, /person\.id, person\.role/,
   "Relationship search must match source contact IDs.");
 assert.match(relationships, /record\.recordId/,
   "Relationship search must match source record IDs.");
-assert.match(relationships, /hasMoreRecords:\s*allRecordNodes\.length > recordNodes\.length/,
+assert.match(relationships, /hasMoreRecords:\s*allFilteredRecords\.size > recordNodes\.length/,
   "The graph must only announce truncation when records actually exceed the visible limit.");
 assert.match(relationships, /explicit saved contact-to-record links/,
   "The relationship graph must expose its explicit-ID evidence count accessibly.");
