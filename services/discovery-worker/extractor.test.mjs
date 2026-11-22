@@ -101,7 +101,7 @@ test("invalid typed values are preserved as invalid facts, not silently coerced"
 test("unapproved fields are not extracted and required omissions are reported", () => {
   const source = {
     allowed_fields: ["legal_name","registration_id"],
-    field_schema: { legal_name: { type: "string", aliases: ["legalName"], required: true } }
+    field_schema: { legal_name: { type: "string", aliases: ["legalName"], required: true }, registration_id: { type: "identifier", aliases: ["registration_id"], required: true } }
   };
   const result = extractStructuredFacts({
     bytes: Buffer.from(JSON.stringify({
