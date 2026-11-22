@@ -538,17 +538,10 @@ export async function runDiscoveryWorkerOnce(admin, workerId) {
 }
 
 export async function runRetentionSweep(admin) {
-  const { data, error } = await admin.from("discovery_evidence_items")
-    .select("id,raw_blob_ref,captured_at,source:discovery_source_registry!inner(retention_days)")
-    .order("captured_at", { ascending: true })
-    .limit(100);
+  const { data, error } = await admin.rpc("list_expired_discovery_evidence", { p_limit: 100 });
   if (error) throw new Error("Evidence retention query failed: " + error.message);
   let deleted = 0;
   for (const item of data || []) {
-    const source = Array.isArray(item.source) ? item.source[0] : item.source;
-    const retentionDays = Math.max(1, Number(source?.retention_days || 90));
-    const ageMs = Date.now() - Date.parse(item.captured_at);
-    if (!Number.isFinite(ageMs) || ageMs < retentionDays * 86_400_000) continue;
     const separator = String(item.raw_blob_ref || "").indexOf(":");
     if (separator < 1) continue;
     const bucket = item.raw_blob_ref.slice(0, separator);
