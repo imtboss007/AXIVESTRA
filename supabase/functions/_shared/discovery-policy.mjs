@@ -121,6 +121,18 @@ function normalizeFieldSchema(input, allowedFields) {
     }
     schema[field] = { type, aliases, required: value.required === true, ...(entityKind ? { entityKind } : {}) };
   }
+  const aliasOwners = new Map();
+  for (const [field, config] of Object.entries(schema)) {
+    for (const alias of config.aliases) {
+      const key = alias.normalize("NFKC").toLowerCase()
+        .replace(/[^\\p{L}\\p{N}]+/gu, "_").replace(/^_+|_+$/g, "");
+      const owner = aliasOwners.get(key);
+      if (owner && owner !== field) {
+        throw new Error("Ambiguous source field alias \"" + alias + "\" is shared by " + owner + " and " + field + ".");
+      }
+      aliasOwners.set(key, field);
+    }
+  }
   return schema;
 }
 
