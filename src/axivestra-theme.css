@@ -1875,3 +1875,105 @@ body { background: #0b1420; color: #e8f0f4; }
 @media (prefers-reduced-motion: reduce) {
   .ax-modern-shell .content.ax-workspace-transition { animation: none; }
 }
+
+/* Interactive relationship focus — select either side to trace explicit saved links. */
+.ax-modern-shell .ax-relationship-graph__node {
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  transition: opacity .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.ax-modern-shell button.ax-relationship-graph__node--person {
+  cursor: pointer;
+}
+.ax-modern-shell .ax-relationship-graph__node.is-focused {
+  z-index: 4;
+  border-color: #82cdbd;
+  background: #1a4148;
+  box-shadow: 0 0 0 2px rgba(130,205,189,.16), 0 9px 24px rgba(4,16,25,.42);
+}
+.ax-modern-shell .ax-relationship-graph__node.is-dimmed {
+  opacity: .3;
+}
+.ax-modern-shell .ax-relationship-graph__edges path {
+  transition: opacity .18s ease, stroke .18s ease, stroke-width .18s ease;
+}
+.ax-modern-shell .ax-relationship-graph__edges path.is-focused {
+  stroke: #8ed9c9;
+  stroke-width: 2.8;
+  stroke-opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(105,185,174,.35));
+}
+.ax-modern-shell .ax-relationship-graph__edges path.is-dimmed {
+  stroke-opacity: .12;
+}
+.ax-modern-shell .ax-relationship-graph__focus {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ax-modern-shell .ax-relationship-graph__focus:focus-visible,
+.ax-modern-shell button.ax-relationship-graph__node--person:focus-visible {
+  outline: 2px solid #a0ded1;
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+.ax-modern-shell .ax-relationship-graph__focus[aria-pressed="true"] .ax-relationship-graph__node-icon,
+.ax-modern-shell .ax-relationship-graph__node--person[aria-pressed="true"] .ax-relationship-graph__node-icon {
+  color: #0b2425;
+  border-color: #a4ddc9;
+  background: #9bd6c2;
+}
+.ax-modern-shell .ax-relationship-graph__focus-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 7px 12px;
+  color: #a9c4cd;
+  border-bottom: 1px solid #294254;
+  background: #132c3a;
+  font-size: 11px;
+}
+.ax-modern-shell .ax-relationship-graph__focus-status strong {
+  color: #d9efe7;
+}
+.ax-modern-shell .ax-relationship-graph__focus-status button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 5px 9px;
+  color: #c4e7dd;
+  border: 1px solid #456e70;
+  border-radius: 7px;
+  background: #183b43;
+  font-size: 10px;
+  font-weight: 700;
+}
+.ax-modern-shell .ax-relationship-graph__focus-status button:focus-visible {
+  outline: 2px solid #a0ded1;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ax-modern-shell .ax-relationship-graph__node,
+  .ax-modern-shell .ax-relationship-graph__edges path {
+    transition: none;
+  }
+}
+@media (max-width: 640px) {
+  .ax-modern-shell .ax-relationship-graph__focus-status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
