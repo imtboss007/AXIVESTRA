@@ -5,8 +5,9 @@
   "description": "Server-side governed crawler/fetch worker for AXIVESTRA E04.",
   "scripts": {
     "start": "node worker.mjs",
-    "test": "node worker-policy.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs",
-    "install:browser": "playwright install chromium"
+    "test": "node worker-policy.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs && node retention.test.mjs",
+    "install:browser": "playwright install chromium",
+    "retention": "node retention-sweeper.mjs"
   },
   "devDependencies": {
     "pg": "8.16.3"
