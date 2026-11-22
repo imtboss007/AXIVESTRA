@@ -87,6 +87,9 @@ assert.ok(analytics.includes("Unclassified transaction types"), "Cashflow must d
 assert.ok(analytics.includes("const todayKey ="), "Overdue tasks must compare against the local calendar date.");
 assert.ok(analytics.includes("visibleItems.map((item, index) =>"), "Analytics legend must render every visible category rather than truncating after eight.");
 assert.ok(analytics.includes('role="group" aria-label={focus === "allocation" ? "All recorded workspace categories" : "All recorded pipeline statuses"}'), "Analytics category controls must expose a meaningful group label.");
+assert.match(app, /<div key=\{active\} className="content ax-workspace-transition">/, "Switching workspaces must restart the content entry transition.");
+assert.match(theme, /@keyframes ax-workspace-enter/, "Workspace changes must use a restrained content transition.");
+assert.match(theme, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.content\.ax-workspace-transition \{ animation: none; \}/, "Workspace transitions must be disabled for reduced-motion users.");
 console.log("AXIVESTRA enterprise design-system contract passed.");
 
 
