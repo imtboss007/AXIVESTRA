@@ -48,9 +48,9 @@ test("enqueue transaction writes one audit receipt atomically", () => {
 });
 
 test("idempotency compares the complete enqueue payload to prevent accidental reuse", () => {
-  assert.match(control, /existing\.payload\?\.purpose === purpose/);
-  assert.match(control, /existing\.payload\?\.criteria \|\| \{\}/);
-  assert.match(control, /existing\.payload\?\.candidateUrls \|\| \[\]/);
+  assert.match(migration, /v_existing\.payload <> p_payload/);
+  assert.match(migration, /p_idempotency_key/);
+  assert.match(migration, /return query select v_existing, true/);
 });
 
 test("enqueue is available to company members but only allow-listed bounded candidate URLs are accepted", () => {
@@ -73,6 +73,21 @@ test("Playwright rendering remains source-scoped and routes every network reques
   assert.match(worker, /RTCPeerConnection/);
   assert.match(worker, /request\.frame\(\)\.page\(\) !== page/);
   assert.match(worker, /evidenceKind: "rendered_dom"/);
+});
+
+test("worker grant and audit event are one atomic owner/admin server action", () => {
+  assert.match(migration, /create or replace function public\.set_discovery_company_worker_grant/);
+  assert.match(migration, /from public\.company_memberships/);
+  assert.match(migration, /interval '1 hour'/);
+  assert.match(control, /admin\.rpc\("set_discovery_company_worker_grant"/);
+  assert.match(migration, /discovery_worker_grant_enabled/);
+});
+
+test("evidence retention eligibility is calculated per source in PostgreSQL", () => {
+  assert.match(migration, /create or replace function public\.list_expired_discovery_evidence/);
+  assert.match(migration, /make_interval\(days => greatest\(1,s\.retention_days\)\)/);
+  assert.match(worker, /admin\.rpc\("list_expired_discovery_evidence"/);
+  assert.match(worker, /storage\.from\(bucket\)\.remove/);
 });
 
 test("company fetch grant expires automatically and can be revoked", () => {
