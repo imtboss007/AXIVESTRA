@@ -39,6 +39,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const professionalRolesMigration = await readFile(new URL("../../supabase/migrations/20261122210000_discovery_professional_roles.sql", import.meta.url), "utf8");
     const contactValidationMigration = await readFile(new URL("../../supabase/migrations/20261122220000_discovery_contact_validation.sql", import.meta.url), "utf8");
     const geoResolutionMigration = await readFile(new URL("../../supabase/migrations/20261122230000_discovery_geo_resolution.sql", import.meta.url), "utf8");
+    const enrichmentMigration = await readFile(new URL("../../supabase/migrations/20261122240000_discovery_enrichment.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
@@ -47,6 +48,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(professionalRolesMigration);
     await pool.query(contactValidationMigration);
     await pool.query(geoResolutionMigration);
+    await pool.query(enrichmentMigration);
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -828,7 +830,230 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     );
     assert.equal(placeAudit.rows[0].count,1);
 
-    await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
+    // E10 stores source-specific values, their published/captured timestamps and conflicts without overwriting the E06 company.
+    const enrichmentClaim=await pool.query(
+      "select * from public.claim_discovery_enrichment_job($1,90)",
+      ["enrichment-worker-test"]
+    );
+    assert.equal(enrichmentClaim.rows.length,1,"E06 assignment plus approved enrichment fields must enqueue E10");
+    const enrichmentJob=enrichmentClaim.rows[0];
+    const enrichmentSource=await pool.query(
+      "select name,domain,jurisdiction,attribution,license_ref,allowed_fields,field_schema from public.discovery_source_registry where id=$1",
+      [sourceId]
+    );
+    const enrichmentRun=await pool.query(
+      "select completed_at,source_content_hash from public.discovery_extraction_runs where id=$1",
+      [extractionRunId]
+    );
+    const enrichmentEvidence=await pool.query(
+      "select captured_at,source_published_at from public.discovery_evidence_items where id=$1",
+      [evidenceId]
+    );
+    const enrichmentFacts=await pool.query(
+      "select f.id as fact_id,f.extracted_entity_id,f.field_name,f.value_type,f.raw_value,f.normalized_value,f.source_span,f.confidence from public.discovery_extracted_facts f where f.company_id=$1 and f.extraction_run_id=$2 and f.field_name=any($3::text[]) order by f.field_name",
+      [companyId,extractionRunId,["annual_revenue","employee_count","land_area","industry"]]
+    );
+    assert.equal(enrichmentFacts.rows.length,4);
+    const categoryByField={annual_revenue:"finance",employee_count:"operating",land_area:"property",industry:"business"};
+    const enrichmentPayload=enrichmentFacts.rows.map(f=>({
+      extracted_fact_id:f.fact_id,
+      extracted_entity_id:f.extracted_entity_id,
+      canonical_entity_id:canonical.rows[0].id,
+      entity_kind:"organization",
+      attribute_key:f.field_name,
+      attribute_category:categoryByField[f.field_name],
+      source_field_name:f.field_name,
+      value_type:f.value_type,
+      raw_value:f.raw_value,
+      normalized_value:f.normalized_value,
+      source_unit:f.field_name==="land_area"?"sqm":null,
+      currency_code:f.field_name==="annual_revenue"?"INR":null,
+      source_confidence:Number(f.confidence),
+      source_span:f.source_span
+    }));
+    const enrichmentComplete=await pool.query(
+      "select public.complete_discovery_enrichment_job($1,$2,$3::jsonb) as count",
+      [enrichmentJob.id,enrichmentJob.lease_owner,JSON.stringify(enrichmentPayload)]
+    );
+    assert.equal(enrichmentComplete.rows[0].count,4);
+    const enrichmentObservations=await pool.query(
+      "select id,attribute_key,attribute_category,raw_value,normalized_value,source_unit,currency_code,source_published_at,evidence_captured_at,review_state from public.discovery_enrichment_observations where company_id=$1 and extraction_run_id=$2 order by attribute_key",
+      [companyId,extractionRunId]
+    );
+    assert.equal(enrichmentObservations.rows.length,4);
+    const revenueObservation=enrichmentObservations.rows.find(x=>x.attribute_key==="annual_revenue");
+    assert.equal(revenueObservation.raw_value,"₹12 crore");
+    assert.equal(revenueObservation.normalized_value.amount,120000000);
+    assert.equal(revenueObservation.normalized_value.currency,"INR");
+    assert.equal(revenueObservation.currency_code,"INR");
+    assert.ok(revenueObservation.source_published_at);
+    assert.ok(revenueObservation.evidence_captured_at);
+    assert.ok(enrichmentObservations.every(x=>x.review_state==="pending_review"));
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_enrichment_review($1,$2,$3,'accepted',$4)",
+        [companyId,viewerId,enrichmentObservations.rows[0].id,"Viewer cannot approve enrichment"]
+      ),
+      /Only a company owner or admin can review enrichment observations/
+    );
+    const industryObservation=enrichmentObservations.rows.find(x=>x.attribute_key==="industry");
+    const industryReview=await pool.query(
+      "select * from public.record_discovery_enrichment_review($1,$2,$3,'accepted',$4)",
+      [companyId,actorId,industryObservation.id,"Owner reviewed the source-disclosed industry attribute"]
+    );
+    assert.equal(industryReview.rows[0].decision,"accepted");
+    const enrichmentAudit=await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='enrichment_observation_review_recorded' and entity_id=$2",
+      [companyId,industryObservation.id]
+    );
+    assert.equal(enrichmentAudit.rows[0].count,1);
+
+    // A second independent source disagrees on annual revenue. Both source observations
+    // must be preserved with timestamps; neither is automatically selected.
+    const secondSourceId="dddddddd-dddd-4ddd-8ddd-ddddddddddde";
+    const secondParentJobId="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee7";
+    const secondEvidenceId="ffffffff-ffff-4fff-8fff-fffffffffff3";
+    await pool.query(`
+      insert into public.discovery_source_registry(
+        id,company_id,name,canonical_url,domain,source_type,connector_key,jurisdiction,
+        terms_url,license_ref,allowed_purposes,allowed_fields,field_schema,allowed_paths,access_method,
+        rate_limit_per_minute,max_pages_per_job,retention_days,attribution,legal_basis,
+        status,reviewed_by,reviewed_at,created_by,updated_by
+      ) values (
+        $1,$2,'Licensed financial feed','https://finance.example.org/api','finance.example.org',
+        'licensed_api','licensed_api','IN','https://finance.example.org/terms','Contracted financial feed',
+        array['company identity verification','enrichment'],array['legal_name','annual_revenue'],
+        '{"legal_name":{"type":"string","aliases":["legal_name"],"entityKind":"organization"},"annual_revenue":{"type":"currency","aliases":["annual_revenue"],"currencyCode":"INR"}}'::jsonb,
+        array['/api/v1/company'],'licensed_api',1,10,30,'Licensed financial feed attribution','Approved contracted financial enrichment',
+        'approved',$3,now(),$3,$3
+      )
+    `,[secondSourceId,companyId,actorId]);
+    await pool.query(
+      "insert into public.discovery_profile_sources(company_id,profile_id,source_id,created_by) values($1,$2,$3,$4)",
+      [companyId,profileId,secondSourceId,actorId]
+    );
+    await pool.query(`
+      insert into public.discovery_jobs(
+        id,company_id,profile_id,source_id,requested_by,status,payload,idempotency_key,started_at,finished_at
+      ) values($1,$2,$3,$4,$5,'succeeded',
+        '{"purpose":"company identity verification","criteria":{},"candidateUrls":["https://finance.example.org/api/v1/company/acme"]}'::jsonb,
+        'integration-enrichment-source-b',now(),now())
+    `,[secondParentJobId,companyId,profileId,secondSourceId,actorId]);
+    await pool.query(`
+      insert into public.discovery_evidence_items(
+        id,company_id,job_id,source_id,canonical_url,captured_at,source_published_at,content_hash,raw_blob_ref,
+        content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
+      ) values($1,$2,$3,$4,'https://finance.example.org/api/v1/company/acme',now()-interval '1 day',now()-interval '3 days',
+        repeat('g',64),'discovery-evidence:company/job/second-evidence.bin',
+        'application/json',32,'Licensed financial feed attribution','IN','{"retention_days":30}'::jsonb,'{}'::jsonb)
+    `,[secondEvidenceId,companyId,secondParentJobId,secondSourceId]);
+    const secondExtractionClaim=await pool.query(
+      "select * from public.claim_discovery_extraction_job($1,90)",
+      ["second-source-extraction-test"]
+    );
+    assert.equal(secondExtractionClaim.rows.length,1);
+    const secondExtractionJob=secondExtractionClaim.rows[0];
+    const secondSpan={kind:"json-pointer",locator:"$/annual_revenue",quote:"₹10 crore",quoteHash:"h".repeat(64)};
+    const secondRun=await pool.query(
+      "select public.complete_discovery_extraction($1,$2,$3::jsonb,$4::jsonb,$5::jsonb) as run_id",
+      [
+        secondExtractionJob.id,
+        secondExtractionJob.lease_owner,
+        JSON.stringify({
+          extractor_version:"deterministic-v1.0.0",schema_hash:"j".repeat(64),
+          source_content_hash:"g".repeat(64),
+          source_field_schema_snapshot:{
+            legal_name:{type:"string",aliases:["legal_name"],entityKind:"organization"},
+            annual_revenue:{type:"currency",aliases:["annual_revenue"],currencyCode:"INR"}
+          },
+          source_allowed_fields_snapshot:["legal_name","annual_revenue"],
+          invalid_fact_count:0,warnings:[]
+        }),
+        JSON.stringify([{
+          mention_key:"organization:acme-source-b",entity_kind:"organization",
+          raw_name:"Acme Holdings Pvt Ltd",normalized_name:"Acme Holdings Pvt Ltd",
+          source_span:span,confidence:0.99
+        }]),
+        JSON.stringify([
+          {
+            mention_key:"organization:acme-source-b",field_name:"legal_name",
+            value_type:"string",raw_value:"Acme Holdings Pvt Ltd",
+            normalized_value:"Acme Holdings Pvt Ltd",source_span:span,
+            confidence:0.99,validation_status:"valid"
+          },
+          {
+            mention_key:"organization:acme-source-b",field_name:"annual_revenue",
+            value_type:"currency",raw_value:"₹10 crore",
+            normalized_value:{amount:100000000,currency:"INR"},source_span:secondSpan,
+            confidence:0.95,validation_status:"valid"
+          }
+        ])
+      ]
+    );
+    const secondExtractionRunId=secondRun.rows[0].run_id;
+    const secondMention=await pool.query(
+      "select id from public.discovery_extracted_entities where extraction_run_id=$1 and entity_kind='organization'",
+      [secondExtractionRunId]
+    );
+    assert.equal(secondMention.rows.length,1);
+    const secondReviewEvent=await pool.query(
+      "insert into public.discovery_entity_review_events(company_id,candidate_id,actor_user_id,decision,canonical_entity_id,reason) values($1,gen_random_uuid(),$2,'linked_existing',$3,'Owner linked independent financial source to existing canonical company') returning id",
+      [companyId,actorId,canonical.rows[0].id]
+    );
+    await pool.query(
+      "insert into public.discovery_entity_assignments(company_id,extraction_run_id,extracted_entity_id,canonical_entity_id,source_evidence_id,review_event_id) values($1,$2,$3,$4,$5,$6)",
+      [companyId,secondExtractionRunId,secondMention.rows[0].id,canonical.rows[0].id,secondEvidenceId,secondReviewEvent.rows[0].id]
+    );
+    const secondEnrichmentClaim=await pool.query(
+      "select * from public.claim_discovery_enrichment_job($1,90)",
+      ["second-source-enrichment-test"]
+    );
+    assert.equal(secondEnrichmentClaim.rows.length,1);
+    const secondRevenueFact=await pool.query(
+      "select id,extracted_entity_id,raw_value,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1 and field_name='annual_revenue'",
+      [secondExtractionRunId]
+    );
+    assert.equal(secondRevenueFact.rows.length,1);
+    const secondEnrichmentPayload=[{
+      extracted_fact_id:secondRevenueFact.rows[0].id,
+      extracted_entity_id:secondRevenueFact.rows[0].extracted_entity_id,
+      canonical_entity_id:canonical.rows[0].id,
+      entity_kind:"organization",
+      attribute_key:"annual_revenue",attribute_category:"finance",
+      source_field_name:"annual_revenue",value_type:"currency",raw_value:"₹10 crore",
+      normalized_value:{amount:100000000,currency:"INR"},
+      source_unit:null,currency_code:"INR",source_confidence:0.95,
+      source_span:secondRevenueFact.rows[0].source_span
+    }];
+    const secondEnrichmentComplete=await pool.query(
+      "select public.complete_discovery_enrichment_job($1,$2,$3::jsonb) as count",
+      [secondEnrichmentClaim.rows[0].id,secondEnrichmentClaim.rows[0].lease_owner,JSON.stringify(secondEnrichmentPayload)]
+    );
+    assert.equal(secondEnrichmentComplete.rows[0].count,1);
+    const revenueConflict=await pool.query(
+      "select id,candidate_a,candidate_b,status from public.discovery_enrichment_conflicts where company_id=$1 and canonical_entity_id=$2 and attribute_key='annual_revenue'",
+      [companyId,canonical.rows[0].id]
+    );
+    assert.equal(revenueConflict.rows.length,1);
+    assert.equal(revenueConflict.rows[0].status,"open");
+    const conflictValues=await pool.query(
+      "select count(*)::int as count,count(distinct normalized_value->>'amount')::int as distinct_values from public.discovery_enrichment_observations where company_id=$1 and canonical_entity_id=$2 and attribute_key='annual_revenue'",
+      [companyId,canonical.rows[0].id]
+    );
+    assert.equal(conflictValues.rows[0].count,2);
+    assert.equal(conflictValues.rows[0].distinct_values,2);
+    const conflictReview=await pool.query(
+      "select * from public.record_discovery_enrichment_conflict_review($1,$2,$3,'retained_both',$4)",
+      [companyId,actorId,revenueConflict.rows[0].id,"Owner confirms both source observations must remain visible; no single value is selected"]
+    );
+    assert.equal(conflictReview.rows[0].decision,"retained_both");
+    const conflictResolved=await pool.query(
+      "select status from public.discovery_enrichment_conflicts where id=$1",
+      [revenueConflict.rows[0].id]
+    );
+    assert.equal(conflictResolved.rows[0].status,"retained_both");
+
+        await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
     const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
     assert.equal(expiredEvidence.rows.length, 1, "per-source evidence retention is enforced by PostgreSQL");
     await pool.query(`
