@@ -1,7 +1,10 @@
 import { performance } from "node:perf_hooks";
 import { extractStructuredFacts } from "./extractor.mjs";
 
-const iterations = Math.max(50, Math.min(5000, Number(process.env.E05_BENCH_ITERATIONS || 500)));
+const requestedIterations = Number(process.env.E05_BENCH_ITERATIONS || 500);
+const iterations = Number.isFinite(requestedIterations)
+  ? Math.max(50, Math.min(5000, Math.floor(requestedIterations)))
+  : 500;
 const hash = "a".repeat(64);
 const source = {
   allowed_fields: ["legal_name","registration_id","public_email","website","turnover"],
@@ -36,12 +39,23 @@ const xmlText = "<registry>" + jsonRecords.map(item =>
   "<record>" + Object.entries(item).map(([key,value]) => "<" + key + ">" + value + "</" + key + ">").join("") + "</record>"
 ).join("") + "</registry>";
 const textText = jsonRecords.map(item => Object.entries(item).map(([key,value]) => key + ": " + value).join("\n")).join("\n");
+const csvText = [
+  "legal_name,registration_id,public_email,website,turnover",
+  ...jsonRecords.map(item => [
+    '"' + item.legal_name.replace(/"/g,'""') + '"',
+    item.registration_id,
+    item.public_email,
+    item.website,
+    '"' + item.turnover + '"'
+  ].join(","))
+].join("\n");
 
 const cases = [
   ["JSON", "application/json", Buffer.from(jsonText)],
   ["HTML", "text/html", Buffer.from(htmlText)],
   ["XML", "application/xml", Buffer.from(xmlText)],
-  ["Text", "text/plain", Buffer.from(textText)],\n  ["CSV", "text/csv", Buffer.from(csvText)]
+  ["Text", "text/plain", Buffer.from(textText)],
+  ["CSV", "text/csv", Buffer.from(csvText)]
 ];
 
 function percentile(values, fraction) {
