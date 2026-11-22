@@ -3,7 +3,7 @@
  * Upstream: https://github.com/magicuidesign/magicui/blob/main/apps/www/registry/magicui/border-beam.tsx
  * Copyright (c) Magic UI — MIT License. See THIRD_PARTY_NOTICES.md.
  */
-import { motion, type MotionStyle, type Transition } from "motion/react";
+import { motion, useReducedMotion, type MotionStyle, type Transition } from "motion/react";
 
 type BorderBeamProps = {
   size?: number;
@@ -28,6 +28,8 @@ export function BorderBeam({
   initialOffset = 0,
   borderWidth = 1
 }: BorderBeamProps) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) return null;
   return (
     <div
       className="ax-magic-border-beam"
