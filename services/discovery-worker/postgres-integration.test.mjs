@@ -61,6 +61,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(provenanceMigration);
     const privacyMigration = await readFile(new URL("../../supabase/migrations/20261122290000_discovery_privacy_compliance.sql", import.meta.url), "utf8");
     await pool.query(privacyMigration);
+    const leadWorkspaceMigration = await readFile(new URL("../../supabase/migrations/20261122300000_discovery_lead_workspace.sql", import.meta.url), "utf8");
+    await pool.query(leadWorkspaceMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -1456,6 +1458,158 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       /immutable/
     );
 
+
+    // E15: only owner/admin-accepted eligible matches create company leads.
+    const leadMatch=await pool.query(
+      `insert into public.discovery_match_results(
+        company_id,canonical_entity_id,workspace_key,criteria_version,criteria_snapshot,
+        candidate_snapshot,score,confidence,eligible,method,positive_factors,
+        negative_factors,unknown_criteria,blockers,created_by
+      ) values($1,$2,'startup','E15-integration-v1','{"ticket":{"min":1,"max":10}}'::jsonb,
+        '{"legal_name":"E15 Integration Company","jurisdiction":"IN","entity_type":"company"}'::jsonb,
+        86.5,0.85,true,'deterministic_weighted_rules_v1',
+        '[{"criterion":"type","reason":"Company type aligns."}]'::jsonb,'[]'::jsonb,'[]'::jsonb,'[]'::jsonb,$3
+      ) returning id`,
+      [companyId,canonical.rows[0].id,actorId]
+    );
+    const matchReview=await pool.query(
+      "select public.record_discovery_match_review($1,$2,$3,'accepted_for_review','match_confirmed') as result",
+      [companyId,actorId,leadMatch.rows[0].id]
+    );
+    const matchReviewResult=matchReview.rows[0].result;
+    assert.equal(matchReviewResult.review.decision,"accepted_for_review");
+    assert.ok(matchReviewResult.lead.id,"E15 accepted match creates a lead");
+    const leadId=matchReviewResult.lead.id;
+    const acceptedMatch=await pool.query(
+      "select review_state from public.discovery_match_results where company_id=$1 and id=$2",
+      [companyId,leadMatch.rows[0].id]
+    );
+    assert.equal(acceptedMatch.rows[0].review_state,"accepted_for_review");
+    const createdLead=await pool.query(
+      "select * from public.discovery_leads where company_id=$1 and id=$2",
+      [companyId,leadId]
+    );
+    assert.equal(createdLead.rows[0].status,"inbox");
+    assert.equal(createdLead.rows[0].workspace_key,"startup");
+    await assert.rejects(
+      pool.query(
+        "select public.record_discovery_match_review($1,$2,$3,'accepted_for_review','match_confirmed')",
+        [companyId,actorId,leadMatch.rows[0].id]
+      ),
+      /already reviewed/
+    );
+    await assert.rejects(
+      pool.query(
+        "select public.assign_discovery_lead($1,$2,$3,$4,'assignment_change')",
+        [companyId,actorId,leadId,"00000000-0000-4000-8000-000000000099"]
+      ),
+      /assignee must be a member/
+    );
+    const assignedLead=await pool.query(
+      "select * from public.assign_discovery_lead($1,$2,$3,$4,'assignment_change')",
+      [companyId,actorId,leadId,viewerId]
+    );
+    assert.equal(assignedLead.rows[0].assigned_to,viewerId);
+    const assignedEvent=await pool.query(
+      "select previous_assignee_id,new_assignee_id from public.discovery_lead_events where company_id=$1 and lead_id=$2 and event_type='lead_assigned' order by occurred_at desc limit 1",
+      [companyId,leadId]
+    );
+    assert.equal(assignedEvent.rows[0].previous_assignee_id,null);
+    assert.equal(assignedEvent.rows[0].new_assignee_id,viewerId);
+    await assert.rejects(
+      pool.query(
+        "select public.transition_discovery_lead($1,$2,$3,'won','deal_won')",
+        [companyId,actorId,leadId]
+      ),
+      /stage transition is not allowed/
+    );
+    const reviewingLead=await pool.query(
+      "select * from public.transition_discovery_lead($1,$2,$3,'reviewing','stage_progress')",
+      [companyId,actorId,leadId]
+    );
+    assert.equal(reviewingLead.rows[0].status,"reviewing");
+    const qualifiedLead=await pool.query(
+      "select * from public.transition_discovery_lead($1,$2,$3,'qualified','stage_progress')",
+      [companyId,actorId,leadId]
+    );
+    assert.equal(qualifiedLead.rows[0].status,"qualified");
+    const priorityLead=await pool.query(
+      "select * from public.set_discovery_lead_priority($1,$2,$3,'high')",
+      [companyId,actorId,leadId]
+    );
+    assert.equal(priorityLead.rows[0].priority,"high");
+    const actionDueAt=new Date(Date.now()+7*86400000).toISOString();
+    const actionLead=await pool.query(
+      "select * from public.set_discovery_lead_next_action($1,$2,$3,'review_evidence',$4)",
+      [companyId,actorId,leadId,actionDueAt]
+    );
+    assert.equal(actionLead.rows[0].next_action_code,"review_evidence");
+    assert.ok(actionLead.rows[0].next_action_due_at);
+    await pool.query(
+      "select public.transition_discovery_lead($1,$2,$3,'due_diligence','stage_progress')",
+      [companyId,actorId,leadId]
+    );
+    await pool.query(
+      "select public.transition_discovery_lead($1,$2,$3,'proposal','stage_progress')",
+      [companyId,actorId,leadId]
+    );
+    const wonLead=await pool.query(
+      "select * from public.transition_discovery_lead($1,$2,$3,'won','deal_won')",
+      [companyId,actorId,leadId]
+    );
+    assert.equal(wonLead.rows[0].status,"won");
+    assert.ok(wonLead.rows[0].closed_at);
+    const reopenedLead=await pool.query(
+      "select * from public.transition_discovery_lead($1,$2,$3,'reviewing','reopened')",
+      [companyId,actorId,leadId]
+    );
+    assert.equal(reopenedLead.rows[0].status,"reviewing");
+    assert.equal(reopenedLead.rows[0].closed_at,null);
+    const leadHistory=await pool.query(
+      "select count(*)::int as count from public.discovery_lead_events where company_id=$1 and lead_id=$2",
+      [companyId,leadId]
+    );
+    assert.ok(leadHistory.rows[0].count>=7);
+    const leadProvenance=await pool.query(
+      "select count(*)::int as count from public.discovery_provenance_events where company_id=$1 and subject_kind='lead' and subject_id=$2 and event_type in ('lead_created','lead_assigned','lead_status_changed','lead_priority_changed','lead_next_action_set')",
+      [companyId,leadId]
+    );
+    assert.ok(leadProvenance.rows[0].count>=7,"E15 workflow actions must append E13 provenance");
+    await assert.rejects(
+      pool.query("update public.discovery_lead_events set reason_code='stage_progress' where lead_id=$1",[leadId]),
+      /immutable/
+    );
+    await assert.rejects(
+      pool.query("update public.discovery_lead_match_reviews set reason_code='other_review' where match_result_id=$1",[leadMatch.rows[0].id]),
+      /immutable/
+    );
+
+    const rejectedMatch=await pool.query(
+      `insert into public.discovery_match_results(
+        company_id,canonical_entity_id,workspace_key,criteria_version,criteria_snapshot,
+        candidate_snapshot,score,confidence,eligible,method,created_by
+      ) values($1,$2,'startup','E15-reject-v1','{}'::jsonb,'{"legal_name":"Reject Fixture"}'::jsonb,
+        22,0.3,false,'deterministic_weighted_rules_v1',$3) returning id`,
+      [companyId,canonical.rows[0].id,actorId]
+    );
+    await assert.rejects(
+      pool.query(
+        "select public.record_discovery_match_review($1,$2,$3,'accepted_for_review','match_confirmed')",
+        [companyId,actorId,rejectedMatch.rows[0].id]
+      ),
+      /ineligible matches cannot enter/
+    );
+    const rejectedReview=await pool.query(
+      "select public.record_discovery_match_review($1,$2,$3,'rejected','out_of_scope') as result",
+      [companyId,actorId,rejectedMatch.rows[0].id]
+    );
+    assert.equal(rejectedReview.rows[0].result.review.decision,"rejected");
+    assert.equal(rejectedReview.rows[0].result.lead,null);
+    const rejectedLeadCount=await pool.query(
+      "select count(*)::int as count from public.discovery_leads where company_id=$1 and match_result_id=$2",
+      [companyId,rejectedMatch.rows[0].id]
+    );
+    assert.equal(rejectedLeadCount.rows[0].count,0,"Rejected matches must not create leads");
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);

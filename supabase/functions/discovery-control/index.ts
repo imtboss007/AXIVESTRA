@@ -231,8 +231,151 @@ Deno.serve(async request => {
         message: duplicate ? "The same discovery job was already queued." : "Discovery job queued. Enqueue does not contact the source."
       });
     }
+    if (action === "matches.list") {
+      const { data: matches, error } = await admin.from("discovery_match_results")
+        .select("id,canonical_entity_id,workspace_key,criteria_version,score,confidence,eligible,positive_factors,negative_factors,unknown_criteria,blockers,review_state,created_at")
+        .eq("company_id", companyId).eq("review_state", "pending_review")
+        .order("score", { ascending: false }).limit(100);
+      if (error) throw error;
+      const entityIds = [...new Set((matches || []).map((row: { canonical_entity_id: string }) => row.canonical_entity_id))];
+      const { data: entities, error: entityError } = entityIds.length
+        ? await admin.from("discovery_canonical_entities").select("id,legal_name,jurisdiction,entity_type")
+          .eq("company_id", companyId).in("id", entityIds)
+        : { data: [], error: null };
+      if (entityError) throw entityError;
+      const byId = new Map((entities || []).map((entity: Record<string, unknown>) => [String(entity.id), entity]));
+      return jsonResponse(200, { ok: true, matches: (matches || []).map((match: Record<string, unknown>) => ({
+        ...match, candidate: byId.get(String(match.canonical_entity_id)) || null
+      })) });
+    }
+
+    if (action === "leads.list") {
+      const { data: leads, error } = await admin.from("discovery_leads")
+        .select("*").eq("company_id", companyId).order("updated_at", { ascending: false }).limit(200);
+      if (error) throw error;
+      const matchIds = [...new Set((leads || []).map((lead: { match_result_id: string }) => lead.match_result_id))];
+      const entityIds = [...new Set((leads || []).map((lead: { canonical_entity_id: string }) => lead.canonical_entity_id))];
+      const [matchResult, entityResult, eventResult] = await Promise.all([
+        matchIds.length ? admin.from("discovery_match_results")
+          .select("id,score,confidence,eligible,workspace_key,criteria_version")
+          .eq("company_id", companyId).in("id", matchIds) : Promise.resolve({ data: [], error: null }),
+        entityIds.length ? admin.from("discovery_canonical_entities")
+          .select("id,legal_name,jurisdiction,entity_type")
+          .eq("company_id", companyId).in("id", entityIds) : Promise.resolve({ data: [], error: null }),
+        (leads || []).length ? admin.from("discovery_lead_events")
+          .select("id,lead_id,event_type,previous_status,new_status,previous_priority,new_priority,previous_assignee_id,new_assignee_id,reason_code,details,actor_user_id,occurred_at")
+          .eq("company_id", companyId).in("lead_id", (leads || []).map((lead: { id: string }) => lead.id))
+          .order("occurred_at", { ascending: false }).limit(1000) : Promise.resolve({ data: [], error: null })
+      ]);
+      if (matchResult.error) throw matchResult.error;
+      if (entityResult.error) throw entityResult.error;
+      if (eventResult.error) throw eventResult.error;
+      const matchesById = new Map((matchResult.data || []).map((row: Record<string, unknown>) => [String(row.id), row]));
+      const entitiesById = new Map((entityResult.data || []).map((row: Record<string, unknown>) => [String(row.id), row]));
+      const eventsByLead = new Map<string, Record<string, unknown>[]>();
+      for (const event of eventResult.data || []) {
+        const key = String((event as Record<string, unknown>).lead_id);
+        eventsByLead.set(key, [...(eventsByLead.get(key) || []), event as Record<string, unknown>]);
+      }
+      return jsonResponse(200, { ok: true, leads: (leads || []).map((lead: Record<string, unknown>) => ({
+        ...lead,
+        match: matchesById.get(String(lead.match_result_id)) || null,
+        candidate: entitiesById.get(String(lead.canonical_entity_id)) || null,
+        events: eventsByLead.get(String(lead.id)) || []
+      })) });
+    }
+
+    if (action === "members.list") {
+      const { data, error } = await admin.from("company_memberships")
+        .select("user_id,role").eq("company_id", companyId).order("role");
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, members: data || [] });
+    }
+
     if (!canManage && action !== "jobs.enqueue") return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources, profiles or worker permissions." });
 
+
+    if (action === "matches.review") {
+      if (!isUuid(payload.matchResultId)) return jsonResponse(400, { error: "A valid match result ID is required." });
+      const decision = String(payload.decision || "");
+      const reasonCode = String(payload.reasonCode || "");
+      if (!["accepted_for_review","rejected"].includes(decision)) return jsonResponse(400, { error: "Choose accept for review or reject." });
+      const { data, error } = await admin.rpc("record_discovery_match_review", {
+        p_company_id: companyId, p_actor_user_id: caller.id,
+        p_match_result_id: payload.matchResultId, p_decision: decision, p_reason_code: reasonCode
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(201, { ok: true, review: data?.review || null, lead: data?.lead || null });
+    }
+
+    if (action === "leads.assign") {
+      if (!isUuid(payload.leadId)) return jsonResponse(400, { error: "A valid lead ID is required." });
+      const assigneeId = payload.assigneeId === null || payload.assigneeId === "" ? null : payload.assigneeId;
+      if (assigneeId !== null && !isUuid(assigneeId)) return jsonResponse(400, { error: "Choose a valid company member." });
+      const { data, error } = await admin.rpc("assign_discovery_lead", {
+        p_company_id: companyId, p_actor_user_id: caller.id, p_lead_id: payload.leadId,
+        p_assignee_id: assigneeId, p_reason_code: String(payload.reasonCode || (assigneeId ? "assignment_change" : "unassigned"))
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(200, { ok: true, lead: data });
+    }
+
+    if (action === "leads.transition") {
+      if (!isUuid(payload.leadId)) return jsonResponse(400, { error: "A valid lead ID is required." });
+      const { data, error } = await admin.rpc("transition_discovery_lead", {
+        p_company_id: companyId, p_actor_user_id: caller.id, p_lead_id: payload.leadId,
+        p_new_status: String(payload.status || ""), p_reason_code: String(payload.reasonCode || "stage_progress")
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(200, { ok: true, lead: data });
+    }
+
+    if (action === "leads.priority") {
+      if (!isUuid(payload.leadId)) return jsonResponse(400, { error: "A valid lead ID is required." });
+      const { data, error } = await admin.rpc("set_discovery_lead_priority", {
+        p_company_id: companyId, p_actor_user_id: caller.id, p_lead_id: payload.leadId,
+        p_priority: String(payload.priority || "")
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(200, { ok: true, lead: data });
+    }
+
+    if (action === "leads.next-action") {
+      if (!isUuid(payload.leadId)) return jsonResponse(400, { error: "A valid lead ID is required." });
+      const dueAt = payload.dueAt === null || payload.dueAt === "" ? null : String(payload.dueAt);
+      if (dueAt !== null && !Number.isFinite(Date.parse(dueAt))) return jsonResponse(400, { error: "Next-action due date must be a valid timestamp." });
+      const { data, error } = await admin.rpc("set_discovery_lead_next_action", {
+        p_company_id: companyId, p_actor_user_id: caller.id, p_lead_id: payload.leadId,
+        p_next_action_code: String(payload.nextActionCode || "none"), p_due_at: dueAt
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(200, { ok: true, lead: data });
+    }
 
     if (action === "extractions.review") {
       if (!isUuid(payload.runId)) return jsonResponse(400, { error: "A valid extraction run ID is required." });
