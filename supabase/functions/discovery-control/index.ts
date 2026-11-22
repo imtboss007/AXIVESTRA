@@ -120,8 +120,15 @@ Deno.serve(async request => {
       const { data, error } = await admin.from("discovery_company_worker_controls")
         .select("enabled,expires_at,updated_at,reason").eq("company_id", companyId).maybeSingle();
       if (error) throw error;
-      const active = Boolean(data?.enabled && data.expires_at && Date.parse(data.expires_at) > Date.now());
-      return jsonResponse(200, { ok: true, worker: { enabled: active, expiresAt: active ? data.expires_at : null, updatedAt: data?.updated_at || null, reason: data?.reason || "" } });
+      const active = data !== null && data.enabled === true
+        && typeof data.expires_at === "string"
+        && Date.parse(data.expires_at) > Date.now();
+      return jsonResponse(200, { ok: true, worker: {
+        enabled: active,
+        expiresAt: active ? data?.expires_at ?? null : null,
+        updatedAt: data?.updated_at ?? null,
+        reason: data?.reason ?? ""
+      } });
     }
 
     if (action === "jobs.list") {
