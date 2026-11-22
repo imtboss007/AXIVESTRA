@@ -158,6 +158,122 @@ on conflict (id) do update
       file_size_limit = 5000000,
       allowed_mime_types = excluded.allowed_mime_types;
 
+
+-- Enqueue and audit are one database transaction. Edge code validates candidate
+-- URL paths; this RPC rechecks the mutable company/profile/source relationship
+-- and performs full-payload idempotency under the database uniqueness lock.
+create or replace function public.enqueue_discovery_job(
+  p_company_id uuid,
+  p_profile_id uuid,
+  p_source_id uuid,
+  p_requested_by uuid,
+  p_payload jsonb,
+  p_idempotency_key text
+) returns table (job public.discovery_jobs, duplicate boolean)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $enqueue$
+declare
+  v_profile public.discovery_profiles%rowtype;
+  v_source public.discovery_source_registry%rowtype;
+  v_link public.discovery_profile_sources%rowtype;
+  v_job public.discovery_jobs%rowtype;
+  v_existing public.discovery_jobs%rowtype;
+  v_purpose text;
+  v_candidate_count integer;
+begin
+  if p_payload is null or jsonb_typeof(p_payload) <> 'object'
+    or octet_length(p_payload::text) > 48000 then
+    raise exception 'Discovery payload must be an object no larger than 48 KB' using errcode = '22023';
+  end if;
+  if p_idempotency_key is null or length(trim(p_idempotency_key)) < 8
+    or length(p_idempotency_key) > 160 then
+    raise exception 'Discovery idempotency key must be 8 to 160 characters' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_payload->'criteria') <> 'object'
+    or octet_length((p_payload->'criteria')::text) > 8192 then
+    raise exception 'Discovery criteria must be an object no larger than 8 KB' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_payload->'candidateUrls') <> 'array' then
+    raise exception 'Discovery candidate URL list is required' using errcode = '22023';
+  end if;
+  v_candidate_count := jsonb_array_length(p_payload->'candidateUrls');
+
+  select * into v_profile from public.discovery_profiles
+    where id = p_profile_id and company_id = p_company_id and enabled = true
+    for share;
+  if not found then raise exception 'Discovery profile is not enabled for this company' using errcode = '42501'; end if;
+
+  select * into v_source from public.discovery_source_registry
+    where id = p_source_id and company_id = p_company_id and status = 'approved'
+    for share;
+  if not found then raise exception 'Discovery source is not approved for this company' using errcode = '42501'; end if;
+
+  select * into v_link from public.discovery_profile_sources
+    where company_id = p_company_id and profile_id = p_profile_id and source_id = p_source_id
+    for share;
+  if not found then raise exception 'Discovery source is not attached to the enabled profile' using errcode = '42501'; end if;
+
+  v_purpose := p_payload->>'purpose';
+  if v_purpose is null or v_purpose <> v_profile.purpose
+    or not (v_purpose = any(v_source.allowed_purposes)) then
+    raise exception 'Discovery job purpose is outside the approved profile/source scope' using errcode = '42501';
+  end if;
+  if v_candidate_count < 1 or v_candidate_count > v_source.max_pages_per_job then
+    raise exception 'Discovery candidate count exceeds the approved source page budget' using errcode = '22023';
+  end if;
+  if p_requested_by is null then
+    raise exception 'Discovery requester is required' using errcode = '22023';
+  end if;
+
+  select * into v_existing from public.discovery_jobs
+    where company_id = p_company_id and idempotency_key = p_idempotency_key;
+  if found then
+    if v_existing.profile_id <> p_profile_id or v_existing.source_id <> p_source_id
+      or v_existing.payload <> p_payload then
+      raise exception 'Idempotency key is already used by a different discovery request' using errcode = '23505';
+    end if;
+    return query select v_existing, true;
+    return;
+  end if;
+
+  begin
+    insert into public.discovery_jobs(
+      company_id, profile_id, source_id, requested_by, status, payload, idempotency_key
+    ) values (
+      p_company_id, p_profile_id, p_source_id, p_requested_by, 'queued', p_payload, p_idempotency_key
+    ) returning * into v_job;
+  exception when unique_violation then
+    select * into v_existing from public.discovery_jobs
+      where company_id = p_company_id and idempotency_key = p_idempotency_key;
+    if not found or v_existing.profile_id <> p_profile_id or v_existing.source_id <> p_source_id
+      or v_existing.payload <> p_payload then
+      raise exception 'Idempotency key is already used by a different discovery request' using errcode = '23505';
+    end if;
+    return query select v_existing, true;
+    return;
+  end;
+
+  insert into public.discovery_audit_events(
+    company_id, actor_user_id, action, entity_type, entity_id, details
+  ) values (
+    p_company_id, p_requested_by, 'discovery_job_queued', 'discovery_job', v_job.id,
+    jsonb_build_object(
+      'profileId', p_profile_id,
+      'sourceId', p_source_id,
+      'purpose', v_purpose,
+      'candidateCount', v_candidate_count
+    )
+  );
+
+  return query select v_job, false;
+end;
+$enqueue$;
+
+revoke all on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text) from public, anon, authenticated;
+grant execute on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text) to service_role;
+
 -- A company-level kill switch gates both queue claims and every outbound request.
 create or replace function public.claim_enabled_discovery_job(
   p_worker_id text,
