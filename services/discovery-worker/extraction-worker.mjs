@@ -35,24 +35,6 @@ function evidenceObjectPath(reference) {
   return path;
 }
 
-async function loadContext(admin, job) {
-  const [{ data: evidence, error: evidenceError }, { data: source, error: sourceError }, { data: discoveryJob, error: jobError }] = await Promise.all([
-    admin.from("discovery_evidence_items").select("*")
-      .eq("company_id", job.company_id).eq("id", job.evidence_id).maybeSingle(),
-    admin.from("discovery_source_registry").select("*")
-      .eq("company_id", job.company_id).eq("id", job.source_id).maybeSingle(),
-    admin.from("discovery_jobs").select("id,profile_id,source_id,status,payload")
-      .eq("company_id", job.company_id).eq("id", job.evidence_id ? (job.discovery_job_id || "") : "").maybeSingle()
-  ]);
-  if (evidenceError) throw evidenceError;
-  if (sourceError) throw sourceError;
-  if (jobError) throw jobError;
-  if (!evidence || !source) throw new Error("Extraction evidence or registered source could not be confirmed.");
-  if (source.status !== "approved") throw new Error("Extraction stopped because source approval is no longer active.");
-  if (evidence.job_id !== job.discovery_job_id) throw new Error("Evidence is not linked to the queued discovery job.");
-  return { evidence, source, discoveryJob };
-}
-
 async function executeJob(admin, job, workerId, signal) {
   throwIfAborted(signal);
   const [{ data: evidence, error: evidenceError }, { data: source, error: sourceError }] = await Promise.all([
@@ -65,7 +47,7 @@ async function executeJob(admin, job, workerId, signal) {
   if (sourceError) throw sourceError;
   if (!evidence || !source) throw new Error("Extraction evidence or source is missing.");
   if (source.status !== "approved") throw new Error("Extraction source is no longer approved.");
-  if (evidence.job_id !== job.discovery_job_id) throw new Error("Evidence is not linked to the expected discovery job.");
+  if (evidence.source_id !== job.source_id || evidence.company_id !== job.company_id) throw new Error("Evidence is not linked to the queued source and company.");
   if (!Array.isArray(source.allowed_fields) || source.allowed_fields.length === 0) {
     throw new Error("Source has no approved extraction fields. No output will be produced.");
   }
