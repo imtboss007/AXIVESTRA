@@ -6,6 +6,7 @@ on:
       - feat/discovery-source-governance
       - feat/discovery-bounded-execution
       - feat/discovery-durable-queue
+      - feat/discovery-job-enqueue
   pull_request:
     branches:
       - main
