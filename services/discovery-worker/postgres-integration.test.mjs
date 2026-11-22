@@ -28,7 +28,9 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         primary key(company_id,user_id)
       );
       create or replace function public.is_company_member(p_company_id uuid)
-      returns boolean language sql stable as $$ select true $$;
+      returns boolean language sql stable as $ select true $;
+      create or replace function public.has_company_role(target_company uuid, allowed_roles text[])
+      returns boolean language sql stable as $ select true $;
     `);
 
     const sourceMigration = await readFile(new URL("../../supabase/migrations/20261122150000_discovery_source_governance.sql", import.meta.url), "utf8");
