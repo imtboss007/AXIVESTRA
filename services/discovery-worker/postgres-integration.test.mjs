@@ -40,6 +40,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const contactValidationMigration = await readFile(new URL("../../supabase/migrations/20261122220000_discovery_contact_validation.sql", import.meta.url), "utf8");
     const geoResolutionMigration = await readFile(new URL("../../supabase/migrations/20261122230000_discovery_geo_resolution.sql", import.meta.url), "utf8");
     const enrichmentMigration = await readFile(new URL("../../supabase/migrations/20261122240000_discovery_enrichment.sql", import.meta.url), "utf8");
+    const matchingMigration = await readFile(new URL("../../supabase/migrations/20261122250000_discovery_matching.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
@@ -49,6 +50,19 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(contactValidationMigration);
     await pool.query(geoResolutionMigration);
     await pool.query(enrichmentMigration);
+    await pool.query(matchingMigration);
+    const e11Tables = await pool.query(`
+      select table_name from information_schema.tables
+      where table_schema='public' and table_name in ('discovery_match_scores','discovery_match_review_events')
+      order by table_name
+    `);
+    assert.deepEqual(e11Tables.rows.map(row=>row.table_name),[
+      'discovery_match_review_events','discovery_match_scores'
+    ],'E11 score and review tables must be installed');
+    const e11ReviewFunction = await pool.query(
+      "select to_regprocedure('public.record_discovery_match_review(uuid,uuid,uuid,text,text)') is not null as installed"
+    );
+    assert.equal(e11ReviewFunction.rows[0].installed,true,'E11 owner/admin review RPC must be installed');
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
