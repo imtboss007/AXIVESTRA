@@ -59,6 +59,32 @@ test("source registration normalises exact HTTPS host and always begins pending"
   assert.deepEqual(source.allowed_paths, ["/api/v1/entities"]);
 });
 
+test("source registration creates validated field schemas inside the allowed-field boundary", () => {
+  const source = normalizeSourceRegistration({
+    ...baseSource,
+    fieldSchema: {
+      legal_name: { type: "string", aliases: ["legalName", "companyName"], required: true, entityKind: "organization" },
+      registration_id: { type: "identifier", aliases: ["CIN", "registrationNumber"] }
+    }
+  });
+  assert.equal(source.field_schema.legal_name.type, "string");
+  assert.equal(source.field_schema.legal_name.entityKind, "organization");
+  assert.deepEqual(source.field_schema.registration_id.aliases, ["registration_id", "CIN", "registrationNumber"]);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource, fieldSchema: { secret_personal_field: { type: "string" } }
+  }), /outside the source allow-list/);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource, fieldSchema: { legal_name: { type: "invented-type" } }
+  }), /Unsupported extraction field type/);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource,
+    fieldSchema: {
+      legal_name: { type: "string", aliases: ["Company Name"] },
+      registration_id: { type: "identifier", aliases: ["company-name"] }
+    }
+  }), /Ambiguous source field alias/);
+});
+
 test("source registration rejects non-HTTPS, wildcard and query-bearing canonical URLs", () => {
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, canonicalUrl: "http://example.gov.in" }), /HTTPS/);
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, canonicalUrl: "https://*.example.gov.in" }), /exact hostname/);

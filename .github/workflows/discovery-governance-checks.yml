@@ -8,10 +8,12 @@ on:
       - feat/discovery-durable-queue
       - feat/discovery-job-enqueue
       - feat/discovery-e04-complete
+      - feat/discovery-e05-complete
   pull_request:
     branches:
       - main
       - feat/discovery-source-governance
+      - feat/discovery-e04-complete
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
@@ -82,6 +84,9 @@ jobs:
         run: npm --prefix services/discovery-worker test
         env:
           DISCOVERY_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/axivestra_discovery_test
+
+      - name: Benchmark deterministic E05 parsers on synthetic fixtures
+        run: npm --prefix services/discovery-worker run bench:extractor
 
       - name: Run full regression suite
         run: npm test
