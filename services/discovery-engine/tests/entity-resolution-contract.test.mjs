@@ -52,6 +52,14 @@ test("E06 review is owner/admin-only and appends a review, assignment and audit 
   assert.match(review, /insert into public.discovery_audit_events/);
 });
 
+test("E06 legal-entity relationship writes require an evidence-backed owner/admin review", () => {
+  assert.match(migration, /record_discovery_entity_relationship_review/);
+  assert.match(migration, /Only a company owner or admin can review entity relationships/);
+  assert.match(migration, /entity_relationship_review_recorded/);
+  assert.match(migration, /source_span jsonb not null/);
+  assert.match(migration, /evidence_id is not null/);
+});
+
 test("E06 matching prefers scoped exact identifiers and never allows automatic linking", () => {
   assert.match(matcher, /exact_identifier/);
   assert.match(matcher, /normalizeJurisdiction/);
