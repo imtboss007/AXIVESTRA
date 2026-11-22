@@ -10,8 +10,8 @@ test("E12 worker is opt-in, server-side only and performs no network calls", () 
   assert.match(worker, /DISCOVERY_DEDUPLICATION_WORKER_ENABLED !== "true"/);
   assert.match(worker, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(worker, /no network calls/i);
-  assert.doesNotMatch(worker, /fetch\\s*\\(/);
-  assert.doesNotMatch(worker, /axios|got\\(|https?\\.request/);
+  assert.doesNotMatch(worker, /fetch\s*\(/);
+  assert.doesNotMatch(worker, /axios|got\(|https?\.request/);
 });
 
 test("E12 worker claims and completes through leased database RPCs", async () => {
@@ -50,7 +50,7 @@ test("E12 worker records a bounded failure when completion is rejected", async (
 });
 
 test("E12 queue coalesces company updates and rechecks the existing worker kill switch", () => {
-  assert.match(migration, /unique \\(company_id\\)/);
+  assert.match(migration, /company_id uuid not null unique/);
   assert.match(migration, /rerun_requested/);
   assert.match(migration, /for update of j skip locked/);
   assert.match(migration, /discovery_company_worker_controls/);
