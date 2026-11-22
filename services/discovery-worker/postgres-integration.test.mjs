@@ -1135,6 +1135,25 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durablePlaceReview.rows[0].count,1,"E09 place review receipt must survive evidence retention");
     assert.equal(durablePlaceReview.rows[0].linked_count,0,"E09 review receipt must detach from the expired source candidate");
     assert.equal(durablePlaceReview.rows[0].coordinate_state,"source_coordinates","E09 review receipt must preserve only the coordinate-state summary");
+    const durableEnrichment=await pool.query(
+      "select count(*)::int as count,bool_or(attribute_key='annual_revenue' and raw_value='₹12 crore') as has_revenue from public.discovery_enrichment_observations where company_id=$1 and extraction_run_id=$2",
+      [companyId,extractionRunId]
+    );
+    assert.equal(durableEnrichment.rows[0].count,4,"E10 observations must survive raw source evidence purge");
+    assert.equal(durableEnrichment.rows[0].has_revenue,true,"E10 must retain the original source-reported revenue value");
+    const durableEnrichmentConflict=await pool.query(
+      "select count(*)::int as count,min(status) as status from public.discovery_enrichment_conflicts where company_id=$1 and attribute_key='annual_revenue'",
+      [companyId]
+    );
+    assert.equal(durableEnrichmentConflict.rows[0].count,1,"E10 potential value disagreement must survive evidence purge");
+    assert.equal(durableEnrichmentConflict.rows[0].status,"retained_both","E10 conflict review must retain both source observations");
+    const durableEnrichmentReviews=await pool.query(
+      "select count(*)::int as count,bool_or(decision='accepted') as has_observation_review,bool_or(decision='retained_both') as has_conflict_review from public.discovery_enrichment_review_events where company_id=$1",
+      [companyId]
+    );
+    assert.equal(durableEnrichmentReviews.rows[0].count,2,"E10 observation and conflict decisions must remain auditable");
+    assert.equal(durableEnrichmentReviews.rows[0].has_observation_review,true);
+    assert.equal(durableEnrichmentReviews.rows[0].has_conflict_review,true);
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
