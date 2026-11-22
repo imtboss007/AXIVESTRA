@@ -14,8 +14,7 @@ on:
       - feat/discovery-e08-contact-validation
       - feat/discovery-e09-geo-resolution
       - feat/discovery-e10-enrichment
-      - feat/discovery-e10-enrichment
-      - feat/discovery-e10-enrichment
+      - feat/discovery-e11-explainable-matching
   pull_request:
     branches:
       - main
@@ -26,6 +25,8 @@ on:
       - feat/discovery-e07-professional-roles
       - feat/discovery-e08-contact-validation
       - feat/discovery-e09-geo-resolution
+      - feat/discovery-e10-enrichment
+      - feat/discovery-e11-explainable-matching
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
