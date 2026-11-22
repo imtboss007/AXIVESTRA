@@ -11,6 +11,9 @@ test("E13 creates a company-scoped append-only provenance event ledger", () => {
   assert.match(migration, /public\.is_company_member\(company_id\)/);
   assert.match(migration, /before update on public\.discovery_provenance_events/);
   assert.match(migration, /revoke update,delete on public\.discovery_provenance_events[^;]*service_role/i);
+  assert.match(migration, /revoke all on public\.discovery_provenance_events from public,anon,authenticated,service_role/);
+  assert.match(migration, /grant select on public\.discovery_provenance_events to authenticated,service_role/);
+  assert.doesNotMatch(migration, /grant select,insert on public\.discovery_provenance_events/);
   assert.match(migration, /unique\(company_id,origin_table,origin_record_id,event_type,subject_id\)/);
 });
 

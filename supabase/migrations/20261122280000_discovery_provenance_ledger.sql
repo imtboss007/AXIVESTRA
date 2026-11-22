@@ -79,9 +79,8 @@ create policy discovery_provenance_company_read
   on public.discovery_provenance_events for select to authenticated
   using (public.is_company_member(company_id));
 
-revoke all on public.discovery_provenance_events from public,anon,authenticated;
-grant select on public.discovery_provenance_events to authenticated;
-grant select,insert on public.discovery_provenance_events to service_role;
+revoke all on public.discovery_provenance_events from public,anon,authenticated,service_role;
+grant select on public.discovery_provenance_events to authenticated,service_role;
 
 create or replace function public.prevent_discovery_provenance_update()
 returns trigger
