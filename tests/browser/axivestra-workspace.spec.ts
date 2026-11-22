@@ -521,8 +521,10 @@ test("desktop and mobile: every module formats crores and opens table details, h
   await expect(page.getByText("16 matching records")).toBeVisible();
   await openSection("Follow-up Registry");
   await expect(page.getByRole("heading",{name:"Follow-up Registry"})).toBeVisible();
-  await expect(page.locator(".ax-followup-banner .banner-aside strong")).toContainText("16");
+  // The structured appointment was moved off the legacy record date. The independent legacy next-action now appears as a second item.
+  await expect(page.locator(".ax-followup-banner .banner-aside strong")).toContainText("17");
   await expect(page.getByText("QA appointment · Property Sale",{exact:true}).first()).toBeVisible();
+  await expect(page.getByText("Confirm next step for Property Sale",{exact:true}).first()).toBeVisible();
   await expect(page.getByText("15 Nov 2026").first()).toBeVisible();
   await expect(page.getByText("11:15").first()).toBeVisible();
   await expect(page.getByText("QA Primary Group").first()).toBeVisible();
@@ -532,9 +534,10 @@ test("desktop and mobile: every module formats crores and opens table details, h
   await expect(page.getByRole("checkbox",{name:"QA Primary Group"})).toBeVisible();
   await expect(page.getByRole("checkbox",{name:"QA Follow-up Group"})).toBeVisible();
   await page.getByRole("checkbox",{name:"Property Sale",exact:true}).check();
-  await expect(page.locator(".ax-followup-export__head span")).toContainText("1 entries");
+  await expect(page.locator(".ax-followup-export__head span")).toContainText("2 entries");
   await expect(page.getByText("QA appointment · Property Sale",{exact:true}).first()).toBeVisible();
+  await expect(page.getByText("Confirm next step for Property Sale",{exact:true}).first()).toBeVisible();
   await expect(page.getByText("QA appointment · Property Loans",{exact:true})).toHaveCount(0);
   await page.getByRole("button",{name:"Clear all filters"}).click();
-  await expect(page.locator(".ax-followup-export__head span")).toContainText("16 entries");
+  await expect(page.locator(".ax-followup-export__head span")).toContainText("17 entries");
 });
