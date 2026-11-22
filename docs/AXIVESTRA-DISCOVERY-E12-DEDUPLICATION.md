@@ -32,3 +32,14 @@ deduplication.test.mjs covers exact jurisdiction-scoped company matches, registr
 ## Not yet complete
 
 The E12 RPC is not yet wired to an automatic queue/worker or review UI. Merge execution, cross-workspace relationship presentation, full Postgres runtime migration test and production activation remain pending. Do not treat candidate generation as active until the server explicitly invokes the RPC under its authenticated company scope.
+
+
+## Queue and worker integration (E12.1)
+
+- Reviewed canonical entities, identifiers, aliases, professional records/assignments and active contact points enqueue one coalesced job per company.
+- A change arriving during a running pass requests one rerun instead of creating concurrent duplicate jobs.
+- A dedicated leased worker performs idempotent database candidate generation. It makes no external network calls.
+- Claims, heartbeats and completion require the existing one-hour owner/admin company worker grant. No grant is created by this migration.
+- The worker is opt-in through DISCOVERY_DEDUPLICATION_WORKER_ENABLED=true and remains disabled by default.
+- Human review remains owner/admin-only. A confirmed duplicate still does not merge, rewrite or delete records.
+- PostgreSQL tests cover enqueue, claim, concurrent-change rerun, idempotent rerun and kill-switch rejection.

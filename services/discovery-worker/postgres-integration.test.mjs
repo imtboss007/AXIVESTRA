@@ -53,6 +53,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(matchingMigration);
     const deduplicationMigration = await readFile(new URL("../../supabase/migrations/20261122260000_discovery_deduplication.sql", import.meta.url), "utf8");
     await pool.query(deduplicationMigration);
+    const deduplicationQueueMigration = await readFile(new URL("../../supabase/migrations/20261122270000_discovery_deduplication_queue.sql", import.meta.url), "utf8");
+    await pool.query(deduplicationQueueMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -1169,50 +1171,72 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durableEnrichmentReviews.rows[0].has_observation_review,true);
     assert.equal(durableEnrichmentReviews.rows[0].has_conflict_review,true);
 
-    // E12 creates idempotent exact-match candidates and records human review without merging.
+    // E12 queue coalesces all company changes into one leased job.
+    const queuedDeduplication=await pool.query(
+      "select id,status,rerun_requested from public.discovery_deduplication_jobs where company_id=$1",[companyId]);
+    assert.equal(queuedDeduplication.rows.length,1);
+    assert.equal(queuedDeduplication.rows[0].status,"queued");
+    const dedupClaim=await pool.query("select * from public.claim_discovery_deduplication_job($1,90)",["deduplication-worker-integration"]);
+    assert.equal(dedupClaim.rows.length,1,"E12 claim requires the active company worker grant");
+    const dedupJob=dedupClaim.rows[0];
+
+    // A record arriving while the pass is running marks one rerun instead of
+    // creating a second concurrent company job.
     await pool.query(
       "insert into public.discovery_canonical_entities(company_id,entity_kind,legal_name,normalized_name,jurisdiction,entity_type,status,source_evidence_id,created_by) values($1,'organization','Acme Holdings Ltd','acme holdings','IN','company','active',$2,$3)",
-      [companyId,evidenceId,actorId]
-    );
-    const duplicateGenerated = await pool.query(
-      "select public.generate_discovery_deduplication_candidates($1) as count",
-      [companyId]
-    );
-    assert.equal(Number(duplicateGenerated.rows[0].count),1,"E12 should create one exact legal-name duplicate candidate for the integration fixture");
-    const duplicateCandidate = await pool.query(
-      "select id,left_record_id,right_record_id,review_state from public.discovery_deduplication_candidates where company_id=$1 and candidate_kind='organization' and match_rule='exact_legal_name'",
-      [companyId]
-    );
+      [companyId,evidenceId,actorId]);
+    const generatedDuringPass=await pool.query(
+      "select public.complete_discovery_deduplication_job($1,$2) as count",[dedupJob.id,dedupJob.lease_owner]);
+    assert.equal(Number(generatedDuringPass.rows[0].count),1);
+    const afterFirstPass=await pool.query(
+      "select status,rerun_requested from public.discovery_deduplication_jobs where id=$1",[dedupJob.id]);
+    assert.equal(afterFirstPass.rows[0].status,"queued");
+    assert.equal(afterFirstPass.rows[0].rerun_requested,false);
+
+    const duplicateCandidate=await pool.query(
+      "select id,left_record_id,right_record_id,review_state from public.discovery_deduplication_candidates where company_id=$1 and candidate_kind='organization' and match_rule='exact_legal_name'",[companyId]);
     assert.equal(duplicateCandidate.rows.length,1);
     assert.equal(duplicateCandidate.rows[0].review_state,"pending_review");
-    const duplicateReview = await pool.query(
+
+    const secondDedupClaim=await pool.query(
+      "select * from public.claim_discovery_deduplication_job($1,90)",["deduplication-worker-integration-two"]);
+    assert.equal(secondDedupClaim.rows.length,1);
+    const secondDedupComplete=await pool.query(
+      "select public.complete_discovery_deduplication_job($1,$2) as count",[secondDedupClaim.rows[0].id,secondDedupClaim.rows[0].lease_owner]);
+    assert.equal(Number(secondDedupComplete.rows[0].count),0,"second pass must be idempotent");
+    const completedDedupJob=await pool.query(
+      "select status from public.discovery_deduplication_jobs where company_id=$1",[companyId]);
+    assert.equal(completedDedupJob.rows[0].status,"succeeded");
+
+    const duplicateReview=await pool.query(
       "select * from public.record_discovery_deduplication_review($1,$2,$3,'confirmed_duplicate',$4)",
-      [companyId,actorId,duplicateCandidate.rows[0].id,"Integration fixture confirms an exact same-jurisdiction legal-name duplicate."]
-    );
+      [companyId,actorId,duplicateCandidate.rows[0].id,"Integration fixture confirms an exact same-jurisdiction legal-name duplicate."]);
     assert.equal(duplicateReview.rows[0].decision,"confirmed_duplicate");
-    const duplicateStillActive = await pool.query(
+    const duplicateStillActive=await pool.query(
       "select count(*)::int as count from public.discovery_canonical_entities where company_id=$1 and id in ($2,$3) and status='active'",
-      [companyId,duplicateCandidate.rows[0].left_record_id,duplicateCandidate.rows[0].right_record_id]
-    );
-    assert.equal(duplicateStillActive.rows[0].count,2,"E12 review must not merge, deactivate or delete either canonical entity");
-    const duplicateAudit = await pool.query(
+      [companyId,duplicateCandidate.rows[0].left_record_id,duplicateCandidate.rows[0].right_record_id]);
+    assert.equal(duplicateStillActive.rows[0].count,2,"E12 review must not merge either canonical entity");
+    const duplicateAudit=await pool.query(
       "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='deduplication_review_recorded' and entity_id=$2",
-      [companyId,duplicateCandidate.rows[0].id]
-    );
-    assert.equal(duplicateAudit.rows[0].count,1,"E12 review must produce an audit event");
+      [companyId,duplicateCandidate.rows[0].id]);
+    assert.equal(duplicateAudit.rows[0].count,1);
     await assert.rejects(
-      pool.query("update public.discovery_deduplication_review_events set reason='rewritten' where id=$1", [duplicateReview.rows[0].id]),
-      /immutable/
-    );
-    const graphEdges = await pool.query(
-      "select count(*)::int as count from public.discovery_entity_graph_edges where company_id=$1",
-      [companyId]
-    );
-    assert.equal(graphEdges.rows[0].count,1,"E12 graph view must expose the explicit owner-accepted E06 relationship");
+      pool.query("update public.discovery_deduplication_review_events set reason='rewritten' where id=$1",[duplicateReview.rows[0].id]),
+      /immutable/);
+    const graphEdges=await pool.query(
+      "select count(*)::int as count from public.discovery_entity_graph_edges where company_id=$1",[companyId]);
+    assert.equal(graphEdges.rows[0].count,1,"only the owner-accepted E06 relationship appears in the graph");
+
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
 
     await pool.query("select * from public.set_discovery_company_worker_grant($1,$2,false,$3)", [companyId, actorId, "integration kill-switch test"]);
+    await pool.query(
+      "insert into public.discovery_canonical_entities(company_id,entity_kind,legal_name,normalized_name,jurisdiction,entity_type,status,source_evidence_id,created_by) values($1,'organization','Worker Grant Disabled Ltd','worker grant disabled','IN','company','active',$2,$3)",
+      [companyId,evidenceId,actorId]);
+    const dedupNoClaim=await pool.query(
+      "select * from public.claim_discovery_deduplication_job($1,90)",["deduplication-worker-disabled"]);
+    assert.equal(dedupNoClaim.rows.length,0,"E12 claim must be blocked when the company worker grant is disabled");
     const revokedHeartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(revokedHeartbeat.rows[0].ok, false, "revoked company grant must stop active workers");
     await assert.rejects(
