@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createPhotonClient, enrichPlaceWithPhoton, normalizePhotonFeatures } from "./photon-client.mjs";
+import { scorePhotonAddressMatch } from "./geo-resolution.mjs";
 
 const geoJson = {
   features:[{
