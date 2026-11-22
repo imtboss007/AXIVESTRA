@@ -217,8 +217,10 @@ export function assertSourceCanBeAttached(profile, source) {
 export function assertAllowedSourceUrl(source, targetUrl) {
   if (!source || source.status !== "approved") throw new Error("Source is not approved for use.");
   const target = httpsUrl(targetUrl, "Target URL");
-  if (target.hostname.toLowerCase() !== String(source.domain || "").toLowerCase()) {
-    throw new Error("Target hostname is outside the exact approved source domain.");
+  const approvedCanonical = httpsUrl(source.canonical_url, "Registered canonical URL");
+  if (target.origin !== approvedCanonical.origin ||
+      target.hostname.toLowerCase() !== String(source.domain || "").toLowerCase()) {
+    throw new Error("Target origin is outside the exact approved source origin.");
   }
   const paths = pathList(source.allowed_paths || []);
   const pathAllowed = paths.some(prefix =>

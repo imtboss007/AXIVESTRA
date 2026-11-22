@@ -86,7 +86,8 @@ test("personal-loan customer discovery cannot be enabled or attached to internet
 test("source path policy enforces exact host and path boundaries", () => {
   const source = approvedSource();
   assert.equal(assertAllowedSourceUrl(source, "https://registry.example.gov.in/api/v1/entities/123").hostname, "registry.example.gov.in");
-  assert.throws(() => assertAllowedSourceUrl(source, "https://sub.registry.example.gov.in/api/v1/entities"), /exact approved source domain/);
+  assert.throws(() => assertAllowedSourceUrl(source, "https://sub.registry.example.gov.in/api/v1/entities"), /exact approved source origin/);
+  assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /exact approved source origin/);
   assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in/private"), /approved source path list/);
   assert.throws(() => assertAllowedSourceUrl(source, "http://registry.example.gov.in/api/v1/entities"), /HTTPS/);
 });
