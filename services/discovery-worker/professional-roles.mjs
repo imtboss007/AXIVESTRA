@@ -17,6 +17,8 @@ const EMPLOYER_NAME_FIELDS = new Set([
   "company_name", "works_at", "employer"
 ]);
 const text = value => typeof value === "string" ? value.trim() : String(value ?? "").trim();
+const normalizePersonName = value => text(value).normalize("NFKC").toLowerCase()
+  .replace(/[’']/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
 const keyOf = value => text(value).normalize("NFKC").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
 export function normalizeProfessionalRole(value) {
@@ -101,7 +103,7 @@ export function buildProfessionalRoleCandidates({
     const candidate = {
       extracted_person_id: person.id,
       person_name: name,
-      normalized_person_name: normalizeCompany(name),
+      normalized_person_name: normalizePersonName(name),
       canonical_entity_id: employer?.canonicalEntity.id || null,
       role_title: role,
       department: text(valueOf(facts.find(fact => ROLE_FIELDS.get(keyOf(fact.field_name)) === "department") || {})).slice(0, 160) || null,
