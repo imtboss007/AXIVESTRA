@@ -80,7 +80,9 @@ async function executeJob(admin, job, workerId, signal) {
       schema_hash: result.schemaHash,
       invalid_fact_count: result.invalidFactCount || 0,
       warnings: result.warnings || [],
-      source_content_hash: evidence.content_hash
+      source_content_hash: evidence.content_hash,
+      source_field_schema_snapshot: source.field_schema || {},
+      source_allowed_fields_snapshot: source.allowed_fields || []
     },
     p_entities: result.entities || [],
     p_facts: result.facts || []
