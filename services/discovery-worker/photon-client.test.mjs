@@ -32,6 +32,10 @@ test("E09 Photon client requires an explicit configured endpoint and identifies 
   assert.match(requested.options.headers["User-Agent"],/AXIVESTRA/);
 });
 
+test("E09 refuses the public Photon demo endpoint", () => {
+  assert.throws(()=>createPhotonClient({baseUrl:"https://photon.komoot.io"}),/self-hosted Photon instance/);
+});
+
 test("E09 validates reverse coordinates before provider calls", async () => {
   const client=createPhotonClient({baseUrl:"http://localhost:2322/",fetchImpl:async()=>({ok:true,json:async()=>geoJson})});
   await assert.rejects(client.reverse(91,77),/valid latitude and longitude/);
