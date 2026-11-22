@@ -81,6 +81,10 @@ assert.ok(contrast("#9aafbd", "#132333") >= 6,
 assert.ok(contrast("#f4fbfa", "#286e6a") >= 4.5,
   "Primary button text must be readable against its muted teal fill.");
 
+assert.ok(analytics.includes("const periodInflow = cashflowRows.reduce"), "Cashflow inspector totals must be computed from the selected chart period.");
+assert.ok(analytics.includes("Net recorded cashflow · selected {period}-month window"), "Cashflow summary must disclose its selected window.");
+assert.ok(analytics.includes("Unclassified transaction types"), "Cashflow must disclose transactions outside the inflow/outflow map.");
+assert.ok(analytics.includes("const todayKey ="), "Overdue tasks must compare against the local calendar date.");
 console.log("AXIVESTRA enterprise design-system contract passed.");
 
 
