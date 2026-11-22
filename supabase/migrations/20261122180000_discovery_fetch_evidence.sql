@@ -545,6 +545,12 @@ begin
 end;
 $$;
 
+
+-- Retire the pre-E04.3 claim/quota RPCs: they predate the temporary company
+-- worker grant and must not remain an alternate execution path.
+revoke all on function public.claim_discovery_job(text,integer) from public, anon, authenticated, service_role;
+revoke all on function public.reserve_discovery_source_request(uuid,uuid,uuid,text) from public, anon, authenticated, service_role;
+
 revoke all on function public.claim_enabled_discovery_job(text,integer) from public, anon, authenticated;
 revoke all on function public.reserve_discovery_fetch_request(uuid,uuid,uuid,text) from public, anon, authenticated;
 grant execute on function public.claim_enabled_discovery_job(text,integer) to service_role;
