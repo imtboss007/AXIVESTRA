@@ -79,6 +79,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(leadWorkspaceMigration);
     const dealPartyMigration = await readFile(new URL("../../supabase/migrations/20261122310000_axivestra_deal_party_relationships.sql", import.meta.url), "utf8");
     await pool.query(dealPartyMigration);
+    const relationshipGraphMigration = await readFile(new URL("../../supabase/migrations/20261122320000_axivestra_relationship_graph.sql", import.meta.url), "utf8");
+    await pool.query(relationshipGraphMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -448,6 +450,34 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         ),
         /foreign key constraint/
       );
+
+      // E17: graph projection exposes explicit, date-aware links and safe node labels.
+      const graphView=await partyClient.query(
+        "select relationship_id,deal_label,party_label,role_code,verification_state,evidence_label from public.company_relationship_graph where company_id=$1 and relationship_id=$2",
+        [companyId,partyId]
+      );
+      assert.equal(graphView.rows.length,1);
+      assert.equal(graphView.rows[0].deal_label,"E16 Deal");
+      assert.equal(graphView.rows[0].party_label,"E16 Counterparty");
+      assert.equal(graphView.rows[0].verification_state,"verified");
+      assert.equal(graphView.rows[0].evidence_label,"Reviewed authority evidence");
+      const graphResult=await partyClient.query(
+        "select public.get_company_relationship_graph($1,'2026-12-01'::date) as graph",
+        [companyId]
+      );
+      const graph=graphResult.rows[0].graph;
+      assert.equal(graph.counts.relationship_count,1);
+      assert.equal(graph.counts.verified_count,1);
+      assert.equal(graph.nodes.length,2);
+      assert.equal(graph.edges.length,1);
+      assert.equal(graph.edges[0].role,"buyer");
+      assert.equal(graph.edges[0].source,"property:deal-e16");
+      assert.equal(graph.edges[0].target,"contact:party-e16");
+      const expiredGraph=await partyClient.query(
+        "select public.get_company_relationship_graph($1,'2028-02-01'::date) as graph",
+        [companyId]
+      );
+      assert.equal(expiredGraph.rows[0].graph.counts.relationship_count,0);
     } finally { partyClient.release(); }
 
     // E06 queues the completed E05 run and requires explicit owner/admin approval
