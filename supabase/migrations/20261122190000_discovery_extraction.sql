@@ -497,7 +497,7 @@ begin
   loop
     v_field := v_fact->>'field_name';
     if v_field is null or not (v_field = any(v_source.allowed_fields)) then
-      raise exception 'Extraction attempted a field outside the approved source allow-list' using errcode = '42501';
+      raise exception 'Extraction attempted a field outside the approved source field allow-list' using errcode = '42501';
     end if;
     if not (v_source.field_schema ? v_field) then
       raise exception 'Extraction attempted a field without an approved field schema' using errcode = '42501';
