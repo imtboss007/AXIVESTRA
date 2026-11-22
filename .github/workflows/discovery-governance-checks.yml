@@ -14,6 +14,7 @@ on:
       - "supabase/functions/discovery-control/**"
       - "services/discovery-engine/**"
       - "supabase/migrations/*discovery*"
+      - "services/discovery-engine/tests/**"
       - "package.json"
       - ".github/workflows/discovery-governance-checks.yml"
 
