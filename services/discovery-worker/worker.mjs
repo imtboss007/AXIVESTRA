@@ -397,6 +397,40 @@ export async function runDiscoveryWorkerOnce(admin, workerId) {
   return true;
 }
 
+export async function runRetentionSweep(admin) {
+  const { data, error } = await admin.from("discovery_evidence_items")
+    .select("id,raw_blob_ref,captured_at,source:discovery_source_registry!inner(retention_days)")
+    .order("captured_at", { ascending: true })
+    .limit(100);
+  if (error) throw new Error("Evidence retention query failed: " + error.message);
+  let deleted = 0;
+  for (const item of data || []) {
+    const source = Array.isArray(item.source) ? item.source[0] : item.source;
+    const retentionDays = Math.max(1, Number(source?.retention_days || 90));
+    const ageMs = Date.now() - Date.parse(item.captured_at);
+    if (!Number.isFinite(ageMs) || ageMs < retentionDays * 86_400_000) continue;
+    const separator = String(item.raw_blob_ref || "").indexOf(":");
+    if (separator < 1) continue;
+    const bucket = item.raw_blob_ref.slice(0, separator);
+    const objectPath = item.raw_blob_ref.slice(separator + 1);
+    const { error: removeError } = await admin.storage.from(bucket).remove([objectPath]);
+    if (removeError) {
+      console.error("Discovery evidence retention could not delete private object:", removeError.message);
+      continue;
+    }
+    const { error: deleteError } = await admin.from("discovery_evidence_items").delete().eq("id", item.id);
+    if (deleteError) {
+      console.error("Discovery evidence retention metadata delete failed:", deleteError.message);
+      continue;
+    }
+    deleted += 1;
+  }
+  const { error: cacheError } = await admin.from("discovery_fetch_cache")
+    .delete().lt("expires_at", new Date().toISOString());
+  if (cacheError) throw new Error("Expired fetch-cache cleanup failed: " + cacheError.message);
+  return deleted;
+}
+
 export async function runDiscoveryWorker() {
   if (process.env.DISCOVERY_WORKER_ENABLED !== "true") {
     console.info("AXIVESTRA discovery worker disabled: DISCOVERY_WORKER_ENABLED is not true.");
@@ -406,11 +440,17 @@ export async function runDiscoveryWorker() {
   const workerId = process.env.AXIVESTRA_DISCOVERY_WORKER_ID || ("axivestra-worker-" + randomUUID());
   const pollMs = Math.max(1000, Math.min(30_000, Number(process.env.DISCOVERY_WORKER_POLL_MS || 5000)));
   let stopping = false;
+  let lastRetentionSweep = 0;
   process.once("SIGINT", () => { stopping = true; });
   process.once("SIGTERM", () => { stopping = true; });
   console.info("AXIVESTRA governed discovery worker started. Company grants remain disabled until explicitly enabled by an owner/admin.");
   while (!stopping) {
     try {
+      if (Date.now() - lastRetentionSweep >= 15 * 60 * 1000) {
+        const purged = await runRetentionSweep(admin);
+        lastRetentionSweep = Date.now();
+        if (purged) console.info("AXIVESTRA discovery retention removed " + purged + " expired evidence objects.");
+      }
       const didWork = await runDiscoveryWorkerOnce(admin, workerId);
       if (!didWork) await sleep(pollMs);
     } catch (error) {
