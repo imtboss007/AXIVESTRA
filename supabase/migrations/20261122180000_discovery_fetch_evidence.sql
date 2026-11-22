@@ -282,6 +282,86 @@ $enqueue$;
 revoke all on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text,timestamptz,timestamptz) from public, anon, authenticated;
 grant execute on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text,timestamptz,timestamptz) to service_role;
 
+
+-- Company admins issue a one-hour fetch grant. The grant and its audit receipt
+-- are committed atomically; revoked/expired grants stop claims and heartbeats.
+create or replace function public.set_discovery_company_worker_grant(
+  p_company_id uuid,
+  p_actor_user_id uuid,
+  p_enabled boolean,
+  p_reason text default null
+) returns table (enabled boolean, expires_at timestamptz, updated_at timestamptz, reason text)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $grant$
+declare
+  v_role text;
+  v_row public.discovery_company_worker_controls%rowtype;
+begin
+  select role into v_role
+    from public.company_memberships
+    where company_id = p_company_id and user_id = p_actor_user_id
+    for share;
+  if v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can change the worker grant' using errcode = '42501';
+  end if;
+
+  insert into public.discovery_company_worker_controls(
+    company_id, enabled, updated_by, reason, expires_at, updated_at
+  ) values (
+    p_company_id, coalesce(p_enabled,false), p_actor_user_id,
+    left(coalesce(nullif(trim(p_reason),''), case when p_enabled then 'Owner/admin granted a one-hour fetch window.' else 'Paused by company owner/admin.' end), 500),
+    case when p_enabled then clock_timestamp() + interval '1 hour' else clock_timestamp() end,
+    clock_timestamp()
+  )
+  on conflict (company_id) do update set
+    enabled = excluded.enabled,
+    updated_by = excluded.updated_by,
+    reason = excluded.reason,
+    expires_at = excluded.expires_at,
+    updated_at = excluded.updated_at
+  returning * into v_row;
+
+  insert into public.discovery_audit_events(
+    company_id, actor_user_id, action, entity_type, entity_id, details
+  ) values (
+    p_company_id, p_actor_user_id,
+    case when v_row.enabled then 'discovery_worker_grant_enabled' else 'discovery_worker_grant_disabled' end,
+    'discovery_worker_control', p_company_id,
+    jsonb_build_object('enabled',v_row.enabled,'expiresAt',v_row.expires_at,'reason',v_row.reason)
+  );
+
+  return query select v_row.enabled, v_row.expires_at, v_row.updated_at, v_row.reason;
+end;
+$grant$;
+
+create or replace function public.list_expired_discovery_evidence(p_limit integer default 100)
+returns table (id uuid, raw_blob_ref text, captured_at timestamptz, retention_days integer)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $retention$
+begin
+  if p_limit < 1 or p_limit > 500 then
+    raise exception 'Retention sweep limit must be between 1 and 500' using errcode = '22023';
+  end if;
+  return query
+    select e.id, e.raw_blob_ref, e.captured_at, s.retention_days
+    from public.discovery_evidence_items e
+    join public.discovery_source_registry s
+      on s.company_id = e.company_id and s.id = e.source_id
+    where e.captured_at <= clock_timestamp() - make_interval(days => greatest(1,s.retention_days))
+    order by e.captured_at asc
+    limit p_limit;
+end;
+$retention$;
+
+revoke all on function public.set_discovery_company_worker_grant(uuid,uuid,boolean,text) from public, anon, authenticated;
+grant execute on function public.set_discovery_company_worker_grant(uuid,uuid,boolean,text) to service_role;
+revoke all on function public.list_expired_discovery_evidence(integer) from public, anon, authenticated;
+grant execute on function public.list_expired_discovery_evidence(integer) to service_role;
+
 -- A company-level kill switch gates both queue claims and every outbound request.
 create or replace function public.claim_enabled_discovery_job(
   p_worker_id text,
