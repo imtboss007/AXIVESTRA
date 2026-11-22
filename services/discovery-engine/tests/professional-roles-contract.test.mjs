@@ -14,6 +14,8 @@ test("E07 stores minimal professional identity and role evidence without contact
     "discovery_professional_role_review_events"
   ]) assert.ok(migration.includes("create table if not exists public." + table), table + " table missing");
   assert.match(migration, /public_professional_source boolean/);
+  assert.match(migration, /retention_until date not null/);
+  assert.match(migration, /retention expiry must be explicit and no more than 365 days away/);
   assert.match(migration, /source_span jsonb/);
   assert.doesNotMatch(migration, /\b(email|phone|consent_state|linkedin_url|social_profile)\b/i);
 });
