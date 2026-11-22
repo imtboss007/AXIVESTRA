@@ -944,7 +944,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         id,company_id,job_id,source_id,canonical_url,captured_at,source_published_at,content_hash,raw_blob_ref,
         content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
       ) values($1,$2,$3,$4,'https://finance.example.org/api/v1/company/acme',now()-interval '1 day',now()-interval '3 days',
-        repeat('g',64),'discovery-evidence:company/job/second-evidence.bin',
+        repeat('f',64),'discovery-evidence:company/job/second-evidence.bin',
         'application/json',32,'Licensed financial feed attribution','IN','{"retention_days":30}'::jsonb,'{}'::jsonb)
     `,[secondEvidenceId,companyId,secondParentJobId,secondSourceId]);
     const secondExtractionClaim=await pool.query(
@@ -960,8 +960,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         secondExtractionJob.id,
         secondExtractionJob.lease_owner,
         JSON.stringify({
-          extractor_version:"deterministic-v1.0.0",schema_hash:"j".repeat(64),
-          source_content_hash:"g".repeat(64),
+          extractor_version:"deterministic-v1.0.0",schema_hash:"e".repeat(64),
+          source_content_hash:"f".repeat(64),
           source_field_schema_snapshot:{
             legal_name:{type:"string",aliases:["legal_name"],entityKind:"organization"},
             annual_revenue:{type:"currency",aliases:["annual_revenue"],currencyCode:"INR"}
