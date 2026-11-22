@@ -35,10 +35,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const queueMigration = await readFile(new URL("../../supabase/migrations/20261122170000_discovery_durable_queue.sql", import.meta.url), "utf8");
     const fetchMigration = await readFile(new URL("../../supabase/migrations/20261122180000_discovery_fetch_evidence.sql", import.meta.url), "utf8");
     const extractionMigration = await readFile(new URL("../../supabase/migrations/20261122190000_discovery_extraction.sql", import.meta.url), "utf8");
+    const entityIntelligenceMigration = await readFile(new URL("../../supabase/migrations/20261122200000_discovery_entity_intelligence.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
     await pool.query(extractionMigration);
+    await pool.query(entityIntelligenceMigration);
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -184,12 +186,21 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           raw_name: "Acme Holdings Pvt Ltd", normalized_name: "Acme Holdings Pvt Ltd",
           source_span: span, confidence: 0.99
         }]),
-        JSON.stringify([{
-          mention_key: "organization:acme-1", field_name: "legal_name",
-          value_type: "string", raw_value: "Acme Holdings Pvt Ltd",
-          normalized_value: "Acme Holdings Pvt Ltd", source_span: span,
-          confidence: 0.99, validation_status: "valid"
-        }])
+        JSON.stringify([
+          {
+            mention_key: "organization:acme-1", field_name: "legal_name",
+            value_type: "string", raw_value: "Acme Holdings Pvt Ltd",
+            normalized_value: "Acme Holdings Pvt Ltd", source_span: span,
+            confidence: 0.99, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "registration_id",
+            value_type: "identifier", raw_value: "REG-AXI-0001",
+            normalized_value: "REG-AXI-0001",
+            source_span: { kind: "json-pointer", locator: "$/registration_id" },
+            confidence: 0.99, validation_status: "valid"
+          }
+        ])
       ]
     );
     const extractionRunId = runResult.rows[0].run_id;
@@ -198,7 +209,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select id,field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
       [extractionRunId]
     );
-    assert.equal(extractedFact.rows.length, 1);
+    assert.equal(extractedFact.rows.length, 2);
     assert.equal(extractedFact.rows[0].normalized_value, "Acme Holdings Pvt Ltd");
     assert.equal(extractedFact.rows[0].source_span.locator, "$/legal_name");
 
@@ -218,6 +229,89 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const viewerId = "12121212-1212-4121-8121-121212121212";
     await pool.query("insert into auth.users(id) values($1)",[viewerId]);
     await pool.query("insert into public.company_memberships(company_id,user_id,role) values($1,$2,'viewer')",[companyId,viewerId]);
+    // E06 queues the completed E05 run and requires explicit owner/admin approval
+    // before a canonical company identity, identifier or assignment is created.
+    const extractedEntity = await pool.query(
+      "select id from public.discovery_extracted_entities where company_id=$1 and extraction_run_id=$2",
+      [companyId, extractionRunId]
+    );
+    assert.equal(extractedEntity.rows.length, 1);
+    const entityClaim = await pool.query(
+      "select * from public.claim_discovery_entity_resolution_job($1,90)",
+      ["entity-resolution-worker-test"]
+    );
+    assert.equal(entityClaim.rows.length, 1, "completed E05 organisation run must enqueue one E06 job");
+    const entityJob = entityClaim.rows[0];
+    const candidatePayload = [{
+      extracted_entity_id: extractedEntity.rows[0].id,
+      match_type: "new_entity_proposal",
+      matched_entity_id: null,
+      proposed_name: "Acme Holdings Pvt Ltd",
+      normalized_name: "acme holdings",
+      jurisdiction: "IN",
+      identifier_proposals: [{
+        scheme: "REGISTRATION_ID",
+        jurisdiction: "IN",
+        normalized_value: "REGAXI0001",
+        raw_value: "REG-AXI-0001",
+        field_name: "registration_id",
+        source_span: { kind: "json-pointer", locator: "$/registration_id" }
+      }],
+      match_score: 0,
+      rationale: {
+        method: "no_scoped_match",
+        auto_link_permitted: false,
+        human_review_required: true
+      }
+    }];
+    const completedCandidates = await pool.query(
+      "select public.complete_discovery_entity_resolution($1,$2,$3::jsonb) as count",
+      [entityJob.id,entityJob.lease_owner,JSON.stringify(candidatePayload)]
+    );
+    assert.equal(completedCandidates.rows[0].count,1);
+    const entityCandidate = await pool.query(
+      "select id,review_state,match_type from public.discovery_entity_match_candidates where company_id=$1 and extraction_run_id=$2",
+      [companyId,extractionRunId]
+    );
+    assert.equal(entityCandidate.rows.length,1);
+    assert.equal(entityCandidate.rows[0].review_state,"pending_review");
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_entity_resolution_review($1,$2,$3,$4,$5)",
+        [companyId,viewerId,entityCandidate.rows[0].id,"created_new","Viewer cannot create canonical company identities"]
+      ),
+      /Only a company owner or admin can review entity matches/
+    );
+    const entityReview = await pool.query(
+      "select * from public.record_discovery_entity_resolution_review($1,$2,$3,$4,$5)",
+      [companyId,actorId,entityCandidate.rows[0].id,"created_new","Owner reviewed the source-backed registry identity"]
+    );
+    assert.equal(entityReview.rows[0].decision,"created_new");
+    const canonical = await pool.query(
+      "select id,legal_name,normalized_name,jurisdiction,status from public.discovery_canonical_entities where company_id=$1",
+      [companyId]
+    );
+    assert.equal(canonical.rows.length,1);
+    assert.equal(canonical.rows[0].normalized_name,"acme holdings");
+    assert.equal(canonical.rows[0].jurisdiction,"IN");
+    const acceptedIdentifier = await pool.query(
+      "select scheme,normalized_value from public.discovery_entity_identifiers where company_id=$1 and canonical_entity_id=$2",
+      [companyId,canonical.rows[0].id]
+    );
+    assert.deepEqual(acceptedIdentifier.rows.map(row=>row.scheme),["REGISTRATION_ID"]);
+    assert.equal(acceptedIdentifier.rows[0].normalized_value,"REGAXI0001");
+    const assignment = await pool.query(
+      "select canonical_entity_id,review_event_id from public.discovery_entity_assignments where company_id=$1 and extraction_run_id=$2",
+      [companyId,extractionRunId]
+    );
+    assert.equal(assignment.rows.length,1);
+    assert.equal(assignment.rows[0].canonical_entity_id,canonical.rows[0].id);
+    const entityAudit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='entity_resolution_review_recorded' and entity_id=$2",
+      [companyId,canonical.rows[0].id]
+    );
+    assert.equal(entityAudit.rows[0].count,1,"canonical entity review and audit receipt must commit together");
+
     await assert.rejects(
       pool.query(
         "select * from public.record_discovery_extraction_review($1,$2,$3,$4,null,$5,$6,null)",
