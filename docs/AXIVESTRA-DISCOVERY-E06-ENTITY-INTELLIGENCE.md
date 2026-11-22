@@ -30,10 +30,11 @@ Exact identifier collisions across multiple canonical entities are marked ambigu
 - \`discovery_entity_match_candidates\`: immutable E05 evidence reference, match tier, score, rationale and proposed identifier values.
 - \`discovery_entity_assignments\`: reviewed link from an E05 mention to its canonical entity.
 - \`discovery_entity_relationships\`: evidence-linked parent/subsidiary/holding/branch/affiliate/JV/successor relationship records; not inferred from a name alone.
-- \`discovery_entity_review_events\`: append-only owner/admin decisions and audit receipts.
+- \`record_discovery_entity_relationship_review\`: owner/admin-only RPC that verifies both canonical endpoints and company-scoped source evidence, stores a bounded source locator and explicit review state, and writes an audit receipt. Self-links and unsupported relationship types are rejected.
+- \`discovery_entity_review_events\`: append-only owner/admin identity decisions and audit receipts. Relationship decisions are also recorded in the company audit ledger.
 - \`discovery_entity_resolution_jobs\`: durable, bounded worker queue, enqueued after completed E05 runs with organisation mentions.
 
-The worker can only produce pending candidates. The review RPC rechecks company membership, candidate state, evidence, jurisdiction and identifier conflicts. No candidate is silently promoted, and E05 extracted facts are never rewritten.
+The worker can only produce pending candidates. The identity review RPC rechecks company membership, candidate state, evidence, jurisdiction and identifier conflicts. The relationship review RPC rechecks company membership, both active canonical endpoints and company-scoped evidence. No candidate is silently promoted, and E05 extracted facts are never rewritten.
 
 ## Execution
 
