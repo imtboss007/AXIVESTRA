@@ -196,20 +196,21 @@ Deno.serve(async request => {
     if (action === "workers.control") {
       const enabled = payload.enabled === true;
       const reason = typeof payload.reason === "string" ? payload.reason.trim().slice(0, 500) : "";
-      const expiresAt = enabled ? new Date(Date.now() + 60 * 60 * 1000).toISOString() : new Date().toISOString();
-      const { data, error } = await admin.from("discovery_company_worker_controls").upsert({
-        company_id: companyId, enabled, updated_by: caller.id,
-        reason: reason || (enabled ? "Owner/admin granted a one-hour fetch window." : "Paused by company owner/admin."),
-        expires_at: expiresAt, updated_at: new Date().toISOString()
-      }, { onConflict: "company_id" }).select("enabled,expires_at,updated_at,reason").single();
-      if (error) throw error;
-      await writeAudit(admin, {
-        company_id: companyId, actor_user_id: caller.id,
-        action: enabled ? "discovery_worker_grant_enabled" : "discovery_worker_grant_disabled",
-        entity_type: "discovery_worker_control", entity_id: companyId,
-        details: { enabled, expiresAt: data.expires_at, reason: data.reason }
+      const { data, error } = await admin.rpc("set_discovery_company_worker_grant", {
+        p_company_id: companyId,
+        p_actor_user_id: caller.id,
+        p_enabled: enabled,
+        p_reason: reason
       });
-      return jsonResponse(200, { ok: true, worker: { enabled: data.enabled, expiresAt: data.expires_at, updatedAt: data.updated_at, reason: data.reason } });
+      if (error) throw error;
+      const record = Array.isArray(data) ? data[0] : data;
+      if (!record) throw new Error("The worker grant transaction returned no record.");
+      return jsonResponse(200, { ok: true, worker: {
+        enabled: record.enabled,
+        expiresAt: record.expires_at,
+        updatedAt: record.updated_at,
+        reason: record.reason
+      } });
     }
 
     if (action === "sources.register") {
