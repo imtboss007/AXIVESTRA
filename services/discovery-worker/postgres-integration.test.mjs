@@ -1328,6 +1328,55 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId]
     );
     assert.equal(privacyContact.rows.length,1,"E14 fixture must contain an approved contact point");
+
+    // Process the independent expiry fixture before erasing the shared source person.
+    const retentionPerson=await pool.query(
+      "insert into public.discovery_professional_people(company_id,full_name,normalized_name,public_professional_source,purpose,retention_until,source_evidence_id,created_by,status) values($1,'Retention Fixture Person','retention fixture person',true,'integration retention test',$2,$3,$4,'active') returning id",
+      [companyId,retentionDate,evidenceId,actorId]
+    );
+    const retentionApprovedContact=await pool.query(
+      "select * from public.record_discovery_contact_review($1,$2,$3,'approved',$4,$5,$6,$7,$8)",
+      [companyId,actorId,contactCandidates.rows[1].id,"retention fixture approved contact","integration contact retention test",retentionDate,canonical.rows[0].id,retentionPerson.rows[0].id]
+    );
+    const retentionContact={rows:[{id:retentionApprovedContact.rows[0].id}]};
+    await pool.query(
+      "update public.discovery_professional_people set retention_until=current_date-1 where company_id=$1 and id=$2",
+      [companyId,retentionPerson.rows[0].id]
+    );
+    await pool.query(
+      "update public.discovery_contact_points set retention_until=current_date-1 where company_id=$1 and id=$2",
+      [companyId,retentionContact.rows[0].id]
+    );
+    await pool.query(
+      "select public.record_discovery_privacy_policy($1,$2,'professional_identity','integration retention test','legitimate_interests','Integration fixture purpose',365,'Test-only retention rule',current_date+90,true)",
+      [companyId,actorId]
+    );
+    await pool.query(
+      "select public.record_discovery_privacy_policy($1,$2,'contact_point','integration contact retention test','legitimate_interests','Integration fixture contact purpose',365,'Test-only contact retention rule',current_date+90,true)",
+      [companyId,actorId]
+    );
+    const queuedPrivacyRetention=await pool.query(
+      "select public.enqueue_expired_discovery_personal_data($1,$2,20) as count",
+      [companyId,actorId]
+    );
+    assert.equal(Number(queuedPrivacyRetention.rows[0].count),2,"E14 queues both expired professional identity and contact data");
+    const processedPrivacyRetention=await pool.query(
+      "select public.process_discovery_privacy_retention_queue($1,$2,20) as count",
+      [companyId,actorId]
+    );
+    assert.equal(Number(processedPrivacyRetention.rows[0].count),2,"E14 owner/admin-invoked retention run processes due items");
+    const expiredRecords=await pool.query(
+      "select (select count(*)::int from public.discovery_professional_people where company_id=$1 and id=$2) as people,(select count(*)::int from public.discovery_contact_points where company_id=$1 and id=$3) as contacts",
+      [companyId,retentionPerson.rows[0].id,retentionContact.rows[0].id]
+    );
+    assert.equal(expiredRecords.rows[0].people,0);
+    assert.equal(expiredRecords.rows[0].contacts,0);
+    const privacyRetentionReceipts=await pool.query(
+      "select count(*)::int as count from public.discovery_privacy_retention_queue where company_id=$1 and status='completed'",
+      [companyId]
+    );
+    assert.equal(privacyRetentionReceipts.rows[0].count,2);
+
     const privacyRequest=await pool.query(
       "select * from public.create_discovery_privacy_request($1,$2,'erasure','data_subject',$3,clock_timestamp()+interval '30 days')",
       [companyId,actorId,"d".repeat(64)]
@@ -1396,52 +1445,6 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       /immutable/
     );
 
-    const retentionPerson=await pool.query(
-      "insert into public.discovery_professional_people(company_id,full_name,normalized_name,public_professional_source,purpose,retention_until,source_evidence_id,created_by,status) values($1,'Retention Fixture Person','retention fixture person',true,'integration retention test',$2,$3,$4,'active') returning id",
-      [companyId,retentionDate,evidenceId,actorId]
-    );
-    const retentionApprovedContact=await pool.query(
-      "select * from public.record_discovery_contact_review($1,$2,$3,'approved',$4,$5,$6,$7,$8)",
-      [companyId,actorId,contactCandidates.rows[1].id,"retention fixture approved contact","integration contact retention test",retentionDate,canonical.rows[0].id,retentionPerson.rows[0].id]
-    );
-    const retentionContact={rows:[{id:retentionApprovedContact.rows[0].id}]};
-    await pool.query(
-      "update public.discovery_professional_people set retention_until=current_date-1 where company_id=$1 and id=$2",
-      [companyId,retentionPerson.rows[0].id]
-    );
-    await pool.query(
-      "update public.discovery_contact_points set retention_until=current_date-1 where company_id=$1 and id=$2",
-      [companyId,retentionContact.rows[0].id]
-    );
-    await pool.query(
-      "select public.record_discovery_privacy_policy($1,$2,'professional_identity','integration retention test','legitimate_interests','Integration fixture purpose',365,'Test-only retention rule',current_date+90,true)",
-      [companyId,actorId]
-    );
-    await pool.query(
-      "select public.record_discovery_privacy_policy($1,$2,'contact_point','integration contact retention test','legitimate_interests','Integration fixture contact purpose',365,'Test-only contact retention rule',current_date+90,true)",
-      [companyId,actorId]
-    );
-    const queuedPrivacyRetention=await pool.query(
-      "select public.enqueue_expired_discovery_personal_data($1,$2,20) as count",
-      [companyId,actorId]
-    );
-    assert.equal(Number(queuedPrivacyRetention.rows[0].count),2,"E14 queues both expired professional identity and contact data");
-    const processedPrivacyRetention=await pool.query(
-      "select public.process_discovery_privacy_retention_queue($1,$2,20) as count",
-      [companyId,actorId]
-    );
-    assert.equal(Number(processedPrivacyRetention.rows[0].count),2,"E14 owner/admin-invoked retention run processes due items");
-    const expiredRecords=await pool.query(
-      "select (select count(*)::int from public.discovery_professional_people where company_id=$1 and id=$2) as people,(select count(*)::int from public.discovery_contact_points where company_id=$1 and id=$3) as contacts",
-      [companyId,retentionPerson.rows[0].id,retentionContact.rows[0].id]
-    );
-    assert.equal(expiredRecords.rows[0].people,0);
-    assert.equal(expiredRecords.rows[0].contacts,0);
-    const privacyRetentionReceipts=await pool.query(
-      "select count(*)::int as count from public.discovery_privacy_retention_queue where company_id=$1 and status='completed'",
-      [companyId]
-    );
-    assert.equal(privacyRetentionReceipts.rows[0].count,2);
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
