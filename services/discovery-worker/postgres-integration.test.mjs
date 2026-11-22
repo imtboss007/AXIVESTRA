@@ -68,6 +68,28 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       insert into public.discovery_company_worker_controls(company_id,enabled,updated_by,reason,expires_at)
       values($1,true,$2,'integration test',now()+interval '30 minutes')
     `, [companyId, actorId]);
+    const profileSnapshot = await pool.query("select updated_at from public.discovery_profiles where id=$1", [profileId]);
+    const sourceSnapshot = await pool.query("select updated_at from public.discovery_source_registry where id=$1", [sourceId]);
+    const enqueueArgs = [
+      companyId, profileId, sourceId, actorId,
+      JSON.stringify({ purpose: "company identity verification", criteria: { test: true }, candidateUrls: ["https://registry.example.gov.in/api/v1/entities/rpc"] }),
+      "integration-enqueue-key-0001",
+      profileSnapshot.rows[0].updated_at, sourceSnapshot.rows[0].updated_at
+    ];
+    const enqueueResults = await Promise.all([
+      pool.query("select duplicate from public.enqueue_discovery_job($1,$2,$3,$4,$5::jsonb,$6,$7,$8)", enqueueArgs),
+      pool.query("select duplicate from public.enqueue_discovery_job($1,$2,$3,$4,$5::jsonb,$6,$7,$8)", enqueueArgs)
+    ]);
+    const duplicates = enqueueResults.flatMap(result => result.rows.map(row => row.duplicate));
+    assert.equal(duplicates.filter(Boolean).length, 1, "concurrent identical enqueue attempts must resolve as one new job and one duplicate");
+    const atomicAudit = await pool.query(`
+      select count(*)::int as count from public.discovery_audit_events
+      where action='discovery_job_queued' and entity_id=(
+        select id from public.discovery_jobs where company_id=$1 and idempotency_key=$2
+      )
+    `, [companyId, "integration-enqueue-key-0001"]);
+    assert.equal(atomicAudit.rows[0].count, 1, "an enqueue must create exactly one audit receipt in the same transaction");
+
     await pool.query(`
       insert into public.discovery_jobs(id,company_id,profile_id,source_id,requested_by,payload,idempotency_key)
       values
