@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
 const css = fs.readFileSync(path.join(root, "src", "styles.css"), "utf8");
 const orbit = fs.readFileSync(path.join(root, "src", "AxivestraOrbitalHub.tsx"), "utf8");
+const relationships = fs.readFileSync(path.join(root, "src", "RelationshipIntelligencePanel.tsx"), "utf8");
 const mw = fs.readFileSync(path.join(root, "src", "ModuleWorkbench.tsx"), "utf8");
 const supabase = fs.readFileSync(path.join(root, "src", "lib", "supabase.ts"), "utf8");
 const localDb = fs.readFileSync(path.join(root, "src", "lib", "local-db.ts"), "utf8");
@@ -336,3 +337,15 @@ assert.match(analytics, /toLocaleLowerCase\(\)/,
   "Pipeline status grouping must be case-insensitive.");
 assert.match(analytics, /aria-pressed=\{chartType === "donut"\}/,
   "Chart type controls must expose their pressed state to assistive technology.");
+
+
+assert.match(relationships, /person\.id, person\.role/,
+  "Relationship search must match source contact IDs.");
+assert.match(relationships, /record\.recordId/,
+  "Relationship search must match source record IDs.");
+assert.match(relationships, /hasMoreRecords:\s*allRecordNodes\.length > recordNodes\.length/,
+  "The graph must only announce truncation when records actually exceed the visible limit.");
+assert.match(relationships, /explicit saved contact-to-record links/,
+  "The relationship graph must expose its explicit-ID evidence count accessibly.");
+assert.match(relationships, /No explicit saved contact-ID links match this search/,
+  "A search with no linked result must not be misreported as missing saved links.");
