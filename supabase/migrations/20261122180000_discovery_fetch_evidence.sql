@@ -168,7 +168,9 @@ create or replace function public.enqueue_discovery_job(
   p_source_id uuid,
   p_requested_by uuid,
   p_payload jsonb,
-  p_idempotency_key text
+  p_idempotency_key text,
+  p_profile_updated_at timestamptz,
+  p_source_updated_at timestamptz
 ) returns table (job public.discovery_jobs, duplicate boolean)
 language plpgsql
 security definer
@@ -204,11 +206,17 @@ begin
     where id = p_profile_id and company_id = p_company_id and enabled = true
     for share;
   if not found then raise exception 'Discovery profile is not enabled for this company' using errcode = '42501'; end if;
+  if p_profile_updated_at is null or v_profile.updated_at is distinct from p_profile_updated_at then
+    raise exception 'Discovery profile changed during enqueue validation; refresh and retry' using errcode = '40001';
+  end if;
 
   select * into v_source from public.discovery_source_registry
     where id = p_source_id and company_id = p_company_id and status = 'approved'
     for share;
   if not found then raise exception 'Discovery source is not approved for this company' using errcode = '42501'; end if;
+  if p_source_updated_at is null or v_source.updated_at is distinct from p_source_updated_at then
+    raise exception 'Discovery source policy changed during enqueue validation; refresh and retry' using errcode = '40001';
+  end if;
 
   select * into v_link from public.discovery_profile_sources
     where company_id = p_company_id and profile_id = p_profile_id and source_id = p_source_id
@@ -271,8 +279,8 @@ begin
 end;
 $enqueue$;
 
-revoke all on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text) from public, anon, authenticated;
-grant execute on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text) to service_role;
+revoke all on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text,timestamptz,timestamptz) from public, anon, authenticated;
+grant execute on function public.enqueue_discovery_job(uuid,uuid,uuid,uuid,jsonb,text,timestamptz,timestamptz) to service_role;
 
 -- A company-level kill switch gates both queue claims and every outbound request.
 create or replace function public.claim_enabled_discovery_job(
