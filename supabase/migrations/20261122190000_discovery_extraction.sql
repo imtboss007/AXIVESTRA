@@ -11,11 +11,10 @@ alter table public.discovery_fetch_events
   ));
 
 update storage.buckets
-set allowed_mime_types = case
-  when 'text/csv' = any(coalesce(allowed_mime_types, array[]::text[]))
-    then coalesce(allowed_mime_types, array[]::text[])
-  else array_append(coalesce(allowed_mime_types, array[]::text[]), 'text/csv')
-end
+set allowed_mime_types = (
+  select array_agg(distinct mime_type)
+  from unnest(coalesce(allowed_mime_types, array[]::text[]) || array['text/csv','application/csv']) as mime_type
+)
 where id = 'discovery-evidence';
 
 
