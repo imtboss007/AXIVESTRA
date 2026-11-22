@@ -5,7 +5,7 @@ import { CheckCircle2, CircleAlert, Clock3, RefreshCw, ShieldCheck, XCircle } fr
 type Run = {
   id:string; source_id:string; evidence_id:string; extractor_version:string; schema_hash:string;
   status:string; extracted_entity_count:number; fact_count:number; invalid_fact_count:number;
-  warnings:string[]; completed_at:string;
+  warnings:string[]; source_content_hash:string; completed_at:string;
 };
 type Fact = {
   id:string; extraction_run_id:string; extracted_entity_id:string|null; field_name:string;
@@ -125,7 +125,7 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
           <div><b>Facts</b><span>{selectedRun.fact_count}</span></div>
           <div><b>Completed</b><span>{dateLabel(selectedRun.completed_at)}</span></div>
           <div><b>Parser</b><span>{selectedRun.extractor_version}</span></div>
-          <div><b>Evidence SHA-256</b><span className="discovery-hash">{selectedRun.id?selectedRun.schema_hash.slice(0,16)+"…":"—"}</span></div>
+          <div><b>Evidence SHA-256</b><span className="discovery-hash">{selectedRun.source_content_hash?selectedRun.source_content_hash.slice(0,16)+"…":"—"}</span></div>
         </div>
         {selectedRun.warnings?.length>0&&<div className="discovery-extraction-warnings"><b>Parser warnings</b>{selectedRun.warnings.map((warning,index)=><p key={index}>{warning}</p>)}</div>}
         <div className="discovery-fact-list">
