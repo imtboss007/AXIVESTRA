@@ -96,6 +96,28 @@ create table if not exists public.discovery_fetch_cache (
 create index if not exists discovery_fetch_cache_expiry_idx
   on public.discovery_fetch_cache(expires_at);
 
+
+-- Evidence snapshots and fetch events are insert-only; retention may delete them,
+-- but the recorded evidence/event content cannot be rewritten in place.
+create or replace function public.prevent_discovery_evidence_update()
+returns trigger
+language plpgsql
+as $guard$
+begin
+  raise exception 'Discovery evidence and fetch events are immutable; append a new record instead.';
+end;
+$guard$;
+
+drop trigger if exists discovery_evidence_no_update on public.discovery_evidence_items;
+create trigger discovery_evidence_no_update
+  before update on public.discovery_evidence_items
+  for each row execute function public.prevent_discovery_evidence_update();
+
+drop trigger if exists discovery_fetch_events_no_update on public.discovery_fetch_events;
+create trigger discovery_fetch_events_no_update
+  before update on public.discovery_fetch_events
+  for each row execute function public.prevent_discovery_evidence_update();
+
 alter table public.discovery_company_worker_controls enable row level security;
 alter table public.discovery_evidence_items enable row level security;
 alter table public.discovery_fetch_events enable row level security;
