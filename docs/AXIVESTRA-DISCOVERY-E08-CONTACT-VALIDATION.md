@@ -31,6 +31,6 @@ Reacher is not embedded in the application or called by this worker. A future se
 
 Key creation, secure secret storage, rotation and operational authorization are deployment prerequisites. Do not reuse the two keys or expose them to browser/mobile clients.
 
-## Validation still pending
+## Validation status
 
-Unit/contract tests and PostgreSQL integration are being added. Physical provider verification, DNS/MX checks, SMTP checks, delivery/bounce event ingestion, UI review workflow and E14 retention scheduler are not claimed as complete. No contact is sent a message.
+Unit/contract tests and a PostgreSQL integration path are included in this branch; the latest CI run must pass before E08 is marked verified. Physical provider verification, live DNS/MX checks, SMTP checks, delivery/bounce event ingestion from a real provider, UI review workflow and E14 retention scheduler are not claimed as complete. No contact is sent a message.
