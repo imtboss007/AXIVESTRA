@@ -163,24 +163,31 @@ Deno.serve(async request => {
       const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : profile.purpose;
       if (!purpose || purpose !== profile.purpose) return jsonResponse(400, { error: "The job purpose must exactly match the profile's approved purpose." });
       if (!(Array.isArray(source.allowed_purposes) ? source.allowed_purposes : []).includes(purpose)) return jsonResponse(403, { error: "The purpose is not in this source's approved purpose allow-list." });
-      const { data: inserted, error: insertError } = await admin.from("discovery_jobs").insert({ company_id: companyId, profile_id: profile.id, source_id: source.id, requested_by: caller.id, status: "queued", payload: { purpose, criteria, candidateUrls }, idempotency_key: idempotencyKey }).select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at").single();
-      if (insertError) {
-        if (insertError.code === "23505") {
-          const { data: existing, error: existingError } = await admin.from("discovery_jobs").select("id,profile_id,source_id,payload,status,attempts,max_attempts,available_at,created_at").eq("company_id", companyId).eq("idempotency_key", idempotencyKey).maybeSingle();
-          if (existingError) throw existingError;
-          if (existing) {
-            const sameRequest = existing.profile_id === profile.id && existing.source_id === source.id
-              && existing.payload?.purpose === purpose
-              && JSON.stringify(existing.payload?.criteria || {}) === JSON.stringify(criteria)
-              && JSON.stringify(existing.payload?.candidateUrls || []) === JSON.stringify(candidateUrls);
-            if (!sameRequest) return jsonResponse(409, { error: "This idempotency key is already used by a different discovery request." });
-            return jsonResponse(200, { ok: true, duplicate: true, job: existing });
-          }
-        }
-        throw insertError;
+      const { data: queued, error: enqueueError } = await admin.rpc("enqueue_discovery_job", {
+        p_company_id: companyId,
+        p_profile_id: profile.id,
+        p_source_id: source.id,
+        p_requested_by: caller.id,
+        p_payload: { purpose, criteria, candidateUrls },
+        p_idempotency_key: idempotencyKey
+      });
+      if (enqueueError) {
+        if (enqueueError.code === "23505") return jsonResponse(409, { error: "This idempotency key is already used by a different discovery request." });
+        throw enqueueError;
       }
-      await writeAudit(admin, { company_id: companyId, actor_user_id: caller.id, action: "discovery_job_queued", entity_type: "discovery_job", entity_id: inserted.id, details: { profileId: profile.id, sourceId: source.id, purpose } });
-      return jsonResponse(201, { ok: true, duplicate: false, job: inserted, message: "Discovery job queued. This action does not contact the source." });
+      const queueResult = Array.isArray(queued) ? queued[0] : queued;
+      const record = queueResult?.job as Record<string, unknown> | undefined;
+      if (!record) throw new Error("The discovery enqueue transaction returned no job record.");
+      const resultJob = {
+        id: record.id, profile_id: record.profile_id, source_id: record.source_id,
+        status: record.status, attempts: record.attempts, max_attempts: record.max_attempts,
+        available_at: record.available_at, created_at: record.created_at
+      };
+      const duplicate = queueResult?.duplicate === true;
+      return jsonResponse(duplicate ? 200 : 201, {
+        ok: true, duplicate, job: resultJob,
+        message: duplicate ? "The same discovery job was already queued." : "Discovery job queued. Enqueue does not contact the source."
+      });
     }
     if (!canManage && action !== "jobs.enqueue") return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources, profiles or worker permissions." });
 
