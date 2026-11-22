@@ -93,6 +93,36 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(allowed.filter(value => !value).length, 1);
 
     const activeJob = claimed[0];
+    await pool.query(`
+      insert into public.discovery_audit_events(company_id,actor_user_id,action,entity_type,entity_id,details)
+      values($1,$2,'discovery_job_queued','discovery_job',$3,'{}'::jsonb)
+    `, [companyId, actorId, activeJob.id]);
+
+    const evidenceId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    await pool.query(`
+      insert into public.discovery_evidence_items(
+        id,company_id,job_id,source_id,canonical_url,content_hash,raw_blob_ref,
+        content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
+      ) values($1,$2,$3,$4,'https://registry.example.gov.in/api/v1/entities/1',
+        repeat('a',64),'discovery-evidence:company/job/evidence.bin',
+        'application/json',12,'Example registry','IN','{}'::jsonb,'{}'::jsonb)
+    `, [evidenceId, companyId, activeJob.id, sourceId]);
+    await pool.query(`
+      insert into public.discovery_fetch_events(company_id,job_id,source_id,evidence_id,event_type,url,outcome)
+      values($1,$2,$3,$4,'response_received','https://registry.example.gov.in/api/v1/entities/1','stored')
+    `, [companyId, activeJob.id, sourceId, evidenceId]);
+    await assert.rejects(
+      pool.query("update public.discovery_evidence_items set attribution='changed' where id=$1", [evidenceId]),
+      /immutable/
+    );
+    await assert.rejects(
+      pool.query("update public.discovery_fetch_events set outcome='rewritten' where evidence_id=$1", [evidenceId]),
+      /immutable/
+    );
+    const bucket = await pool.query("select public,file_size_limit from storage.buckets where id='discovery-evidence'");
+    assert.equal(bucket.rows[0].public, false);
+    assert.equal(Number(bucket.rows[0].file_size_limit), 5_000_000);
+
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
 
