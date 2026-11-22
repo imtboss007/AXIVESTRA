@@ -60,6 +60,9 @@ export default function AxivestraOrbitalHub({
   const [focused, setFocused] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
   const [rotationPaused, setRotationPaused] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
   const [viewMode, setViewMode] = useState<"orbit" | "grid">("orbit");
   const [selectedGroup, setSelectedGroup] = useState("All");
   const [moduleSearch, setModuleSearch] = useState("");
@@ -67,6 +70,14 @@ export default function AxivestraOrbitalHub({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncMotionPreference = (event: MediaQueryListEvent) => setPrefersReducedMotion(event.matches);
+    setPrefersReducedMotion(motionPreference.matches);
+    motionPreference.addEventListener("change", syncMotionPreference);
+    return () => motionPreference.removeEventListener("change", syncMotionPreference);
+  }, []);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -92,11 +103,19 @@ export default function AxivestraOrbitalHub({
     ? window.matchMedia("(max-width: 720px)").matches
     : viewportWidth <= 720;
   useEffect(() => () => { if (openTimer.current) clearTimeout(openTimer.current); }, []);
+  const motionSuppressed = prefersReducedMotion || viewMode === "grid";
+  const orbitalMotionPaused = rotationPaused || motionSuppressed;
+
   const openWorkspace = (name: string) => {
     setFocused(name);
     setRotationPaused(true);
-    setZoomed(true);
     if (openTimer.current) clearTimeout(openTimer.current);
+    if (motionSuppressed) {
+      setZoomed(false);
+      onOpen(name);
+      return;
+    }
+    setZoomed(true);
     openTimer.current = setTimeout(() => {
       setZoomed(false);
       onOpen(name);
@@ -209,17 +228,24 @@ export default function AxivestraOrbitalHub({
   const safeCount = items.length;
 
   return (
-    <section className={`ax-orbit-hub${rotationPaused ? " is-rotation-paused" : ""}${viewMode === "grid" ? " is-grid-view" : " is-orbit-view"}`} aria-label="AXIVESTRA orbital workspace navigation" data-orbit-dimensionality="3d">
+    <section className={`ax-orbit-hub${orbitalMotionPaused ? " is-rotation-paused" : ""}${viewMode === "grid" ? " is-grid-view" : " is-orbit-view"}`} aria-label="AXIVESTRA orbital workspace navigation" data-orbit-dimensionality="3d">
       <div className="ax-orbit-hub__heading">
         <div>
-          <span className="ax-orbit-kicker"><span className="ax-orbit-live" /> AXIVESTRA · RELATIONSHIP INTELLIGENCE GRID</span>
+          <span className="ax-orbit-kicker"><span className="ax-orbit-live" /> AXIVESTRA · WORKSPACE ORBITAL COMMAND CENTRE</span>
           <h2>Command your connected workspaces.</h2>
-          <p>Navigate all 16 live workspaces on one continuously rotating, depth-sorted 3D sphere around the intelligence globe. Each module opens its existing AXIVESTRA records.</p>
+          <p>Explore all 16 workspaces in a spatial desktop view or a stable grid on smaller screens. Every workspace opens its existing AXIVESTRA records.</p>
         </div>
         <div className="ax-orbit-shortcuts">
-          <button type="button" className="ax-orbit-shortcut ax-orbit-motion-toggle" aria-pressed={rotationPaused} onClick={() => setRotationPaused(value => !value)}>
-            {rotationPaused ? <Play size={14} /> : <Pause size={14} />}
-            {rotationPaused ? "Resume rotation" : "Pause rotation"}
+          <button
+            type="button"
+            className="ax-orbit-shortcut ax-orbit-motion-toggle"
+            aria-pressed={rotationPaused}
+            disabled={motionSuppressed}
+            title={prefersReducedMotion ? "Your device has reduced motion enabled." : viewMode === "grid" ? "Switch to Orbit view to control rotation." : undefined}
+            onClick={() => setRotationPaused(value => !value)}
+          >
+            {prefersReducedMotion ? <Pause size={14} /> : rotationPaused || viewMode === "grid" ? <Play size={14} /> : <Pause size={14} />}
+            {prefersReducedMotion ? "Reduced motion" : viewMode === "grid" ? "Grid view" : rotationPaused ? "Resume rotation" : "Pause rotation"}
           </button>
           <button type="button" className="ax-orbit-shortcut" onClick={() => onOpen("Intelligence Hub")}><Sparkles size={14}/> Intelligence Hub</button>
           <button type="button" className="ax-orbit-shortcut" onClick={() => onOpen("AXIVESTRA Shift")}><Activity size={14}/> AXIVESTRA Shift</button>
@@ -240,7 +266,7 @@ export default function AxivestraOrbitalHub({
           <Search size={14} aria-hidden="true" />
           <input type="search" value={moduleSearch} onChange={event => setModuleSearch(event.target.value)} placeholder="Search workspaces or groups…" aria-label="Search workspaces or groups" />
           {moduleSearch && <button type="button" onClick={() => setModuleSearch("")} aria-label="Clear workspace search"><X size={13} /></button>}
-          <span>{visibleOrbitItems.length}/{safeCount}</span>
+          <span aria-live="polite" aria-atomic="true">{visibleOrbitItems.length}/{safeCount}</span>
         </label>
       </div>
 
@@ -268,7 +294,7 @@ export default function AxivestraOrbitalHub({
         </div>
         <div className="ax-orbit-telemetry__state">
           <span className={rotationPaused ? "is-paused" : ""} />
-          {rotationPaused ? "ROTATION PAUSED" : "AUTO ROTATION"}
+          {prefersReducedMotion ? "REDUCED MOTION" : viewMode === "grid" ? "GRID VIEW" : rotationPaused ? "ROTATION PAUSED" : "AUTO ROTATION"}
         </div>
       </div>
 
@@ -357,7 +383,7 @@ export default function AxivestraOrbitalHub({
           </div>
         </div>
 
-        <div className="ax-orbit-nodes" aria-label="Selectable workspace orbits">
+        <div className="ax-orbit-nodes" role="group" aria-label="Selectable workspace orbits">
           <div className="ax-orbit-ring ax-orbit-ring--outer" data-orbit-shell="unified">
             {visibleOrbitItems.map(item => (
               <div className="ax-orbit-node-slot" data-module-shell={item.ringName} style={item.style} key={item.name}>
@@ -367,8 +393,9 @@ export default function AxivestraOrbitalHub({
                       type="button"
                       className={`ax-orbit-node ax-orbit-node--${item.color}${focused === item.name || inspectedModule === item.name ? " is-focused" : ""}`}
                       onMouseEnter={() => setFocused(item.name)}
+                      onMouseLeave={() => setFocused(current => current === item.name && inspectedModule !== item.name ? null : current)}
                       onFocus={() => setFocused(item.name)}
-                      onBlur={() => setFocused(null)}
+                      onBlur={() => setFocused(current => current === item.name && inspectedModule !== item.name ? null : current)}
                       onClick={() => openWorkspace(item.name)}
                       aria-label={`Open ${item.name}, ${item.count} records`}
                     >
