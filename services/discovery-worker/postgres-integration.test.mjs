@@ -34,9 +34,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const sourceMigration = await readFile(new URL("../../supabase/migrations/20261122150000_discovery_source_governance.sql", import.meta.url), "utf8");
     const queueMigration = await readFile(new URL("../../supabase/migrations/20261122170000_discovery_durable_queue.sql", import.meta.url), "utf8");
     const fetchMigration = await readFile(new URL("../../supabase/migrations/20261122180000_discovery_fetch_evidence.sql", import.meta.url), "utf8");
+    const extractionMigration = await readFile(new URL("../../supabase/migrations/20261122190000_discovery_extraction.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
+    await pool.query(extractionMigration);
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -51,14 +53,15 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(`
       insert into public.discovery_source_registry(
         id,company_id,name,canonical_url,domain,source_type,connector_key,jurisdiction,
-        terms_url,license_ref,allowed_purposes,allowed_fields,allowed_paths,access_method,
+        terms_url,license_ref,allowed_purposes,allowed_fields,field_schema,allowed_paths,access_method,
         rate_limit_per_minute,max_pages_per_job,retention_days,attribution,legal_basis,
         status,reviewed_by,reviewed_at,created_by,updated_by
       ) values (
         $1,$2,'Example registry','https://registry.example.gov.in/api','registry.example.gov.in',
         'official_api','official_api','IN','https://registry.example.gov.in/terms','Reviewed terms',
-        array['company identity verification'],array['legal_name'],array['/api/v1/entities'],
-        'official_api',1,10,30,'Source attribution','Approved public company registry use',
+        array['company identity verification'],array['legal_name','registration_id','status'],
+        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]}}'::jsonb,
+        array['/api/v1/entities'],'official_api',1,10,30,'Source attribution','Approved public company registry use',
         'approved',$3,now(),$3,$3
       )
     `, [sourceId, companyId, actorId]);
@@ -135,14 +138,67 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     `, [companyId, actorId, activeJob.id]);
 
     const evidenceId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const evidenceJobId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3";
+    await pool.query(`
+      insert into public.discovery_jobs(
+        id,company_id,profile_id,source_id,requested_by,status,payload,idempotency_key,started_at,finished_at
+      ) values($1,$2,$3,$4,$5,'succeeded',
+        '{"purpose":"company identity verification","criteria":{},"candidateUrls":["https://registry.example.gov.in/api/v1/entities/1"]}'::jsonb,
+        'integration-evidence-job-0003',now(),now())
+    `, [evidenceJobId,companyId,profileId,sourceId,actorId]);
     await pool.query(`
       insert into public.discovery_evidence_items(
         id,company_id,job_id,source_id,canonical_url,captured_at,content_hash,raw_blob_ref,
         content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
       ) values($1,$2,$3,$4,'https://registry.example.gov.in/api/v1/entities/1',now()-interval '2 days',
         repeat('a',64),'discovery-evidence:company/job/evidence.bin',
-        'application/json',12,'Example registry','IN','{}'::jsonb,'{}'::jsonb)
-    `, [evidenceId, companyId, activeJob.id, sourceId]);
+        'application/json',12,'Example registry','IN','{"retention_days":1}'::jsonb,'{}'::jsonb)
+    `, [evidenceId, companyId, evidenceJobId, sourceId]);
+    const extractionClaim = await pool.query(
+      "select * from public.claim_discovery_extraction_job($1,90)",
+      ["extraction-worker-test"]
+    );
+    assert.equal(extractionClaim.rows.length, 1, "approved source evidence linked to a succeeded job should enqueue deterministic extraction");
+    const extractionJob = extractionClaim.rows[0];
+    const span = { kind: "json-pointer", locator: "$/legal_name", quote: "Acme Holdings Pvt Ltd", quoteHash: "c".repeat(64) };
+    const runResult = await pool.query(
+      "select public.complete_discovery_extraction($1,$2,$3::jsonb,$4::jsonb,$5::jsonb) as run_id",
+      [
+        extractionJob.id,
+        extractionJob.lease_owner,
+        JSON.stringify({
+          extractor_version: "deterministic-v1.0.0",
+          schema_hash: "b".repeat(64),
+          source_content_hash: "a".repeat(64),
+          invalid_fact_count: 0,
+          warnings: []
+        }),
+        JSON.stringify([{
+          mention_key: "organization:acme-1", entity_kind: "organization",
+          raw_name: "Acme Holdings Pvt Ltd", normalized_name: "Acme Holdings Pvt Ltd",
+          source_span: span, confidence: 0.99
+        }]),
+        JSON.stringify([{
+          mention_key: "organization:acme-1", field_name: "legal_name",
+          value_type: "string", raw_value: "Acme Holdings Pvt Ltd",
+          normalized_value: "Acme Holdings Pvt Ltd", source_span: span,
+          confidence: 0.99, validation_status: "valid"
+        }])
+      ]
+    );
+    const extractionRunId = runResult.rows[0].run_id;
+    assert.ok(extractionRunId);
+    const extractedFact = await pool.query(
+      "select field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
+      [extractionRunId]
+    );
+    assert.equal(extractedFact.rows.length, 1);
+    assert.equal(extractedFact.rows[0].normalized_value, "Acme Holdings Pvt Ltd");
+    assert.equal(extractedFact.rows[0].source_span.locator, "$/legal_name");
+    await assert.rejects(
+      pool.query("update public.discovery_extracted_facts set raw_value='rewritten' where extraction_run_id=$1", [extractionRunId]),
+      /append-only/
+    );
     await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
     const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
     assert.equal(expiredEvidence.rows.length, 1, "per-source evidence retention is enforced by PostgreSQL");
