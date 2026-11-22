@@ -14,6 +14,8 @@ on:
       - feat/discovery-e08-contact-validation
       - feat/discovery-e09-geo-resolution
       - feat/discovery-e10-enrichment
+      - feat/discovery-e10-enrichment
+      - feat/discovery-e10-enrichment
   pull_request:
     branches:
       - main
