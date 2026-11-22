@@ -21,22 +21,36 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
     const visiblePeople = people.slice(0, 24);
     const records = new Map<string, PersonSummary["records"][number]>();
     visiblePeople.forEach(person => person.records.forEach(record => records.set(record.key, record)));
-    const recordNodes = [...records.values()].slice(0, 48);
+    const allRecordNodes = [...records.values()];
+    const recordNodes = allRecordNodes.slice(0, 48);
     const recordIndex = new Map(recordNodes.map((record, index) => [record.key, index]));
     const edges = visiblePeople.flatMap((person, personIndex) => person.records.flatMap(record => {
       const target = recordIndex.get(record.key);
       return target === undefined ? [] : [{ personIndex, recordIndex: target, relations: record.relations.join(", ") }];
     }));
-    return { visiblePeople, recordNodes, edges, height: Math.max(300, visiblePeople.length * 104 + 44, recordNodes.length * 82 + 44) };
+    return {
+      visiblePeople,
+      recordNodes,
+      edges,
+      hasMorePeople: people.length > visiblePeople.length,
+      hasMoreRecords: allRecordNodes.length > recordNodes.length,
+      height: Math.max(300, visiblePeople.length * 104 + 44, recordNodes.length * 82 + 44)
+    };
   }, [people]);
 
-  if (!graph.recordNodes.length) return <p className="ax-relationship-unlinked">No explicit saved contact-ID links are available to draw. Add a contact link to a workspace, task, financial record, risk, approval or document.</p>;
+  if (!graph.recordNodes.length) return <p className="ax-relationship-unlinked">{people.length
+    ? "No explicit saved contact-ID links match this search. Search by another contact or source record."
+    : "No matching contacts were found. Change the search to inspect a different contact or linked record."}</p>;
 
-  return <div className="ax-relationship-graph-scroll" role="region" aria-label="Relationship graph; horizontally scrollable">
+  return <div className="ax-relationship-graph-scroll" role="region" aria-label={`Relationship graph with ${graph.edges.length} explicit saved contact-to-record links; horizontally scrollable`} tabIndex={0}>
+    <div className="ax-relationship-graph__summary" aria-live="polite">
+      <span><strong>{graph.edges.length.toLocaleString("en-IN")}</strong> explicit saved links</span>
+      <span>{graph.visiblePeople.length} contacts · {graph.recordNodes.length} records shown</span>
+    </div>
     <div className="ax-relationship-graph" style={{ height: graph.height }}>
       <div className="ax-relationship-graph__heading ax-relationship-graph__heading--people">CONTACTS <span>{graph.visiblePeople.length}</span></div>
       <div className="ax-relationship-graph__heading ax-relationship-graph__heading--records">LINKED RECORDS <span>{graph.recordNodes.length}</span></div>
-      <svg className="ax-relationship-graph__edges" viewBox={`0 0 840 ${graph.height}`} preserveAspectRatio="none" aria-hidden="true">
+      <svg className="ax-relationship-graph__edges" viewBox={`0 0 840 ${graph.height}`} preserveAspectRatio="none" role="img" aria-label={`${graph.edges.length} explicit saved contact-to-record links`}>
         {graph.edges.map((edge, index) => {
           const y1 = edge.personIndex * 104 + 88;
           const y2 = edge.recordIndex * 82 + 79;
@@ -53,7 +67,7 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
         {record.workspace && <button type="button" className="text-button" onClick={() => onOpenWorkspace(record.workspace)} aria-label={`Open ${record.workspace} workspace`}><ArrowUpRight size={14}/></button>}
       </article>)}
     </div>
-    {(people.length > 24 || graph.recordNodes.length >= 48) && <p className="ax-relationship-graph__limit">Showing a readable graph subset. Use search to narrow the graph to a specific contact or record.</p>}
+    {(graph.hasMorePeople || graph.hasMoreRecords) && <p className="ax-relationship-graph__limit">Showing a readable graph subset. Use search to narrow the graph to a specific contact or source record.</p>}
   </div>;
 }
 
@@ -68,8 +82,8 @@ export default function RelationshipIntelligencePanel(props: Props) {
     const search = query.trim().toLocaleLowerCase();
     if (!search) return result.contacts;
     return result.contacts.filter(person =>
-      [person.name, person.role, ...person.roles, ...person.workspaces,
-        ...person.records.flatMap(record => [record.title, record.workspace, ...record.relations])]
+      [person.name, person.id, person.role, ...person.roles, ...person.workspaces,
+        ...person.records.flatMap(record => [record.title, record.recordId, record.workspace, ...record.relations])]
         .join(" ").toLocaleLowerCase().includes(search)
     );
   }, [query, result]);
