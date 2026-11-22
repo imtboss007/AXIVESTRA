@@ -57,7 +57,7 @@ test("E06 legal-entity relationship writes require an evidence-backed owner/admi
   assert.match(migration, /Only a company owner or admin can review entity relationships/);
   assert.match(migration, /entity_relationship_review_recorded/);
   assert.match(migration, /source_span jsonb not null/);
-  assert.match(migration, /evidence_id is not null/);
+  assert.match(migration, /p_evidence_id is null/);
 });
 
 test("E06 matching prefers scoped exact identifiers and never allows automatic linking", () => {
