@@ -144,19 +144,30 @@ export async function runExtractionWorker() {
   }
   const admin = createAdmin();
   const workerId = process.env.AXIVESTRA_EXTRACTION_WORKER_ID || ("axivestra-extract-" + randomUUID());
+  const concurrencyValue = Number(process.env.DISCOVERY_EXTRACTION_CONCURRENCY || 2);
+  const concurrency = Number.isFinite(concurrencyValue)
+    ? Math.max(1, Math.min(4, Math.floor(concurrencyValue)))
+    : 2;
+  const workerSlots = Array.from({ length: concurrency }, (_, index) => {
+    const suffix = "-slot-" + (index + 1);
+    return workerId.slice(0, 160 - suffix.length) + suffix;
+  });
   const pollMs = Math.max(1000, Math.min(30_000, Number(process.env.DISCOVERY_EXTRACTION_POLL_MS || 5000)));
   let stopping = false;
   process.once("SIGINT", () => { stopping = true; });
   process.once("SIGTERM", () => { stopping = true; });
-  console.info("AXIVESTRA deterministic extraction worker started. It performs no network access and no LLM calls.");
+  console.info("AXIVESTRA deterministic extraction worker started with " + concurrency + " bounded slot(s). It performs no network access and no LLM calls.");
   while (!stopping) {
-    try {
-      const didWork = await runExtractionWorkerOnce(admin, workerId);
-      if (!didWork) await sleep(pollMs);
-    } catch (error) {
-      console.error("AXIVESTRA extraction worker poll failed closed:", String(error?.message || error));
-      await sleep(pollMs);
-    }
+    const outcomes = await Promise.all(workerSlots.map(async slotId => {
+      try {
+        return await runExtractionWorkerOnce(admin, slotId);
+      } catch (error) {
+        console.error("AXIVESTRA extraction worker slot failed closed:", slotId,
+          String(error?.message || error));
+        return false;
+      }
+    }));
+    if (!outcomes.some(Boolean)) await sleep(pollMs);
   }
 }
 
