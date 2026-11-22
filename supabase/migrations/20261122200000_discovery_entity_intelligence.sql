@@ -83,9 +83,8 @@ create table if not exists public.discovery_entity_aliases (
   created_at timestamptz not null default now(),
   unique(company_id,id),
   foreign key (company_id,canonical_entity_id)
-    references public.discovery_canonical_entities(company_id,id) on delete cascade,
-  foreign key (company_id,source_evidence_id)
-    references public.discovery_evidence_items(company_id,id) on delete restrict
+    references public.discovery_canonical_entities(company_id,id) on delete cascade
+  -- source_evidence_id intentionally remains an immutable historical UUID reference.
 );
 create index if not exists discovery_entity_aliases_lookup_idx
   on public.discovery_entity_aliases(company_id,normalized_alias)
