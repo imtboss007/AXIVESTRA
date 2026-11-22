@@ -236,6 +236,25 @@ create trigger discovery_evidence_enqueue_extraction
   after insert on public.discovery_evidence_items
   for each row execute function public.enqueue_discovery_extraction_for_evidence();
 
+-- Queue already-captured evidence for the first E05 run. Require its parent
+-- discovery job to have completed and the LENDER/CUSTOMER profile to remain enabled.
+insert into public.discovery_extraction_jobs(company_id,evidence_id,source_id,status)
+select e.company_id,e.id,e.source_id,'queued'
+from public.discovery_evidence_items e
+join public.discovery_source_registry s
+  on s.company_id=e.company_id and s.id=e.source_id and s.status='approved'
+join public.discovery_jobs dj
+  on dj.company_id=e.company_id and dj.id=e.job_id and dj.status='succeeded'
+join public.discovery_profiles p
+  on p.company_id=dj.company_id and p.id=dj.profile_id and p.enabled=true
+join public.discovery_profile_sources ps
+  on ps.company_id=dj.company_id and ps.profile_id=dj.profile_id and ps.source_id=e.source_id
+where e.content_type in (
+  'text/html','text/plain','application/json','application/ld+json',
+  'application/xml','text/xml','application/pdf'
+)
+on conflict (company_id,evidence_id) do nothing;
+
 create or replace function public.claim_discovery_extraction_job(
   p_worker_id text,
   p_lease_seconds integer default 90
