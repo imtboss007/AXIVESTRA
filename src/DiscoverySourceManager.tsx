@@ -11,6 +11,7 @@ type Source = {
   canonical_url: string;
   domain: string;
   source_type: string;
+  render_mode: "http" | "browser";
   jurisdiction: string;
   terms_url: string | null;
   license_ref: string;
@@ -78,6 +79,7 @@ const initialSourceDraft = {
   name: "",
   canonicalUrl: "",
   sourceType: "official_api",
+  renderMode: "http",
   jurisdiction: "IN",
   termsUrl: "",
   licenseRef: "unreviewed",
@@ -364,8 +366,8 @@ export default function DiscoverySourceManager({
           <label>Source name<input required maxLength={160} value={sourceDraft.name} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, name: event.target.value })} placeholder="e.g. Official company registry"/></label>
           <label>Canonical HTTPS URL<input required type="url" value={sourceDraft.canonicalUrl} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, canonicalUrl: event.target.value })} placeholder="https://registry.example.in/api"/></label>
           <div className="discovery-form-grid">
-            <label>Source category<select value={sourceDraft.sourceType} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, sourceType: event.target.value })}>{SOURCE_TYPES.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-            <label>Jurisdiction<input required value={sourceDraft.jurisdiction} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, jurisdiction: event.target.value })} placeholder="IN / GLOBAL / US"/></label>
+            <label>Source category<select value={sourceDraft.sourceType} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, sourceType: event.target.value, renderMode: event.target.value === "permitted_public_page" ? sourceDraft.renderMode : "http" })}>{SOURCE_TYPES.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+            <label>Fetch adapter<select value={sourceDraft.renderMode} disabled={!canManage || busyKey === "add-source" || sourceDraft.sourceType !== "permitted_public_page"} onChange={event => setSourceDraft({ ...sourceDraft, renderMode: event.target.value })}><option value="http">Static HTTPS / API (default)</option><option value="browser">Playwright rendered page (approved public page only)</option></select></label>
           </div>
           <div className="discovery-form-grid">
             <label>Terms / policy URL<input type="url" value={sourceDraft.termsUrl} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, termsUrl: event.target.value })} placeholder="HTTPS URL; needed for approval"/></label>
@@ -403,6 +405,7 @@ export default function DiscoverySourceManager({
                 <span><b>Paths</b>{(source.allowed_paths || []).join(", ")}</span>
                 <span><b>Purposes</b>{(source.allowed_purposes || []).join(", ")}</span>
                 <span><b>Fields</b>{(source.allowed_fields || []).join(", ")}</span>
+                <span><b>Fetch adapter</b>{source.render_mode === "browser" ? "Playwright browser render" : "Static HTTPS / API"}</span>
                 <span><b>Rate / retention</b>{source.rate_limit_per_minute}/min · {source.retention_days} days</span>
               </div>
               {source.status === "pending" && canManage && <div className="discovery-review-fields">
