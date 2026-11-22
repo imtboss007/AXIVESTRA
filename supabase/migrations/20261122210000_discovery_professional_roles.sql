@@ -281,7 +281,7 @@ declare
   v_candidate jsonb;
   v_count integer:=0;
 begin
-  if jsonb_typeof(p_candidates)<>'array' or jsonb_array_length(p_candidates)>500
+  if p_candidates is null or jsonb_typeof(p_candidates)<>'array' or jsonb_array_length(p_candidates)>500
     or octet_length(p_candidates::text)>500000 then
     raise exception 'E07 candidate batch is outside approved bounds' using errcode='22023';
   end if;
