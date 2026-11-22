@@ -5935,3 +5935,7 @@ h2,h3{color:#e5f2fc}
 .discovery-extraction-readonly svg{flex:none;color:#81b2ce}
 .discovery-extraction-panel .discovery-feedback{margin-top:12px}
 @media(max-width:660px){.discovery-extraction-panel{padding:14px;border-radius:13px}.discovery-extraction-head{display:grid}.discovery-extraction-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.discovery-fact-values{grid-template-columns:1fr}.discovery-fact-top{display:grid}.discovery-fact-state{justify-content:flex-start}.discovery-fact-actions{flex-wrap:wrap}}
+
+.discovery-extraction-summary .discovery-evidence-source{grid-column:1/-1}
+.discovery-evidence-source a{font-size:11px;color:#77c8dd;text-decoration:underline;overflow-wrap:anywhere}
+.discovery-evidence-source small{font-size:9px;color:#9db0c4;overflow-wrap:anywhere}
