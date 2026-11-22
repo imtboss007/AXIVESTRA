@@ -2017,3 +2017,17 @@ body { background: #0b1420; color: #e8f0f4; }
     transform: none;
   }
 }
+
+/* Motion Primitives Animated Number adaptation — exact locale display, no Motion runtime. */
+.ax-modern-shell .ax-motion-number {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 1ch;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ax-modern-shell .ax-motion-number {
+    animation: none;
+    transition: none;
+  }
+}
