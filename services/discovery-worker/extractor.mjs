@@ -233,8 +233,8 @@ async function parsePdfEvidence(buffer, observations) {
     useSystemFonts: true,
     stopAtErrors: true
   });
-  const document = await loadingTask.promise;
   try {
+    const document = await loadingTask.promise;
     const totalPages = Math.min(document.numPages, 300);
     for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
@@ -259,7 +259,7 @@ async function parsePdfEvidence(buffer, observations) {
     }
     return {};
   } finally {
-    await loadingTask.destroy();
+    try { await loadingTask.destroy(); } catch { /* best-effort cleanup after parse/load failures */ }
   }
 }
 
