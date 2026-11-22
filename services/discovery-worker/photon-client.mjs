@@ -72,6 +72,7 @@ function cleanText(value, maximum = 300) {
 }
 
 function safeCoordinate(value, minimum, maximum) {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) && number >= minimum && number <= maximum ? number : null;
 }
