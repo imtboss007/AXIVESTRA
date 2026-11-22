@@ -88,6 +88,10 @@ function fieldValueMap(facts, allowedFields, fieldSchema) {
     if (!allowedFields.includes(field) || !fieldSchema?.[field]) continue;
     const target = FIELD_TYPES.get(keyOf(field));
     if (!target) continue;
+    const declaredType = fieldSchema[field]?.type;
+    const acceptedTypes = target === "latitude" || target === "longitude"
+      ? ["number", "string"] : ["string"];
+    if (!acceptedTypes.includes(declaredType)) continue;
     const value = factValue(fact);
     if (value === null || value === undefined || value === "") continue;
     if (values[target] === undefined) {
@@ -124,9 +128,10 @@ export function buildPlaceCandidates({
       confidence.latitude, confidence.longitude
     ].filter(value => Number.isFinite(value));
     const coordinatePairPresent = values.latitude !== undefined && values.longitude !== undefined;
+    const coordinateInputPresent = values.latitude !== undefined || values.longitude !== undefined;
     const coordinatesValid = latitude !== null && longitude !== null;
     const sourceCoordinates = coordinatesValid ? { latitude, longitude } : null;
-    const incompleteCoordinates = coordinatePairPresent && !coordinatesValid;
+    const incompleteCoordinates = coordinateInputPresent && (!coordinatePairPresent || !coordinatesValid);
     if (!hasAnyAddress && !sourceCoordinates && !incompleteCoordinates) continue;
 
     const requiredAddressComponents = [
