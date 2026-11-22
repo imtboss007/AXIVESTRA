@@ -437,7 +437,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         /cannot be deleted/
       );
       await partyClient.query("insert into public.companies(id) values('99999999-9999-4999-8999-999999999999')");
-      await partyClient.query("insert into public.auth.users(id) values('88888888-8888-4888-8888-888888888888')");
+      await partyClient.query("insert into auth.users(id) values('88888888-8888-4888-8888-888888888888')");
       await partyClient.query(
         "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values('99999999-9999-4999-8999-999999999999','contact','foreign-party','{}'::jsonb,'88888888-8888-4888-8888-888888888888','88888888-8888-4888-8888-888888888888')"
       );
