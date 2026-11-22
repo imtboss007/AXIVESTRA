@@ -131,6 +131,7 @@ export default function DiscoverySourceManager({
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("Open an authenticated AXIVESTRA company workspace first.");
+    if (!supabase) throw new Error("Cloud authentication is not configured. Sign in through an AXIVESTRA company workspace.");
     const { data, error: invokeError } = await supabase.functions.invoke("discovery-control", {
       body: { companyId, action, payload }
     });

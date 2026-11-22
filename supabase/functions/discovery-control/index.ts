@@ -33,7 +33,7 @@ function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function writeAudit(admin: ReturnType<typeof createClient>, event: {
+async function writeAudit(admin: any, event: {
   company_id: string; actor_user_id: string; action: string;
   entity_type: string; entity_id: string; details?: Record<string, unknown>;
 }) {
