@@ -869,6 +869,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durableContactEvents.rows[0].count,3,"E08 syntax, catch-all and bounce validation events must survive candidate/evidence purge");
     assert.equal(durableContactEvents.rows[0].has_catch_all,true);
     assert.equal(durableContactEvents.rows[0].has_bounce,true);
+    const durablePlaceReview=await pool.query(
+      "select count(*)::int as count,count(candidate_id)::int as linked_count,min(candidate_snapshot->>'coordinateState') as coordinate_state from public.discovery_place_resolution_events where company_id=$1 and decision='accepted'",
+      [companyId]
+    );
+    assert.equal(durablePlaceReview.rows[0].count,1,"E09 place review receipt must survive evidence retention");
+    assert.equal(durablePlaceReview.rows[0].linked_count,0,"E09 review receipt must detach from the expired source candidate");
+    assert.equal(durablePlaceReview.rows[0].coordinate_state,"source_coordinates","E09 review receipt must preserve only the coordinate-state summary");
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
