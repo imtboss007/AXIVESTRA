@@ -40,6 +40,12 @@ test("evidence storage is private, size-bounded and company-scoped", () => {
   assert.match(migration, /revoke all on public\.discovery_evidence_items from anon, authenticated/);
 });
 
+test("idempotency compares the complete enqueue payload to prevent accidental reuse", () => {
+  assert.match(control, /existing\.payload\?\.purpose === purpose/);
+  assert.match(control, /existing\.payload\?\.criteria \|\| \{\}/);
+  assert.match(control, /existing\.payload\?\.candidateUrls \|\| \[\]/);
+});
+
 test("enqueue is available to company members but only allow-listed bounded candidate URLs are accepted", () => {
   assert.match(control, /if \(!canManage && action !== "jobs\.enqueue"\)/);
   assert.match(control, /candidateInput\.length > Number\(source\.max_pages_per_job/);
