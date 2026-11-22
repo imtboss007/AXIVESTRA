@@ -198,7 +198,7 @@ create or replace function public.heartbeat_discovery_job(
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $function$
 declare v_updated integer;
 begin
   if p_lease_seconds < 15 or p_lease_seconds > 300 then
@@ -218,7 +218,7 @@ begin
   get diagnostics v_updated = row_count;
   return v_updated = 1;
 end;
-$;
+$function$;
 revoke all on function public.heartbeat_discovery_job(uuid,text,integer) from public, anon, authenticated;
 grant execute on function public.heartbeat_discovery_job(uuid,text,integer) to service_role;
 
