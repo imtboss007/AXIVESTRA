@@ -12,7 +12,8 @@ E08 follows the Lead & Customer Intelligence Matrix: store observed email/phone 
 - The job snapshots the exact source field schema and allow-list at E05 completion. Workers stop if approval, schema, profile attachment, evidence hash or company worker grant changes.
 - No email guessing, web lookup, pattern generation, MX lookup, SMTP probing, message sending or contact-enrichment network call is performed.
 - Email syntax and international E.164 phone formatting are checked locally. No country code is inferred for local phone numbers.
-- Contact values are AES-256-GCM encrypted before database persistence. A separately keyed HMAC fingerprint supports duplicate detection without storing a plaintext lookup key. Logs expose job counts only, not contact values.
+- E08 contact candidates and approved contact points store values as AES-256-GCM ciphertext, with a separately keyed HMAC fingerprint and no plaintext lookup key. E08 worker logs contain counts only, not contact values.
+- **Storage boundary:** E05 currently retains the original source-backed value in its restricted `discovery_extracted_facts.raw_value` / `normalized_value` records until E05 evidence retention runs. E08 encrypts at the handoff into E08 tables; this branch does not claim end-to-end encryption before the first E05 database write. That is a separate E05 pipeline hardening item.
 - Validation events separate method, result, confidence, catch-all signal and bounce type. The default event is `syntax_only`; it does **not** mean mailbox reachable, mobile active, consented or permitted to contact.
 - Contact points are created only after explicit company owner/admin review, an association to an active canonical company and/or reviewed professional person, a stated purpose and an explicit retention expiry no more than 365 days away.
 - Worker is disabled by default. No credentials, provider account, source activation, migration deployment or production worker has been configured.
