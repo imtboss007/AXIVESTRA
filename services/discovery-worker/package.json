@@ -8,7 +8,8 @@
     "test": "node worker-policy.test.mjs && node extractor.test.mjs && node extraction-worker.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs && node retention.test.mjs",
     "install:browser": "playwright install chromium",
     "start:extraction": "node extraction-worker.mjs",
-    "retention": "node retention-sweeper.mjs"
+    "retention": "node retention-sweeper.mjs",
+    "bench:extractor": "node extractor.bench.mjs"
   },
   "devDependencies": {
     "pg": "8.16.3"
