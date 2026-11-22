@@ -4,7 +4,7 @@ function define(category, valueTypes, keys) {
   for (const key of keys) ATTRIBUTE_REGISTRY.set(key, { attributeKey:key, category, valueTypes });
 }
 
-define("business",["string","date","boolean","identifier"],[
+define("business",["string","date","boolean","identifier","array"],[
   "company_status","status","legal_status","operating_status","industry","industry_sector",
   "business_description","business_model","founded_date","incorporation_date","registration_date",
   "products","services","website","business_type","entity_type"
@@ -149,6 +149,8 @@ export function detectPotentialEnrichmentConflicts(candidate, existingObservatio
   }));
 }
 
-export const ENRICHMENT_ATTRIBUTE_COUNTS = Object.freeze({
-  business:18, finance:21, property:20, operating:20
-});
+const attributeCounts = {};
+for (const item of ATTRIBUTE_REGISTRY.values()) {
+  attributeCounts[item.category] = (attributeCounts[item.category] || 0) + 1;
+}
+export const ENRICHMENT_ATTRIBUTE_COUNTS = Object.freeze(attributeCounts);
