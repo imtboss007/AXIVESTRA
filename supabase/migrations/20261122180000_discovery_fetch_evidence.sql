@@ -2,6 +2,25 @@
 -- Private storage only. No source is activated and no worker is deployed by this migration.
 begin;
 
+
+-- E04 extends the original governance audit vocabulary for job queue and
+-- temporary worker authority receipts. Preserve the same company-scoped ledger.
+alter table public.discovery_audit_events
+  drop constraint if exists discovery_audit_events_action_check;
+alter table public.discovery_audit_events
+  add constraint discovery_audit_events_action_check check (action in (
+    'source_registered','source_approved','source_paused','source_rejected',
+    'profile_created','profile_updated','profile_enabled','profile_disabled',
+    'profile_source_attached','profile_source_detached',
+    'discovery_job_queued','discovery_worker_grant_enabled','discovery_worker_grant_disabled'
+  ));
+alter table public.discovery_audit_events
+  drop constraint if exists discovery_audit_events_entity_type_check;
+alter table public.discovery_audit_events
+  add constraint discovery_audit_events_entity_type_check check (entity_type in (
+    'source','profile','profile_source','discovery_job','discovery_worker_control'
+  ));
+
 create table if not exists public.discovery_company_worker_controls (
   company_id uuid primary key references public.companies(id) on delete cascade,
   enabled boolean not null default false,
