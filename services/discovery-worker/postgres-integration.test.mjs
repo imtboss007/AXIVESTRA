@@ -36,11 +36,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const fetchMigration = await readFile(new URL("../../supabase/migrations/20261122180000_discovery_fetch_evidence.sql", import.meta.url), "utf8");
     const extractionMigration = await readFile(new URL("../../supabase/migrations/20261122190000_discovery_extraction.sql", import.meta.url), "utf8");
     const entityIntelligenceMigration = await readFile(new URL("../../supabase/migrations/20261122200000_discovery_entity_intelligence.sql", import.meta.url), "utf8");
+    const peopleIntelligenceMigration = await readFile(new URL("../../supabase/migrations/20261122210000_discovery_people_intelligence.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
     await pool.query(extractionMigration);
     await pool.query(entityIntelligenceMigration);
+    await pool.query(peopleIntelligenceMigration);
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -61,8 +63,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       ) values (
         $1,$2,'Example registry','https://registry.example.gov.in/api','registry.example.gov.in',
         'official_api','official_api','IN','https://registry.example.gov.in/terms','Reviewed terms',
-        array['company identity verification'],array['legal_name','registration_id','status'],
-        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]}}'::jsonb,
+        array['company identity verification'],array['legal_name','registration_id','status','director_name','designation'],
+        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]},"director_name":{"type":"string","aliases":["director_name"],"entityKind":"person"},"designation":{"type":"string","aliases":["designation"]}}'::jsonb,
         array['/api/v1/entities'],'official_api',1,10,30,'Source attribution','Approved public company registry use',
         'approved',$3,now(),$3,$3
       )
@@ -175,17 +177,27 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           source_field_schema_snapshot: {
             legal_name: { type: "string", aliases: ["legal_name"], required: true, entityKind: "organization" },
             registration_id: { type: "identifier", aliases: ["registration_id"] },
-            status: { type: "string", aliases: ["status"] }
+            status: { type: "string", aliases: ["status"] },
+            director_name: { type: "string", aliases: ["director_name"], entityKind: "person" },
+            designation: { type: "string", aliases: ["designation"] }
           },
-          source_allowed_fields_snapshot: ["legal_name","registration_id","status"],
+          source_allowed_fields_snapshot: ["legal_name","registration_id","status","director_name","designation"],
           invalid_fact_count: 0,
           warnings: []
         }),
-        JSON.stringify([{
-          mention_key: "organization:acme-1", entity_kind: "organization",
-          raw_name: "Acme Holdings Pvt Ltd", normalized_name: "Acme Holdings Pvt Ltd",
-          source_span: span, confidence: 0.99
-        }]),
+        JSON.stringify([
+          {
+            mention_key: "organization:acme-1", entity_kind: "organization",
+            raw_name: "Acme Holdings Pvt Ltd", normalized_name: "Acme Holdings Pvt Ltd",
+            source_span: span, confidence: 0.99
+          },
+          {
+            mention_key: "person:jane-1", entity_kind: "person",
+            raw_name: "Jane Example", normalized_name: "Jane Example",
+            source_span: { kind: "json-pointer", locator: "$/board/0/director_name" },
+            confidence: 0.98
+          }
+        ]),
         JSON.stringify([
           {
             mention_key: "organization:acme-1", field_name: "legal_name",
@@ -199,6 +211,20 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             normalized_value: "REG-AXI-0001",
             source_span: { kind: "json-pointer", locator: "$/registration_id" },
             confidence: 0.99, validation_status: "valid"
+          },
+          {
+            mention_key: "person:jane-1", field_name: "director_name",
+            value_type: "string", raw_value: "Jane Example",
+            normalized_value: "Jane Example",
+            source_span: { kind: "json-pointer", locator: "$/board/0/director_name" },
+            confidence: 0.98, validation_status: "valid"
+          },
+          {
+            field_name: "designation", value_type: "string",
+            raw_value: "Chief Financial Officer",
+            normalized_value: "Chief Financial Officer",
+            source_span: { kind: "json-pointer", locator: "$/board/0/designation" },
+            confidence: 0.97, validation_status: "valid"
           }
         ])
       ]
@@ -209,7 +235,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select id,field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
       [extractionRunId]
     );
-    assert.equal(extractedFact.rows.length, 2);
+    assert.equal(extractedFact.rows.length, 4);
     assert.equal(extractedFact.rows[0].normalized_value, "Acme Holdings Pvt Ltd");
     assert.equal(extractedFact.rows[0].source_span.locator, "$/legal_name");
 
@@ -232,7 +258,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     // E06 queues the completed E05 run and requires explicit owner/admin approval
     // before a canonical company identity, identifier or assignment is created.
     const extractedEntity = await pool.query(
-      "select id from public.discovery_extracted_entities where company_id=$1 and extraction_run_id=$2",
+      "select id from public.discovery_extracted_entities where company_id=$1 and extraction_run_id=$2 and entity_kind='organization'",
       [companyId, extractionRunId]
     );
     assert.equal(extractedEntity.rows.length, 1);
@@ -311,6 +337,74 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId,canonical.rows[0].id]
     );
     assert.equal(entityAudit.rows[0].count,1,"canonical entity review and audit receipt must commit together");
+
+
+    // E07 runs only after E06 has linked this E05 company mention through owner review.
+    const publicRoleJobs = await pool.query(
+      "select * from public.claim_discovery_public_person_role_job($1,90)",
+      ["public-person-role-worker-test"]
+    );
+    assert.equal(publicRoleJobs.rows.length,1,"E06 assignment of a company with a person mention must enqueue one E07 job");
+    const publicRoleJob = publicRoleJobs.rows[0];
+    const personMention = await pool.query(
+      "select id,raw_name,source_span from public.discovery_extracted_entities where company_id=$1 and extraction_run_id=$2 and entity_kind='person'",
+      [companyId,extractionRunId]
+    );
+    assert.equal(personMention.rows.length,1);
+    const personSpan = personMention.rows[0].source_span;
+    const roleSpan = {kind:"json-pointer",locator:"$/board/0/designation"};
+    const publicRolePayload = [{
+      extracted_person_id:personMention.rows[0].id,
+      canonical_entity_id:canonical.rows[0].id,
+      person_name:"Jane Example",
+      role_title:"Chief Financial Officer",
+      jurisdiction:"IN",
+      person_source_span:personSpan,
+      role_source_span:roleSpan,
+      association_method:"unique_company_run",
+      confidence:0.98,
+      rationale:{
+        method:"unique_company_run",
+        auto_link_permitted:false,
+        human_review_required:true,
+        personal_contact_details_collected:false
+      }
+    }];
+    const completedPublicRole = await pool.query(
+      "select public.complete_discovery_public_person_roles($1,$2,$3::jsonb) as count",
+      [publicRoleJob.id,publicRoleJob.lease_owner,JSON.stringify(publicRolePayload)]
+    );
+    assert.equal(completedPublicRole.rows[0].count,1);
+    const publicRole = await pool.query(
+      "select id,person_name,role_title,review_state,association_method from public.discovery_public_person_role_candidates where company_id=$1 and extraction_run_id=$2",
+      [companyId,extractionRunId]
+    );
+    assert.equal(publicRole.rows.length,1);
+    assert.equal(publicRole.rows[0].person_name,"Jane Example");
+    assert.equal(publicRole.rows[0].role_title,"Chief Financial Officer");
+    assert.equal(publicRole.rows[0].review_state,"pending_review");
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_public_person_role_review($1,$2,$3,$4,$5)",
+        [companyId,viewerId,publicRole.rows[0].id,"accepted","Viewer must not approve people roles"]
+      ),
+      /Only a company owner or admin can review public person roles/
+    );
+    const acceptedPublicRole = await pool.query(
+      "select * from public.record_discovery_public_person_role_review($1,$2,$3,$4,$5)",
+      [companyId,actorId,publicRole.rows[0].id,"accepted","Confirmed against the official registry filing"]
+    );
+    assert.equal(acceptedPublicRole.rows[0].decision,"accepted");
+    const publicRoleAudit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='public_person_role_review_recorded' and entity_id=$2",
+      [companyId,publicRole.rows[0].id]
+    );
+    assert.equal(publicRoleAudit.rows[0].count,1);
+    const roleColumns = await pool.query(
+      "select column_name from information_schema.columns where table_schema='public' and table_name='discovery_public_person_role_candidates'"
+    );
+    assert.equal(roleColumns.rows.some(row=>["email","phone","address","date_of_birth","pan","personal_identifier"].includes(row.column_name)),false,
+      "E07 candidate schema must not contain private contact or personal identifier fields");
 
     // Legal-entity relationships are recorded only through the owner/admin evidence review RPC.
     const relatedEntity = await pool.query(
@@ -403,9 +497,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             source_field_schema_snapshot: {
               legal_name: { type: "string", aliases: ["legal_name"], required: true, entityKind: "organization" },
               registration_id: { type: "identifier", aliases: ["registration_id"] },
-              status: { type: "string", aliases: ["status"] }
+              status: { type: "string", aliases: ["status"] },
+              director_name: { type: "string", aliases: ["director_name"], entityKind: "person" },
+              designation: { type: "string", aliases: ["designation"] }
             },
-            source_allowed_fields_snapshot: ["legal_name","registration_id","status"],
+            source_allowed_fields_snapshot: ["legal_name","registration_id","status","director_name","designation"],
             invalid_fact_count:0, warnings:[]
           }),
           "[]",
@@ -529,6 +625,16 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId,evidenceId]
     );
     assert.equal(durableRelationship.rows[0].count,1,"accepted entity relationships must survive evidence purge");
+    const purgedPublicRole = await pool.query(
+      "select count(*)::int as count from public.discovery_public_person_role_candidates where company_id=$1 and id=$2",
+      [companyId,publicRole.rows[0].id]
+    );
+    assert.equal(purgedPublicRole.rows[0].count,0,"E07 personal role candidate must expire with its evidence");
+    const purgedPublicRoleReview = await pool.query(
+      "select count(*)::int as count from public.discovery_public_person_role_review_events where company_id=$1 and candidate_id=$2",
+      [companyId,publicRole.rows[0].id]
+    );
+    assert.equal(purgedPublicRoleReview.rows[0].count,0,"E07 role review history must follow personal-data retention");
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
