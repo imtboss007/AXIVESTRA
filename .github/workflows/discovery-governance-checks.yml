@@ -10,12 +10,14 @@ on:
       - feat/discovery-e04-complete
       - feat/discovery-e05-complete
       - feat/discovery-e06-entity-intelligence
+      - feat/discovery-e07-professional-roles
   pull_request:
     branches:
       - main
       - feat/discovery-source-governance
       - feat/discovery-e04-complete
       - feat/discovery-e05-complete
+      - feat/discovery-e06-entity-intelligence
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
