@@ -151,13 +151,44 @@ function parseHtmlEvidence(text, observations) {
   });
 
   $("table").each((tableIndex, table) => {
-    $(table).find("tr").each((rowIndex, row) => {
+    const rows = $(table).find("tr").toArray();
+    if (!rows.length) return;
+    const firstCells = $(rows[0]).find("th,td").toArray();
+    const firstRowIsHeader = firstCells.length > 1 && (
+      $(rows[0]).closest("thead").length > 0 ||
+      firstCells.every(cell => String(cell.tagName || "").toLowerCase() === "th")
+    );
+
+    if (firstRowIsHeader) {
+      const headers = firstCells.map(cell => $(cell).text().trim());
+      rows.slice(1).forEach((row, rowOffset) => {
+        const cells = $(row).find("th,td").toArray();
+        cells.forEach((cell, columnIndex) => {
+          const header = headers[columnIndex];
+          const value = $(cell).text().trim();
+          if (!header || !value) return;
+          pushObservation(observations, header, value, {
+            kind: "html-table-cell",
+            locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + (rowOffset + 2) + ") td:nth-of-type(" + (columnIndex + 1) + ")",
+            row: rowOffset + 2,
+            column: columnIndex + 1
+          }, 0.92);
+        });
+      });
+      return;
+    }
+
+    // Key/value table: a row header in the first cell and its value(s) after it.
+    rows.forEach((row, rowIndex) => {
       const cells = $(row).find("th,td").toArray();
       if (cells.length < 2) return;
       const key = $(cells[0]).text().trim();
       const value = cells.slice(1).map(cell => $(cell).text().trim()).filter(Boolean).join(" | ");
       if (key && value) pushObservation(observations, key, value, {
-        kind: "html-table-cell", locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + (rowIndex + 1) + ")"
+        kind: "html-table-cell",
+        locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + (rowIndex + 1) + ")",
+        row: rowIndex + 1,
+        column: 1
       }, 0.9);
     });
   });
