@@ -322,8 +322,22 @@ begin
     if coalesce(v_candidate->>'provider','') not in ('','photon_self_hosted') then
       raise exception 'E09 geocoder provider is not approved' using errcode='22023';
     end if;
+    if coalesce(v_candidate->>'provider','')='photon_self_hosted'
+      and not exists (
+        select 1 from public.discovery_source_registry s
+        where s.company_id=v_job.company_id and s.id=v_job.source_id
+          and s.status='approved' and 'geocoding'=any(s.allowed_purposes)
+      ) then
+      raise exception 'E09 Photon use requires an approved source geocoding purpose' using errcode='42501';
+    end if;
     if v_candidate->'source_coordinates' is not null
-      and jsonb_typeof(v_candidate->'source_coordinates')='object' then
+      and jsonb_typeof(v_candidate->'source_coordinates') not in ('null','object') then
+      raise exception 'E09 source_coordinates must be an object or null' using errcode='22023';
+    end if;
+    if jsonb_typeof(v_candidate->'source_coordinates')='object' then
+      if v_candidate->>'coordinate_state'<>'source_coordinates' then
+        raise exception 'E09 source coordinate state must agree with the source coordinate object' using errcode='22023';
+      end if;
       if coalesce(v_candidate->'source_coordinates'->>'latitude','') !~ '^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$'
         or coalesce(v_candidate->'source_coordinates'->>'longitude','') !~ '^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$' then
         raise exception 'E09 source coordinates must be numeric latitude/longitude' using errcode='22023';
@@ -344,6 +358,11 @@ begin
           or coalesce(v_provider->>'longitude','') !~ '^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$'
           or v_provider->>'attribution' not ilike '%OpenStreetMap contributors%' then
           raise exception 'E09 Photon result is missing coordinates or attribution' using errcode='22023';
+        end if;
+        v_lat:=(v_provider->>'latitude')::numeric;
+        v_lon:=(v_provider->>'longitude')::numeric;
+        if v_lat < -90 or v_lat > 90 or v_lon < -180 or v_lon > 180 then
+          raise exception 'E09 Photon coordinates are outside geographic bounds' using errcode='22023';
         end if;
       end loop;
     elsif jsonb_array_length(coalesce(v_candidate->'provider_candidates','[]'::jsonb))>0 then
