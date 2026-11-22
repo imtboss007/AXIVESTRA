@@ -5821,3 +5821,55 @@ h2,h3{color:#e5f2fc}
   .discovery-profile-controls button { width: 100%; }
   .discovery-panel,.discovery-profiles-panel { padding: 13px; }
 }
+
+
+/* E04 governed fetch queue — aligned to the existing AXIVESTRA dark marine surfaces. */
+.discovery-queue-panel{margin-top:22px;padding:22px;border:1px solid rgba(119,153,185,.22);border-radius:18px;background:linear-gradient(145deg,rgba(13,31,51,.96),rgba(8,20,36,.96));color:var(--text-primary,#eaf2fb);box-shadow:0 18px 45px rgba(0,0,0,.18)}
+.discovery-queue-heading,.discovery-queue-card-head,.discovery-jobs-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.discovery-queue-heading h2,.discovery-queue-card h3,.discovery-jobs-head h3{margin:5px 0 7px;color:inherit}
+.discovery-queue-heading p,.discovery-queue-card p{max-width:760px;color:var(--text-muted,#9aacc1);margin:0;line-height:1.55;font-size:13px}
+.discovery-queue-live{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid rgba(76,190,174,.25);border-radius:999px;background:rgba(20,112,104,.12);font-size:12px;white-space:nowrap;color:#a8e6db}
+.discovery-queue-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.85fr);gap:16px;margin-top:18px}
+.discovery-queue-card{min-width:0;padding:18px;border:1px solid rgba(125,160,193,.18);border-radius:15px;background:rgba(255,255,255,.025)}
+.discovery-queue-card-head{align-items:center;margin-bottom:15px}
+.discovery-queue-card-head>svg{color:#83b9d8}
+.discovery-queue-card h3{font-size:16px}
+.discovery-job-form{display:grid;gap:12px}
+.discovery-job-form label{display:grid;gap:6px;font-size:12px;font-weight:650;color:#c7d5e4}
+.discovery-job-form select,.discovery-job-form textarea{width:100%;min-width:0;border:1px solid rgba(137,170,201,.28);border-radius:9px;background:rgba(4,14,27,.86);color:#eaf2fb;padding:10px 11px;font:inherit;font-size:13px;outline:none}
+.discovery-job-form select:focus,.discovery-job-form textarea:focus{border-color:#4da6cc;box-shadow:0 0 0 3px rgba(77,166,204,.13)}
+.discovery-job-form textarea{resize:vertical;line-height:1.45;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.discovery-job-limits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.discovery-job-limits span{display:grid;gap:4px;min-width:0;padding:9px;border-radius:9px;background:rgba(117,163,201,.08);color:#b9cadb;font-size:11px;overflow-wrap:anywhere}
+.discovery-job-limits b,.discovery-grant-scope>b{color:#8fb6ce;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.discovery-queue-footnote{margin-top:11px!important;font-size:11px!important}
+.discovery-worker-card{display:flex;flex-direction:column}
+.discovery-worker-status{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:10px;font-size:12px}
+.discovery-worker-status.is-enabled{background:rgba(26,139,119,.13);color:#a4e2cf;border:1px solid rgba(75,194,159,.24)}
+.discovery-worker-status.is-paused{background:rgba(154,117,63,.12);color:#e5c995;border:1px solid rgba(194,153,83,.2)}
+.discovery-worker-dot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 12px currentColor}
+.discovery-grant-scope{margin-top:14px;padding:12px;border:1px solid rgba(125,160,193,.15);border-radius:10px;background:rgba(2,13,25,.42)}
+.discovery-grant-scope ul{margin:8px 0 0;padding-left:17px;color:#aabbd0;font-size:11px;line-height:1.55}
+.discovery-grant-scope li+li{margin-top:4px}
+.discovery-worker-actions{display:grid;gap:8px;margin-top:14px}
+.discovery-worker-actions small{color:#90a5bb;font-size:10px;line-height:1.45}
+.discovery-worker-footer{display:flex;gap:8px;align-items:flex-start;margin-top:auto;padding-top:15px;color:#bca982;font-size:10px;line-height:1.45}
+.discovery-jobs-head{align-items:center;margin-top:23px;padding-bottom:10px;border-bottom:1px solid rgba(125,160,193,.15)}
+.discovery-jobs-head h3{font-size:15px}
+.discovery-job-list{display:grid;gap:8px;margin-top:10px}
+.discovery-job-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 12px;border:1px solid rgba(125,160,193,.13);border-radius:10px;background:rgba(255,255,255,.02)}
+.discovery-job-icon{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:rgba(74,146,189,.12);color:#82bfe1}
+.discovery-job-main{display:grid;gap:4px;min-width:0}
+.discovery-job-main strong{font-size:12px;color:#e2edf7}
+.discovery-job-main small{font-size:10px;color:#91a6bc;overflow-wrap:anywhere}
+.discovery-job-error{color:#efaa9c!important}
+.discovery-job-status{padding:5px 8px;border-radius:999px;font-size:10px;text-transform:capitalize;border:1px solid rgba(126,166,197,.22);color:#b6cee0;background:rgba(87,126,158,.1)}
+.discovery-job-status.status-succeeded{color:#98dfc4;border-color:rgba(86,186,142,.25);background:rgba(45,137,100,.12)}
+.discovery-job-status.status-failed{color:#f0aaa0;border-color:rgba(210,101,89,.25);background:rgba(154,57,53,.12)}
+.discovery-job-status.status-running{color:#a8d5ef;border-color:rgba(88,164,210,.28);background:rgba(50,111,154,.14)}
+.discovery-job-status.status-cancelled{color:#b6b2be}
+.discovery-job-time{display:none;align-items:center;gap:5px;color:#8fa4ba;font-size:10px;white-space:nowrap}
+.discovery-queue-panel .discovery-feedback{margin-top:12px}
+@media(min-width:1120px){.discovery-job-time{display:flex}}
+@media(max-width:900px){.discovery-queue-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.discovery-queue-panel{padding:14px;border-radius:13px}.discovery-queue-heading{display:grid}.discovery-queue-live{justify-self:start}.discovery-job-limits{grid-template-columns:1fr}.discovery-job-row{grid-template-columns:26px minmax(0,1fr);gap:8px}.discovery-job-status{grid-column:2;justify-self:start}.discovery-queue-card{padding:13px}}
