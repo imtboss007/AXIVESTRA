@@ -117,6 +117,27 @@ test("scanned/image-only PDF produces a warning and no fabricated values", async
   assert.ok(result.warnings.some(warning => warning.includes("OCR is not enabled")));
 });
 
+test("CSV extraction handles quoted commas, embedded newlines and typed values", () => {
+  const csv = [
+    "legal_name,registration_id,public_email,turnover",
+    '"Acme, Holdings\nPrivate Limited",U12345KA2020PLC123456,info@example.com,"INR 12,50,000"'
+  ].join("\r\n");
+  const result = parse(csv, "text/csv");
+  const facts = Object.fromEntries(result.facts.map(fact => [fact.field_name, fact]));
+  assert.equal(facts.legal_name.normalized_value, "Acme, Holdings\nPrivate Limited");
+  assert.equal(facts.registration_id.normalized_value, "U12345KA2020PLC123456");
+  assert.equal(facts.public_email.normalized_value, "info@example.com");
+  assert.deepEqual(facts.turnover.normalized_value, { amount: 1250000, currency: "INR" });
+  assert.equal(facts.legal_name.source_span.kind, "csv-cell");
+  assert.equal(facts.legal_name.source_span.row, 2);
+  assert.equal(facts.legal_name.source_span.column, 1);
+});
+
+test("CSV extraction fails closed on malformed quotes and ambiguous duplicate headers", () => {
+  assert.throws(() => parse('legal_name,registration_id\n"Acme,123', "text/csv"), /unterminated quoted cell/);
+  assert.throws(() => parse("legal_name,Legal Name\nAcme,Acme", "text/csv"), /duplicate or ambiguously normalized/);
+});
+
 test("HTML extracts metadata, JSON-LD, tables and labeled text without executing source script", () => {
   const html = `<!doctype html><html><head>
     <title>Acme Holdings Pvt Ltd</title>
