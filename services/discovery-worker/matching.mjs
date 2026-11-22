@@ -215,7 +215,7 @@ function scoreFreshness(rule,allEvidence,asOf,weight) {
     : "All evidence used is within the " + maxAge + "-day freshness window.";
   return component({
     dimension:"evidence_freshness",weight,score,reason,evidence:allEvidence,
-    factor:score===100?"positive":score===0?"negative":"warning"
+    factor:stale?"warning":"positive"
   });
 }
 
