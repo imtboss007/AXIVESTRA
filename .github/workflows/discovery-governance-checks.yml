@@ -9,11 +9,13 @@ on:
       - feat/discovery-job-enqueue
       - feat/discovery-e04-complete
       - feat/discovery-e05-complete
+      - feat/discovery-e06-entity-intelligence
   pull_request:
     branches:
       - main
       - feat/discovery-source-governance
       - feat/discovery-e04-complete
+      - feat/discovery-e05-complete
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
