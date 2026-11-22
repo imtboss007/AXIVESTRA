@@ -85,7 +85,7 @@ function pushObservation(list, key, value, span, confidence = 0.96) {
 function walkJson(value, path, observations, depth = 0) {
   if (depth > 32 || observations.length >= MAX_OBSERVATIONS) return;
   if (Array.isArray(value)) {
-    value.slice(0, 2000).forEach((item, index) => walkJson(item, path + "[" + index + "]", observations, depth + 1));
+    value.slice(0, 2000).forEach((item, index) => walkJson(item, path + "/" + index, observations, depth + 1));
     return;
   }
   if (value && typeof value === "object") {
