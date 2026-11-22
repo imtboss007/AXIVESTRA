@@ -40,9 +40,10 @@ export default function MotionAnimatedNumber({ value, durationMs = 520, classNam
       setDisplayValue(target);
     };
 
-    motionPreference?.addEventListener?.("change", event => {
+    const onMotionPreferenceChange = (event: MediaQueryListEvent) => {
       if (event.matches) finishImmediately();
-    });
+    };
+    motionPreference?.addEventListener?.("change", onMotionPreferenceChange);
 
     const tick = (timestamp: number) => {
       if (cancelled) return;
@@ -61,6 +62,7 @@ export default function MotionAnimatedNumber({ value, durationMs = 520, classNam
     return () => {
       cancelled = true;
       window.cancelAnimationFrame(frame);
+      motionPreference?.removeEventListener?.("change", onMotionPreferenceChange);
     };
   }, [safeValue, durationMs]);
 
