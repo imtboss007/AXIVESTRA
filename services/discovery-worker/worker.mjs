@@ -23,7 +23,7 @@ const USER_AGENT = "AXIVESTRA-DiscoveryBot/1.0";
 const CACHE_SECONDS = 6 * 60 * 60;
 const ALLOWED_CONTENT_TYPES = new Set([
   "text/html", "text/plain", "application/json", "application/ld+json",
-  "application/xml", "text/xml", "application/pdf"
+  "application/xml", "text/xml", "application/pdf", "text/csv", "application/csv"
 ]);
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
