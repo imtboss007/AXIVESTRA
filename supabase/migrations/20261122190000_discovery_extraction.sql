@@ -147,7 +147,7 @@ create index if not exists discovery_extracted_entities_run_idx
 create table if not exists public.discovery_extracted_facts (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  extraction_run_id uuid not null references public.discovery_extraction_runs(id) on delete cascade,
+  extraction_run_id uuid not null,
   evidence_id uuid not null,
   extracted_entity_id uuid,
   field_name text not null check (length(trim(field_name)) between 1 and 128),
@@ -170,8 +170,8 @@ create table if not exists public.discovery_extracted_facts (
     references public.discovery_extraction_runs(company_id, id, evidence_id) on delete cascade,
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade,
-  foreign key (company_id, extracted_entity_id)
-    references public.discovery_extracted_entities(company_id, id) on delete cascade
+  foreign key (company_id, extraction_run_id, extracted_entity_id)
+    references public.discovery_extracted_entities(company_id, extraction_run_id, id) on delete cascade
 );
 
 create index if not exists discovery_extracted_facts_run_idx
