@@ -24,7 +24,8 @@ const label=(value:string)=>String(value||"").replaceAll("_"," ").replace(/\b\w/
 
 export default function NormalizedRelationshipGraphPanel({companyId,companyRole,contacts,properties}:Props) {
   const canEdit=["owner","admin","manager","staff"].includes(companyRole||"");
-  const [graph,setGraph]=useState<GraphResult|null>(null);\n  const [evidenceDocs,setEvidenceDocs]=useState<Evidence[]>([]);
+  const [graph,setGraph]=useState<GraphResult|null>(null);
+  const [evidenceDocs,setEvidenceDocs]=useState<Evidence[]>([]);
   const [loading,setLoading]=useState(false);
   const [busy,setBusy]=useState("");
   const [error,setError]=useState("");

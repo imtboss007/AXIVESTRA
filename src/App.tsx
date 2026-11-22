@@ -2564,7 +2564,8 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
               companyRole={company?.role}
               contacts={contacts}
               properties={properties}
-            />\n            <CompanyCommitmentWorkspace
+            />
+            <CompanyCommitmentWorkspace
               companyId={company?.id}
               companyRole={company?.role}
               contacts={contacts}
