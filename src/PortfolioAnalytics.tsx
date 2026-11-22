@@ -25,7 +25,8 @@ const compact = (value: number) => formatIndianCompactAmount(value) || "—";
 type CItem={name:string;value:number;color:string;count?:number};type MFlow={key:string;name:string;fullName:string;inflow:number;outflow:number;net:number;count:number};
 function buildPortfolioChartOption(focus:"allocation"|"pipeline"|"cashflow",type:"donut"|"bar"|"line",metric:"value"|"count",items:CItem[],months:MFlow[],selected:string,labels:boolean):EChartsOption{
  const axis={color:"#9aafbd",fontSize:11},grid="#294254",money=(v:number)=>formatIndianCompactAmount(v)||"0";
- const common={backgroundColor:"transparent",animationDuration:240,textStyle:{color:"#c3d1da",fontFamily:"Inter,system-ui,sans-serif"},tooltip:{trigger:"item" as const,confine:true},aria:{enabled:true,decal:{show:true}}};
+ const formatTooltipValue=(value:number|string)=>focus==="cashflow"||metric==="value"?money(Number(value)):Number(value).toLocaleString("en-IN");
+ const common={backgroundColor:"transparent",animationDuration:240,textStyle:{color:"#c3d1da",fontFamily:"Inter,system-ui,sans-serif"},tooltip:{trigger:"item" as const,confine:true,valueFormatter:formatTooltipValue},aria:{enabled:true,decal:{show:true}}};
  if(focus==="cashflow"&&type==="donut"){const a=months.reduce((s,r)=>s+r.inflow,0),b=months.reduce((s,r)=>s+r.outflow,0);return {...common,color:["#69b9ae","#d17c79"],legend:{bottom:0,textStyle:axis},series:[{type:"pie",radius:["48%","74%"],center:["50%","44%"],label:{show:labels,color:"#c3d1da",formatter:"{b}: {d}%"},data:[{name:"Inflow",value:a},{name:"Outflow",value:b}]}]};}
  if(focus==="cashflow"){const st:"bar"|"line"=type==="bar"?"bar":"line";return {...common,color:["#69b9ae","#d17c79"],legend:{bottom:0,textStyle:axis},grid:{left:84,right:24,top:24,bottom:58},xAxis:{type:"category",data:months.map(x=>x.name),axisLabel:axis,axisLine:{lineStyle:{color:grid}},axisTick:{show:false}},yAxis:{type:"value",axisLabel:{...axis,formatter:(v:string|number)=>money(Number(v))},splitLine:{lineStyle:{color:grid,type:"dashed"}}},series:[{name:"Inflow",type:st,smooth:true,barMaxWidth:22,data:months.map(x=>x.inflow),itemStyle:{color:"#69b9ae"},lineStyle:{width:3},areaStyle:type==="line"?{opacity:.08}:undefined,label:{show:labels,position:"top"}},{name:"Outflow",type:st,smooth:true,barMaxWidth:22,data:months.map(x=>x.outflow),itemStyle:{color:"#d17c79"},lineStyle:{width:3},areaStyle:type==="line"?{opacity:.06}:undefined,label:{show:labels,position:"top"}}]};}
  if(type==="donut")return {...common,color:items.map(x=>x.color),legend:{bottom:0,type:"scroll",textStyle:axis},series:[{type:"pie",radius:["48%","74%"],center:["50%","44%"],label:{show:labels,color:"#c3d1da",formatter:"{b}: {d}%"},data:items.map(x=>({name:x.name,value:x.value,itemStyle:{opacity:(selected&&selected!==x.name)?0.32:1}}))}]};
@@ -53,12 +54,17 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
   }).filter(row => row.count > 0 || row.value > 0), [modules, properties]);
 
   const stageRows = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { name: string; count: number }>();
     properties.forEach(property => {
-      const status = String(property.status || "Unspecified").trim() || "Unspecified";
-      map.set(status, (map.get(status) || 0) + 1);
+      const name = String(property.status || "Unspecified").trim() || "Unspecified";
+      const key = name.toLocaleLowerCase();
+      const current = map.get(key);
+      if (current) current.count += 1;
+      else map.set(key, { name, count: 1 });
     });
-    return Array.from(map.entries()).map(([name, value], index) => ({ name, value, count: value, color: PALETTE[index % PALETTE.length] })).sort((a, b) => b.value - a.value);
+    return Array.from(map.values())
+      .map(({ name, count }, index) => ({ name, value: count, count, color: PALETTE[index % PALETTE.length] }))
+      .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
   }, [properties]);
 
   const cashflowRows = useMemo(() => {
@@ -74,6 +80,9 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
   }, [financials, period]);
 
   const trackedValue = properties.reduce((sum, item) => sum + (parseIndianAmount(item.value) || 0), 0);
+  const openRecords = properties.filter(row => !["completed", "closed"].includes(String(row.status || "").trim().toLocaleLowerCase())).length;
+  const closedRecords = properties.length - openRecords;
+  const recordsWithoutValue = properties.filter(row => parseIndianAmount(row.value) === null).length;
   const totalInflow = financials.filter(item => INFLOW.has(item.type)).reduce((sum, item) => sum + (parseIndianAmount(item.amount) || 0), 0);
   const totalOutflow = financials.filter(item => OUTFLOW.has(item.type)).reduce((sum, item) => sum + (parseIndianAmount(item.amount) || 0), 0);
   const openTasks = tasks.filter(task => !task.done).length;
@@ -91,29 +100,40 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
     if (next === "cashflow") setChartType("bar");
   };
 
-  const empty = focus === "allocation" ? properties.length === 0 || (metric === "value" && !moduleRows.some(row => row.value > 0)) : focus === "pipeline" ? properties.length === 0 : financials.length === 0;
+  const empty = focus === "allocation"
+    ? properties.length === 0 || (metric === "value" && !moduleRows.some(row => row.value > 0))
+    : focus === "pipeline"
+      ? properties.length === 0
+      : cashflowRows.every(row => row.count === 0);
+  const emptyMessage = focus === "cashflow"
+    ? financials.length
+      ? `No transactions in the selected ${period}-month window. Choose a wider period to review more history.`
+      : "Add financial transactions to compare monthly inflows and outflows."
+    : focus === "pipeline" || properties.length === 0
+      ? "Add your first property or deal record to activate interactive charts."
+      : "No record values have been entered yet. Switch to Count to inspect saved records, or enter the relevant value or exposure in its workspace.";
 
   return <section className="ax-analytics-panel">
     <div className="ax-panel-topline"><span className="ax-kicker"><Sparkles size={13}/> AXIVESTRA INTELLIGENCE</span><span className="ax-live-status"><i/> LIVE FROM YOUR RECORDS</span></div>
     <div className="ax-analytics-heading">
       <div><h2>Portfolio intelligence</h2><p>Interactive views of your properties, capital flows and operational pipeline.</p></div>
       <div className="ax-chart-type" role="group" aria-label="Chart type">
-        <button className={chartType === "donut" ? "active" : ""} onClick={() => setChartType("donut")} title="Ring chart" aria-label="Ring chart"><PieChart size={16}/></button>
-        <button className={chartType === "bar" ? "active" : ""} onClick={() => setChartType("bar")} title="Bar chart" aria-label="Bar chart"><BarChart3 size={16}/></button>
-        <button className={chartType === "line" ? "active" : ""} onClick={() => setChartType("line")} title="Line chart" aria-label="Line chart"><TrendingUp size={16}/></button>
+        <button type="button" className={chartType === "donut" ? "active" : ""} aria-pressed={chartType === "donut"} onClick={() => setChartType("donut")} title="Ring chart" aria-label="Ring chart"><PieChart size={16}/></button>
+        <button type="button" className={chartType === "bar" ? "active" : ""} aria-pressed={chartType === "bar"} onClick={() => setChartType("bar")} title="Bar chart" aria-label="Bar chart"><BarChart3 size={16}/></button>
+        <button type="button" className={chartType === "line" ? "active" : ""} aria-pressed={chartType === "line"} onClick={() => setChartType("line")} title="Line chart" aria-label="Line chart"><TrendingUp size={16}/></button>
       </div>
     </div>
     <div className="ax-analytics-tabs" role="tablist" aria-label="Analytics view">
-      <button className={focus === "allocation" ? "active" : ""} onClick={() => setFocusView("allocation")} role="tab" aria-selected={focus === "allocation"}>Recorded amounts</button>
-      <button className={focus === "pipeline" ? "active" : ""} onClick={() => setFocusView("pipeline")} role="tab" aria-selected={focus === "pipeline"}>Pipeline health</button>
-      <button className={focus === "cashflow" ? "active" : ""} onClick={() => setFocusView("cashflow")} role="tab" aria-selected={focus === "cashflow"}>Cashflow</button>
+      <button type="button" className={focus === "allocation" ? "active" : ""} onClick={() => setFocusView("allocation")} role="tab" aria-selected={focus === "allocation"}>Recorded amounts</button>
+      <button type="button" className={focus === "pipeline" ? "active" : ""} onClick={() => setFocusView("pipeline")} role="tab" aria-selected={focus === "pipeline"}>Pipeline health</button>
+      <button type="button" className={focus === "cashflow" ? "active" : ""} onClick={() => setFocusView("cashflow")} role="tab" aria-selected={focus === "cashflow"}>Cashflow</button>
       {focus === "cashflow" && <select value={period} onChange={event => setPeriod(Number(event.target.value) as 3 | 6 | 12)} aria-label="Cashflow period"><option value={3}>3 months</option><option value={6}>6 months</option><option value={12}>12 months</option></select>}
       {focus === "allocation" && <div className="ax-metric-switch"><button className={metric === "value" ? "active" : ""} onClick={() => { setMetric("value"); setSelected(""); }}>Value</button><button className={metric === "count" ? "active" : ""} onClick={() => { setMetric("count"); setSelected(""); }}>Count</button></div>}
     </div>
     <div className="ax-analytics-grid">
       <div className="ax-chart-stage">
         <div className="ax-chart-mode-title"><strong>{title}</strong><p>{subtitle}</p></div>
-        {empty ? <div className="ax-chart-empty"><PortfolioEmptyChartPreview type={chartType}/><strong>Waiting for your data</strong><p>{focus==="cashflow"?"Add financial transactions to compare monthly inflows and outflows.":focus==="pipeline"||properties.length===0?"Add your first property/deal record to activate interactive charts.":"No record values have been entered yet. Switch to Count to inspect saved records, or enter the relevant value or exposure in its workspace."}</p><small>Empty states are intentional—no sample data is counted as real.</small></div>
+        {empty ? <div className="ax-chart-empty"><PortfolioEmptyChartPreview type={chartType}/><strong>{focus === "cashflow" && financials.length ? "No activity in this period" : "Waiting for your data"}</strong><p>{emptyMessage}</p><small>Empty states are intentional—no sample data is counted as real.</small></div>
         : <Suspense fallback={<div className="ax-echart-loading" role="status">Loading interactive analytics…</div>}><PortfolioEChart option={chartOption} ariaLabel={title+". "+subtitle} onSelect={setSelected}/></Suspense>}
       </div>
       <aside className="ax-chart-inspector">
@@ -125,13 +145,13 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
           <div className="ax-inspector-pair"><span>Transactions</span><strong>{financials.length}</strong></div>
         </> : focus === "pipeline" ? <>
           <strong className="ax-inspector-total">{properties.length}</strong><small>Saved property / deal records</small>
-          <div className="ax-inspector-pair"><span>Open records</span><strong>{properties.filter(row => !["Completed", "Closed"].includes(row.status)).length}</strong></div>
-          <div className="ax-inspector-pair"><span>Closed records</span><strong>{properties.filter(row => ["Completed", "Closed"].includes(row.status)).length}</strong></div>
+          <div className="ax-inspector-pair"><span>Open records</span><strong>{openRecords}</strong></div>
+          <div className="ax-inspector-pair"><span>Closed records</span><strong>{closedRecords}</strong></div>
           <div className="ax-inspector-pair"><span>Tasks open</span><strong>{openTasks}</strong></div><div className="ax-inspector-pair"><span>Overdue tasks</span><strong>{overdueTasks}</strong></div>
         </> : <>
           <strong className="ax-inspector-total">{compact(trackedValue)}</strong><small>Total recorded value / exposure</small>
           <div className="ax-inspector-pair"><span>Active modules</span><strong>{moduleRows.filter(row => row.count > 0).length}</strong></div>
-          <div className="ax-inspector-pair"><span>Records without a value</span><strong>{properties.filter(row => !(Number(row.value) > 0)).length}</strong></div>
+          <div className="ax-inspector-pair"><span>Records without a value</span><strong>{recordsWithoutValue}</strong></div>
           <div className="ax-inspector-pair"><span>Modules available</span><strong>{modules.length}</strong></div>
         </>}
         <div className="ax-inspector-divider"/>
@@ -145,7 +165,7 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
       </aside>
     </div>
     {focus !== "cashflow" && <div className="ax-chart-legend">
-      {visibleItems.slice(0, 8).map((item, index) => <button key={item.name} className={selected === item.name ? "selected" : ""} onClick={() => { setSelected(selected === item.name ? "" : item.name); if (focus === "allocation" && modules.some(module => module.name === item.name)) onOpenModule(item.name); }}>
+      {visibleItems.slice(0, 8).map((item, index) => <button type="button" key={item.name} className={selected === item.name ? "selected" : ""} aria-pressed={selected === item.name} onClick={() => { setSelected(selected === item.name ? "" : item.name); if (focus === "allocation" && modules.some(module => module.name === item.name)) onOpenModule(item.name); }}>
         <i style={{ background: item.color || PALETTE[index % PALETTE.length] }}/><span>{item.name}</span><strong>{focus === "allocation" && metric === "value" ? compact(item.value) : item.value}</strong>
       </button>)}
       {visibleItems.length === 0 && <span className="ax-muted">No module allocation until you add records.</span>}
