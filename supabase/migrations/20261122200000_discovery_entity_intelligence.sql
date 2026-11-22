@@ -615,12 +615,12 @@ begin
   if p_from_entity_id=p_to_entity_id then
     raise exception 'An entity cannot have a relationship to itself' using errcode='22023';
   end if;
-  if p_relationship_type not in (
+  if p_relationship_type is null or p_relationship_type not in (
     'parent','subsidiary','holding_company','branch_of','affiliate','joint_venture','successor','other'
   ) then
     raise exception 'Unsupported legal-entity relationship type' using errcode='22023';
   end if;
-  if p_review_state not in ('needs_verification','owner_accepted','rejected') then
+  if p_review_state is null or p_review_state not in ('needs_verification','owner_accepted','rejected') then
     raise exception 'Unsupported relationship review state' using errcode='22023';
   end if;
   if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
