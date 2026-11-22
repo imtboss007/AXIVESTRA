@@ -440,13 +440,39 @@ begin
 end;
 $review$;
 
+create or replace function public.fail_discovery_professional_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_professional_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_professional_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_professional_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
 revoke all on function public.claim_discovery_professional_role_job(text,integer) from public,anon,authenticated;
 revoke all on function public.heartbeat_discovery_professional_role_job(uuid,text,integer) from public,anon,authenticated;
 revoke all on function public.complete_discovery_professional_role_job(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_professional_role_job(uuid,text,text,text) from public,anon,authenticated;
 revoke all on function public.record_discovery_professional_role_review(uuid,uuid,uuid,text,text,uuid,text) from public,anon,authenticated;
 grant execute on function public.claim_discovery_professional_role_job(text,integer) to service_role;
 grant execute on function public.heartbeat_discovery_professional_role_job(uuid,text,integer) to service_role;
 grant execute on function public.complete_discovery_professional_role_job(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_professional_role_job(uuid,text,text,text) to service_role;
 grant execute on function public.record_discovery_professional_role_review(uuid,uuid,uuid,text,text,uuid,text) to service_role;
 
 comment on table public.discovery_professional_role_candidates is
