@@ -19,10 +19,11 @@ type PersonSummary = ReturnType<typeof buildRelationshipIntelligence>["contacts"
 function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[]; onOpenWorkspace: Props["onOpenWorkspace"] }) {
   const graph = useMemo(() => {
     const visiblePeople = people.slice(0, 24);
-    const records = new Map<string, PersonSummary["records"][number]>();
-    visiblePeople.forEach(person => person.records.forEach(record => records.set(record.key, record)));
-    const allRecordNodes = [...records.values()];
-    const recordNodes = allRecordNodes.slice(0, 48);
+    const allFilteredRecords = new Map<string, PersonSummary["records"][number]>();
+    people.forEach(person => person.records.forEach(record => allFilteredRecords.set(record.key, record)));
+    const visibleRecords = new Map<string, PersonSummary["records"][number]>();
+    visiblePeople.forEach(person => person.records.forEach(record => visibleRecords.set(record.key, record)));
+    const recordNodes = [...visibleRecords.values()].slice(0, 48);
     const recordIndex = new Map(recordNodes.map((record, index) => [record.key, index]));
     const edges = visiblePeople.flatMap((person, personIndex) => person.records.flatMap(record => {
       const target = recordIndex.get(record.key);
@@ -33,7 +34,8 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
       recordNodes,
       edges,
       hasMorePeople: people.length > visiblePeople.length,
-      hasMoreRecords: allRecordNodes.length > recordNodes.length,
+      totalRecordCount: allFilteredRecords.size,
+      hasMoreRecords: allFilteredRecords.size > recordNodes.length,
       height: Math.max(300, visiblePeople.length * 104 + 44, recordNodes.length * 82 + 44)
     };
   }, [people]);
@@ -44,8 +46,8 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
 
   return <div className="ax-relationship-graph-scroll" role="region" aria-label={`Relationship graph with ${graph.edges.length} explicit saved contact-to-record links; horizontally scrollable`} tabIndex={0}>
     <div className="ax-relationship-graph__summary" aria-live="polite">
-      <span><strong>{graph.edges.length.toLocaleString("en-IN")}</strong> explicit saved links</span>
-      <span>{graph.visiblePeople.length} contacts · {graph.recordNodes.length} records shown</span>
+      <span><strong>{graph.edges.length.toLocaleString("en-IN")}</strong> visible explicit saved links</span>
+      <span>Contacts {graph.visiblePeople.length}/{people.length} · linked records {graph.recordNodes.length}/{graph.totalRecordCount}</span>
     </div>
     <div className="ax-relationship-graph" style={{ height: graph.height }}>
       <div className="ax-relationship-graph__heading ax-relationship-graph__heading--people">CONTACTS <span>{graph.visiblePeople.length}</span></div>
