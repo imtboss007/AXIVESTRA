@@ -42,6 +42,7 @@ export default function DiscoveryJobQueue({
   const [profileId, setProfileId] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [candidateText, setCandidateText] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -123,9 +124,10 @@ export default function DiscoveryJobQueue({
         purpose: selectedProfile.purpose,
         criteria: {},
         candidateUrls: urls,
-        idempotencyKey: crypto.randomUUID()
+        idempotencyKey
       });
       setCandidateText("");
+      setIdempotencyKey(crypto.randomUUID());
       setNotice(result.duplicate ? "This exact request was already queued; the existing job was returned." : "Discovery job queued. No website has been contacted yet.");
       await refresh();
     } catch (reason) {
