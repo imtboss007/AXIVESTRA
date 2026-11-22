@@ -57,6 +57,23 @@ test("E09 will not call Photon unless source purpose explicitly includes geocodi
  assert.equal(result.photonUsed,false);
 });
 
+test("E09 may call Photon only when both switches and source purpose are explicit",async()=>{
+ let called=false;
+ const geocodingSource={...source,allowed_purposes:["company location normalization","geocoding"]};
+ const photon={search:async address=>{
+   called=true;
+   assert.equal(address.formatted,"Bengaluru");
+   return [];
+ }};
+ const result=await loadGeoResolutionInputs(mockAdmin({
+   run,evidence,source:geocodingSource,entities,facts
+ }),job,photon);
+ assert.equal(called,true);
+ assert.equal(result.photonUsed,false);
+ assert.equal(result.candidates[0].provider,"photon_self_hosted");
+ assert.equal(result.candidates[0].candidate_state,"geocoder_no_match");
+});
+
 test("E09 worker has no unrestricted URL crawling or person address enrichment",()=>{
  assert.doesNotMatch(worker,/fetch\s*\(/);
  assert.doesNotMatch(worker,/person-level|person.*geocod/i);
