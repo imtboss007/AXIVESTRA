@@ -120,6 +120,16 @@ function parseJsonEvidence(text, observations) {
 
 function parseHtmlEvidence(text, observations) {
   const $ = cheerio.load(text, { decodeEntities: true });
+  $('script[type="application/ld+json"]').each((index, element) => {
+    const raw = $(element).text();
+    if (!raw.trim() || raw.length > 500_000) return;
+    try {
+      const value = JSON.parse(raw);
+      walkJson(value, "$.jsonld[" + index + "]", observations);
+    } catch {
+      // Malformed embedded data is treated as untrusted and is never executed.
+    }
+  });
   $("script,style,noscript,template,iframe,svg").remove();
 
   $("title").each((index, element) => pushObservation(observations, "title", $(element).text(), {
@@ -134,23 +144,12 @@ function parseHtmlEvidence(text, observations) {
     }, 0.94);
   });
 
-  $('script[type="application/ld+json"]').each((index, element) => {
-    const raw = $(element).text();
-    if (!raw.trim() || raw.length > 500_000) return;
-    try {
-      const value = JSON.parse(raw);
-      walkJson(value, "$.jsonld[" + index + "]", observations);
-    } catch {
-      // Malformed embedded data is treated as untrusted text and never executed.
-    }
-  });
-
   $("table").each((tableIndex, table) => {
     $(table).find("tr").each((rowIndex, row) => {
       const cells = $(row).find("th,td").toArray();
       if (cells.length < 2) return;
       const key = $(cells[0]).text().trim();
-      const value = $(cells.slice(1).map(cell => $(cell).text().trim()).filter(Boolean).join(" | "));
+      const value = cells.slice(1).map(cell => $(cell).text().trim()).filter(Boolean).join(" | ");
       if (key && value) pushObservation(observations, key, value, {
         kind: "html-table-cell", locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + (rowIndex + 1) + ")"
       }, 0.9);
@@ -180,7 +179,8 @@ function parseHtmlEvidence(text, observations) {
 
 function parseXmlEvidence(text, observations) {
   const $ = cheerio.load(text, { xmlMode: true, decodeEntities: true });
-  $("*:not(:has(*))").each((index, element) => {
+  $("*").each((index, element) => {
+    if ($(element).children().length) return;
     const key = element.name || "";
     const value = $(element).text().trim();
     if (key && value) pushObservation(observations, key, value, {
