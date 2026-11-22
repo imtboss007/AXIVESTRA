@@ -50,6 +50,8 @@ Run E04 and E05 as separate processes, with independent environment switches and
 
 E05 does not require or use the E04 one-hour outbound fetch grant because it performs no network requests. It still rechecks that the source remains approved, the parent discovery job succeeded, the workspace profile is enabled, and the source remains attached. Its worker must be run only in a secured server environment with service-role credentials. Both processes are disabled by default.
 
+The E05 worker can claim multiple independent evidence jobs in parallel using `DISCOVERY_EXTRACTION_CONCURRENCY` (default **2**, hard-capped at **4** slots per process). Each slot has a distinct worker identity and lease; PostgreSQL `FOR UPDATE SKIP LOCKED` prevents two slots from claiming the same job. Additional worker processes can be added horizontally. Increase concurrency only after measuring CPU, memory and PDF workload on the deployment host; the limit is intentionally conservative to avoid memory spikes from parsing multiple large PDFs at once.
+
 The extraction queue is automatically populated after a new eligible E04 evidence snapshot is stored, and the E05 migration also queues historical eligible evidence that was captured before E05 existed. A job is claimed using a leased `FOR UPDATE SKIP LOCKED` RPC, heartbeated, retried with capped attempts/backoff, and completed atomically with its output records.
 
 ## AXIVESTRA UI
@@ -74,6 +76,20 @@ CI includes:
 - full AXIVESTRA regression, Deno Edge Function type-check and application build.
 
 A successful complete CI run is required before E05 is called validated.
+
+## Repository-inventory reuse decisions
+
+This build follows the 111-entry inventory's direction without stacking overlapping products:
+
+- **R085 Crawlee (Apache-2.0)** remains the single shared crawler foundation for E04.
+- **R087 Playwright (Apache-2.0)** remains the existing browser test dependency and is used by E04 only under the explicit source render policy. It is not a second crawler engine.
+- **R044 Crawl4AI, R045 Scrapling, R086 Scrapy and R064 AnyCrawl** are alternatives, not added dependencies. The current shared Node worker is already Crawlee-based.
+- **R052 ScrapeGraphAI (MIT)** is deferred to a separate, isolated experiment only; it is not in the E05 production extraction path and no LLM calls are made.
+- **R083 Promptfoo (MIT)** is reserved for synthetic-data evaluations and prompt-injection regression before a future model-assisted extraction experiment. It is not needed in deterministic E05 production runtime.
+- **Langfuse** is deferred until real production model traffic exists.
+- Existing AXIVESTRA React, Supabase, AG-UI, table and theme components are retained; no competing UI/agent/workflow framework was added.
+
+The speed strategy is reuse + deterministic parsing + bounded parallel job claims + one evidence model, not more overlapping crawler or agent frameworks.
 
 ## Release gate / exclusions
 
