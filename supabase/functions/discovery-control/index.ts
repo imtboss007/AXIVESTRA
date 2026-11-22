@@ -169,7 +169,9 @@ Deno.serve(async request => {
         p_source_id: source.id,
         p_requested_by: caller.id,
         p_payload: { purpose, criteria, candidateUrls },
-        p_idempotency_key: idempotencyKey
+        p_idempotency_key: idempotencyKey,
+        p_profile_updated_at: profile.updated_at,
+        p_source_updated_at: source.updated_at
       });
       if (enqueueError) {
         if (enqueueError.code === "23505") return jsonResponse(409, { error: "This idempotency key is already used by a different discovery request." });
