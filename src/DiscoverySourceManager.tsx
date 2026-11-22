@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { supabase } from "./lib/supabase";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 
@@ -164,7 +165,7 @@ export default function DiscoverySourceManager({
     sources.filter(source => source.status === "approved").flatMap(source => source.allowed_purposes || [])
   )].sort((a, b) => a.localeCompare(b)), [sources]);
 
-  const addSource = async (event: React.FormEvent<HTMLFormElement>) => {
+  const addSource = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusyKey("add-source");
     setError("");
@@ -222,7 +223,7 @@ export default function DiscoverySourceManager({
     }
   };
 
-  const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+  const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusyKey("add-profile");
     setError("");
@@ -423,7 +424,7 @@ export default function DiscoverySourceManager({
       {profiles.length === 0 ? <p className="discovery-empty-inline">No profiles created yet. Approve a source, choose its permitted purpose, then create the matching workspace profile.</p> :
         <div className="discovery-profile-list">{profiles.map(profile => {
           const attached = sourcesForProfile(profile);
-          const choices = availableSources(profile);
+          const choices = profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" ? [] : availableSources(profile);
           const selected = selectedSources[profile.id] || "";
           return <article className="discovery-profile-card" key={profile.id}>
             <div className="discovery-profile-head">

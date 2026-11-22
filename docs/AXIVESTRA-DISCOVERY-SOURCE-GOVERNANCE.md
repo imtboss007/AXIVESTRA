@@ -13,6 +13,7 @@
 - A source must be approved before it can be attached to a profile.
 - Personal Loan / CUSTOMER external person-discovery is blocked; inbound, referred, user-entered or consented borrower intake remains a separate product workflow.
 - Connector contracts support official APIs, licensed APIs, open datasets, permitted public pages and manual research. No connector is installed by default.
+- AXIVESTRA now includes a **Discovery Sources** navigation screen for company owners/admins to register and review sources, create LENDER/CUSTOMER workspace profiles, attach approved sources and keep profiles disabled until explicitly enabled.
 
 ## Server API
 
@@ -60,7 +61,7 @@ Every registration remains pending, even when an initial licence reference is su
 - target paths remain within explicitly approved path prefixes;
 - query/result limits stay within configured bounds.
 
-The connector registry is empty by default. This is deliberate: E02/E03 establishes governance and adapter contracts. E04 must add bounded fetch workers and actual provider-specific integrations only after source review.
+The connector registry is empty by default. This is deliberate: E02/E03 establishes governance and adapter contracts. E04 must add bounded fetch workers and actual provider-specific integrations only after source review. The UI can register and govern sources now, but it does not fetch websites or run discovery yet.
 
 ## Deploy sequence (not performed)
 
