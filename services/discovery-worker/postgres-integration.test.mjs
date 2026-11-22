@@ -317,14 +317,16 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
       ) values
         ($1,$3,$4,$5,'https://registry.example.gov.in/api/v1/entities/3',now(),
-          repeat('e',64),'discovery-evidence:'||$3::text||'/'||$4::text||'/'||$1::text||'-'||repeat('e',64)||'.bin',
+          repeat('e',64),$7,
           'application/json',20,'Example registry','IN','{"retention_days":30}'::jsonb,'{}'::jsonb),
         ($2,$3,$6,$5,'https://registry.example.gov.in/api/v1/entities/4',now(),
-          repeat('f',64),'discovery-evidence:'||$3::text||'/'||$6::text||'/'||$2::text||'-'||repeat('f',64)||'.bin',
+          repeat('f',64),$8,
           'application/json',20,'Example registry','IN','{"retention_days":30}'::jsonb,'{}'::jsonb)
     `, [
       parallelEvidenceIds[0],parallelEvidenceIds[1],companyId,
-      parallelParentJobs[0],sourceId,parallelParentJobs[1]
+      parallelParentJobs[0],sourceId,parallelParentJobs[1],
+      "discovery-evidence:" + companyId + "/" + parallelParentJobs[0] + "/" + parallelEvidenceIds[0] + "-" + "e".repeat(64) + ".bin",
+      "discovery-evidence:" + companyId + "/" + parallelParentJobs[1] + "/" + parallelEvidenceIds[1] + "-" + "f".repeat(64) + ".bin"
     ]);
     const parallelClaims = await Promise.all([
       pool.query("select * from public.claim_discovery_extraction_job($1,90)", ["extraction-parallel-worker-1"]),
