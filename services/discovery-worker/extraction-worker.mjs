@@ -6,6 +6,20 @@ import { extractStructuredFacts, EXTRACTOR_VERSION } from "./extractor.mjs";
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+export function makeExtractionWorkerSlots(workerId, requestedConcurrency = 2) {
+  const base = typeof workerId === "string" && workerId.trim()
+    ? workerId.trim()
+    : "axivestra-extract";
+  const parsed = Number(requestedConcurrency);
+  const concurrency = Number.isFinite(parsed)
+    ? Math.max(1, Math.min(4, Math.floor(parsed)))
+    : 2;
+  return Array.from({ length: concurrency }, (_, index) => {
+    const suffix = "-slot-" + (index + 1);
+    return base.slice(0, 160 - suffix.length) + suffix;
+  });
+}
+
 function requiredEnv(name) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error("Missing required extraction worker environment variable: " + name);
@@ -144,14 +158,10 @@ export async function runExtractionWorker() {
   }
   const admin = createAdmin();
   const workerId = process.env.AXIVESTRA_EXTRACTION_WORKER_ID || ("axivestra-extract-" + randomUUID());
-  const concurrencyValue = Number(process.env.DISCOVERY_EXTRACTION_CONCURRENCY || 2);
-  const concurrency = Number.isFinite(concurrencyValue)
-    ? Math.max(1, Math.min(4, Math.floor(concurrencyValue)))
-    : 2;
-  const workerSlots = Array.from({ length: concurrency }, (_, index) => {
-    const suffix = "-slot-" + (index + 1);
-    return workerId.slice(0, 160 - suffix.length) + suffix;
-  });
+  const workerSlots = makeExtractionWorkerSlots(
+    workerId, process.env.DISCOVERY_EXTRACTION_CONCURRENCY || 2
+  );
+  const concurrency = workerSlots.length;
   const pollMs = Math.max(1000, Math.min(30_000, Number(process.env.DISCOVERY_EXTRACTION_POLL_MS || 5000)));
   let stopping = false;
   process.once("SIGINT", () => { stopping = true; });
