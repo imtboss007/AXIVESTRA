@@ -170,6 +170,8 @@ Deno.serve(async request => {
           if (existingError) throw existingError;
           if (existing) {
             const sameRequest = existing.profile_id === profile.id && existing.source_id === source.id
+              && existing.payload?.purpose === purpose
+              && JSON.stringify(existing.payload?.criteria || {}) === JSON.stringify(criteria)
               && JSON.stringify(existing.payload?.candidateUrls || []) === JSON.stringify(candidateUrls);
             if (!sameRequest) return jsonResponse(409, { error: "This idempotency key is already used by a different discovery request." });
             return jsonResponse(200, { ok: true, duplicate: true, job: existing });
