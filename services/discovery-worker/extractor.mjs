@@ -559,6 +559,15 @@ function assembleResult(observations, schema, source, contentHash, parserWarning
 
   const warnings = [];
   if (parserWarning) warnings.push(parserWarning);
+  if (observations.length >= MAX_OBSERVATIONS) {
+    warnings.push("The parser reached the 20,000-observation ceiling; remaining source content was not inspected.");
+  }
+  if (facts.length >= MAX_FACTS) {
+    warnings.push("The parser reached the 2,000-fact output ceiling; remaining matching values were not emitted.");
+  }
+  if (entities.size >= MAX_ENTITIES) {
+    warnings.push("The parser reached the 500-entity-mention ceiling; remaining entity mentions were not emitted.");
+  }
   for (const [field, config] of Object.entries(schema)) {
     if (config.required && !facts.some(fact => fact.field_name === field && fact.validation_status === "valid")) {
       warnings.push("Required source field was not found or did not validate: " + field + ".");
