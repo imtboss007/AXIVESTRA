@@ -21,6 +21,20 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         file_size_limit bigint, allowed_mime_types text[]
       );
       create table if not exists public.companies(id uuid primary key);
+      create table if not exists public.company_records(
+        id uuid primary key default gen_random_uuid(),
+        company_id uuid not null references public.companies(id) on delete cascade,
+        record_type text not null check(record_type in ('property','contact','document_metadata','task','financial','risk','approval','whatsapp_group','audit_event','settings')),
+        record_key text not null, payload jsonb not null default '{}'::jsonb,
+        created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+        deleted_at timestamptz, created_by uuid not null references auth.users(id),
+        updated_by uuid not null references auth.users(id),
+        unique(company_id,record_type,record_key)
+      );
+      create or replace function auth.uid()
+      returns uuid language sql stable as $auth_uid$
+        select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
+      $auth_uid$;
       create table if not exists public.company_memberships(
         company_id uuid not null references public.companies(id),
         user_id uuid not null references auth.users(id),
@@ -63,6 +77,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(privacyMigration);
     const leadWorkspaceMigration = await readFile(new URL("../../supabase/migrations/20261122300000_discovery_lead_workspace.sql", import.meta.url), "utf8");
     await pool.query(leadWorkspaceMigration);
+    const dealPartyMigration = await readFile(new URL("../../supabase/migrations/20261122310000_axivestra_deal_party_relationships.sql", import.meta.url), "utf8");
+    await pool.query(dealPartyMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -364,6 +380,76 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const viewerId = "12121212-1212-4121-8121-121212121212";
     await pool.query("insert into auth.users(id) values($1)",[viewerId]);
     await pool.query("insert into public.company_memberships(company_id,user_id,role) values($1,$2,'viewer')",[companyId,viewerId]);
+    // E16: normalized deal-specific party links use stable record keys and retain history.
+    const partyClient=await pool.connect();
+    try {
+      await partyClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      await partyClient.query(
+        "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values($1,'property','deal-e16',$2::jsonb,$3,$3),($1,'contact','party-e16',$4::jsonb,$3,$3),($1,'document_metadata','evidence-e16',$5::jsonb,$3,$3)",
+        [companyId,'{"module":"Property Sale","title":"E16 Deal"}',actorId,'{"name":"E16 Counterparty"}','{"name":"Reviewed authority evidence"}']
+      );
+      const partyLink=await partyClient.query(
+        "insert into public.company_deal_parties(company_id,deal_record_key,party_record_key,role_code,responsibility_code) values($1,'deal-e16','party-e16','buyer','decision_maker') returning *",
+        [companyId]
+      );
+      const partyId=partyLink.rows[0].id;
+      assert.equal(partyLink.rows[0].created_by,actorId);
+      assert.equal(partyLink.rows[0].verification_state,"unverified");
+      await assert.rejects(
+        partyClient.query("update public.company_deal_parties set verification_state='verified' where id=$1",[partyId]),
+        /check constraint|violates check/i
+      );
+      const verifiedParty=await partyClient.query(
+        "update public.company_deal_parties set verification_state='verified',evidence_record_key='evidence-e16',effective_to='2027-01-31' where id=$1 returning *",
+        [partyId]
+      );
+      assert.equal(verifiedParty.rows[0].verification_state,"verified");
+      assert.equal(verifiedParty.rows[0].evidence_record_key,"evidence-e16");
+      await assert.rejects(
+        partyClient.query("update public.company_records set deleted_at=now() where company_id=$1 and record_type='contact' and record_key='party-e16'",[companyId]),
+        /active deal-party relationship/
+      );
+      await assert.rejects(
+        partyClient.query("update public.company_records set deleted_at=now() where company_id=$1 and record_type='document_metadata' and record_key='evidence-e16'",[companyId]),
+        /active deal-party relationship/
+      );
+      await assert.rejects(
+        partyClient.query("update public.company_deal_parties set role_code='seller' where id=$1",[partyId]),
+        /identity are immutable/
+      );
+      const eventCount=await partyClient.query(
+        "select count(*)::int as count from public.company_deal_party_events where company_id=$1 and deal_party_id=$2",
+        [companyId,partyId]
+      );
+      assert.equal(eventCount.rows[0].count,2);
+      await assert.rejects(
+        partyClient.query("update public.company_deal_party_events set event_type='party_link_updated' where deal_party_id=$1",[partyId]),
+        /history is immutable/
+      );
+      await partyClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      await assert.rejects(
+        partyClient.query("update public.company_deal_parties set authority_scope='unauthorised' where id=$1",[partyId]),
+        /authorised company member/
+      );
+      await partyClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      await assert.rejects(
+        partyClient.query("delete from public.company_deal_parties where id=$1",[partyId]),
+        /cannot be deleted/
+      );
+      await partyClient.query("insert into public.companies(id) values('99999999-9999-4999-8999-999999999999')");
+      await partyClient.query("insert into public.auth.users(id) values('88888888-8888-4888-8888-888888888888')");
+      await partyClient.query(
+        "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values('99999999-9999-4999-8999-999999999999','contact','foreign-party','{}'::jsonb,'88888888-8888-4888-8888-888888888888','88888888-8888-4888-8888-888888888888')"
+      );
+      await assert.rejects(
+        partyClient.query(
+          "insert into public.company_deal_parties(company_id,deal_record_key,party_record_key,role_code,created_by,updated_by) values($1,'deal-e16','foreign-party','buyer',$2,$2)",
+          [companyId,actorId]
+        ),
+        /foreign key constraint/
+      );
+    } finally { partyClient.release(); }
+
     // E06 queues the completed E05 run and requires explicit owner/admin approval
     // before a canonical company identity, identifier or assignment is created.
     const extractedEntity = await pool.query(
