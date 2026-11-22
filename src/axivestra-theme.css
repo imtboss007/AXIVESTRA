@@ -1353,3 +1353,100 @@ body { background: #0b1420; color: #e8f0f4; }
   .ax-modern-shell .topbar { background: rgba(9,23,37,.98); }
   .ax-modern-shell .institutional-banner { background: #142b3d; }
 }
+
+
+/* Orbital command centre — touch, keyboard and motion-state refinement. */
+.ax-modern-shell .ax-orbit-hub .ax-orbit-controls {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-view-switch {
+  min-height: 42px;
+  align-items: center;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-view-switch button {
+  min-height: 34px;
+  padding-inline: 12px;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-search {
+  flex: 1 1 300px;
+  width: auto;
+  max-width: 460px;
+  min-height: 42px;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-search input {
+  min-height: 38px;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-group-filters {
+  padding-block: 4px 7px;
+  gap: 7px;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-group-filters button {
+  min-height: 34px;
+  padding-inline: 11px;
+  border-radius: 8px;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node {
+  min-height: 68px;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node:focus-visible {
+  outline: 2px solid #9ad8cd;
+  outline-offset: 3px;
+  border-color: #9ad8cd;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node-inspect {
+  width: 28px;
+  height: 28px;
+  border-color: #527d7d;
+  color: #d6ebe6;
+  background: #102838;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node-inspect:hover,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node-inspect:focus-visible,
+.ax-modern-shell .ax-orbit-hub .ax-orbit-node-inspect[aria-pressed="true"] {
+  border-color: #9ad8cd;
+  color: #fff;
+  background: #1b4a4d;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-motion-toggle:disabled {
+  opacity: .76;
+  cursor: not-allowed;
+  transform: none;
+  border-color: rgba(154,216,205,.28);
+  color: #c5d4d5;
+  background: rgba(255,255,255,.045);
+  box-shadow: none;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-telemetry__state > span.is-paused {
+  background: #d6ad69;
+  box-shadow: 0 0 0 3px rgba(214,173,105,.12);
+  animation: none;
+}
+.ax-modern-shell .ax-orbit-hub .ax-orbit-telemetry__state > span:not(.is-paused) {
+  background: #78bfae;
+  box-shadow: 0 0 0 3px rgba(120,191,174,.12);
+}
+@media (max-width: 720px) {
+  .ax-modern-shell .ax-orbit-hub .ax-orbit-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .ax-modern-shell .ax-orbit-hub .ax-orbit-view-switch {
+    width: 100%;
+  }
+  .ax-modern-shell .ax-orbit-hub .ax-orbit-view-switch button {
+    flex: 1 1 0;
+  }
+  .ax-modern-shell .ax-orbit-hub .ax-orbit-search {
+    width: 100%;
+    max-width: none;
+    flex-basis: auto;
+  }
+  .ax-modern-shell .ax-orbit-hub .ax-orbit-group-filters button {
+    min-height: 38px;
+  }
+  .ax-modern-shell .ax-orbit-hub .ax-orbit-node-inspect {
+    width: 30px;
+    height: 30px;
+  }
+}
