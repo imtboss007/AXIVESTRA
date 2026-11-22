@@ -76,6 +76,13 @@ test("source registration creates validated field schemas inside the allowed-fie
   assert.throws(() => normalizeSourceRegistration({
     ...baseSource, fieldSchema: { legal_name: { type: "invented-type" } }
   }), /Unsupported extraction field type/);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource,
+    fieldSchema: {
+      legal_name: { type: "string", aliases: ["Company Name"] },
+      registration_id: { type: "identifier", aliases: ["company-name"] }
+    }
+  }), /Ambiguous source field alias/);
 });
 
 test("source registration rejects non-HTTPS, wildcard and query-bearing canonical URLs", () => {
