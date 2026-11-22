@@ -51,8 +51,8 @@ function httpsUrl(value, label, { allowPath = true } = {}) {
     if (error instanceof TypeError) throw new Error(label + " must be a valid HTTPS URL.");
     throw error;
   }
-  if (url.protocol !== "https:" || url.username || url.password || url.hash) {
-    throw new Error(label + " must use HTTPS and cannot contain credentials or a fragment.");
+  if (url.protocol !== "https:" || url.username || url.password || url.hash || (url.port && url.port !== "443")) {
+    throw new Error(label + " must use standard-port HTTPS and cannot contain credentials or a fragment.");
   }
   if (url.hostname === "localhost" || url.hostname.endsWith(".local") || url.hostname.includes("*")) {
     throw new Error(label + " must identify a public, exact hostname.");
