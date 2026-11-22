@@ -67,8 +67,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       ) values (
         $1,$2,'Example registry','https://registry.example.gov.in/api','registry.example.gov.in',
         'official_api','official_api','IN','https://registry.example.gov.in/terms','Reviewed terms',
-        array['company identity verification','geocoding'],array['legal_name','registration_id','status','work_email','work_phone','address_line_1','city','state','country','country_code','latitude','longitude'],
-        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]},"work_email":{"type":"email","aliases":["work_email"]},"work_phone":{"type":"phone","aliases":["work_phone"]},"address_line_1":{"type":"string","aliases":["address_line_1"]},"city":{"type":"string","aliases":["city"]},"state":{"type":"string","aliases":["state"]},"country":{"type":"string","aliases":["country"]},"country_code":{"type":"string","aliases":["country_code"]},"latitude":{"type":"number","aliases":["latitude"]},"longitude":{"type":"number","aliases":["longitude"]}}'::jsonb,
+        array['company identity verification','geocoding','enrichment'],array['legal_name','registration_id','status','work_email','work_phone','address_line_1','city','state','country','country_code','latitude','longitude','annual_revenue','employee_count','land_area','industry'],
+        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]},"work_email":{"type":"email","aliases":["work_email"]},"work_phone":{"type":"phone","aliases":["work_phone"]},"address_line_1":{"type":"string","aliases":["address_line_1"]},"city":{"type":"string","aliases":["city"]},"state":{"type":"string","aliases":["state"]},"country":{"type":"string","aliases":["country"]},"country_code":{"type":"string","aliases":["country_code"]},"latitude":{"type":"number","aliases":["latitude"]},"longitude":{"type":"number","aliases":["longitude"]},"annual_revenue":{"type":"currency","aliases":["annual_revenue"],"currencyCode":"INR"},"employee_count":{"type":"number","aliases":["employee_count"]},"land_area":{"type":"number","aliases":["land_area"],"unit":"sqm"},"industry":{"type":"string","aliases":["industry"]}}'::jsonb,
         array['/api/v1/entities'],'official_api',1,10,30,'Source attribution','Approved public company registry use',
         'approved',$3,now(),$3,$3
       )
@@ -190,9 +190,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             country: { type: "string", aliases: ["country"] },
             country_code: { type: "string", aliases: ["country_code"] },
             latitude: { type: "number", aliases: ["latitude"] },
-            longitude: { type: "number", aliases: ["longitude"] }
+            longitude: { type: "number", aliases: ["longitude"] },
+            annual_revenue: { type: "currency", aliases: ["annual_revenue"], currencyCode: "INR" },
+            employee_count: { type: "number", aliases: ["employee_count"] },
+            land_area: { type: "number", aliases: ["land_area"], unit: "sqm" },
+            industry: { type: "string", aliases: ["industry"] }
           },
-          source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone","address_line_1","city","state","country","country_code","latitude","longitude"],
+          source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone","address_line_1","city","state","country","country_code","latitude","longitude","annual_revenue","employee_count","land_area","industry"],
           invalid_fact_count: 0,
           warnings: []
         }),
@@ -277,6 +281,32 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             normalized_value: 77.5946,
             source_span: { kind: "json-pointer", locator: "$/longitude" },
             confidence: 0.96, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "annual_revenue",
+            value_type: "currency", raw_value: "₹12 crore",
+            normalized_value: {amount:120000000,currency:"INR"},
+            source_span: { kind: "json-pointer", locator: "$/annual_revenue" },
+            confidence: 0.97, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "employee_count",
+            value_type: "number", raw_value: "420", normalized_value: 420,
+            source_span: { kind: "json-pointer", locator: "$/employee_count" },
+            confidence: 0.93, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "land_area",
+            value_type: "number", raw_value: "12500", normalized_value: 12500,
+            source_span: { kind: "json-pointer", locator: "$/land_area" },
+            confidence: 0.91, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "industry",
+            value_type: "string", raw_value: "Precision Engineering",
+            normalized_value: "Precision Engineering",
+            source_span: { kind: "json-pointer", locator: "$/industry" },
+            confidence: 0.96, validation_status: "valid"
           }
         ])
       ]
@@ -287,7 +317,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select id,field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
       [extractionRunId]
     );
-    assert.equal(extractedFact.rows.length, 11);
+    assert.equal(extractedFact.rows.length, 15);
     assert.equal(extractedFact.rows[0].normalized_value, "Acme Holdings Pvt Ltd");
     assert.equal(extractedFact.rows[0].source_span.locator, "$/legal_name");
 
@@ -650,9 +680,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
               country: { type: "string", aliases: ["country"] },
               country_code: { type: "string", aliases: ["country_code"] },
               latitude: { type: "number", aliases: ["latitude"] },
-              longitude: { type: "number", aliases: ["longitude"] }
+              longitude: { type: "number", aliases: ["longitude"] },
+              annual_revenue: { type: "currency", aliases: ["annual_revenue"], currencyCode: "INR" },
+              employee_count: { type: "number", aliases: ["employee_count"] },
+              land_area: { type: "number", aliases: ["land_area"], unit: "sqm" },
+              industry: { type: "string", aliases: ["industry"] }
             },
-            source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone","address_line_1","city","state","country","country_code","latitude","longitude"],
+            source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone","address_line_1","city","state","country","country_code","latitude","longitude","annual_revenue","employee_count","land_area","industry"],
             invalid_fact_count:0, warnings:[]
           }),
           "[]",
