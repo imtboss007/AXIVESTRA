@@ -10,6 +10,14 @@ alter table public.discovery_fetch_events
     'robots_blocked','cache_hit','policy_rejected','worker_paused','retention_purged'
   ));
 
+update storage.buckets
+set allowed_mime_types = case
+  when 'text/csv' = any(coalesce(allowed_mime_types, array[]::text[]))
+    then coalesce(allowed_mime_types, array[]::text[])
+  else array_append(coalesce(allowed_mime_types, array[]::text[]), 'text/csv')
+end
+where id = 'discovery-evidence';
+
 
 -- Extend the shared company audit ledger for explicit extraction-review receipts.
 alter table public.discovery_audit_events
@@ -244,7 +252,7 @@ begin
       and s.status = 'approved'
       and new.content_type in (
         'text/html','text/plain','application/json','application/ld+json',
-        'application/xml','text/xml','application/pdf'
+        'application/xml','text/xml','application/pdf','text/csv','application/csv'
       )
     on conflict (company_id, evidence_id) do nothing;
   return new;
@@ -271,7 +279,7 @@ join public.discovery_profile_sources ps
   on ps.company_id=dj.company_id and ps.profile_id=dj.profile_id and ps.source_id=e.source_id
 where e.content_type in (
   'text/html','text/plain','application/json','application/ld+json',
-  'application/xml','text/xml','application/pdf'
+  'application/xml','text/xml','application/pdf','text/csv','application/csv'
 )
 on conflict (company_id,evidence_id) do nothing;
 
