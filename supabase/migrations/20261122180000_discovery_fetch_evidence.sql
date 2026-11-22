@@ -360,7 +360,7 @@ begin
     raise exception 'Retention sweep limit must be between 1 and 500' using errcode = '22023';
   end if;
   return query
-    select e.company_id, e.id, e.job_id, e.source_id, e.raw_blob_ref, e.canonical_url, e.captured_at, s.retention_days, e.content_hash
+    select e.company_id, e.id, e.job_id, e.source_id, e.raw_blob_ref, e.canonical_url, e.captured_at, coalesce((e.licence_snapshot->>'retention_days')::integer,s.retention_days), e.content_hash
     from public.discovery_evidence_items e
     join public.discovery_source_registry s
       on s.company_id = e.company_id and s.id = e.source_id
