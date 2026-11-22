@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const DIMENSIONS = Object.freeze([
   "geography","type","ticket","instrument","collateral","stage","mandate","evidence_freshness"
 ]);
@@ -100,7 +102,7 @@ export function validateMatchCriteria(criteria) {
 function evidenceFor(candidate, dimension) {
   if (!Array.isArray(candidate.evidence)) return [];
   return candidate.evidence.filter(item =>
-    isObject(item) && item.dimension === dimension &&
+    isObject(item) && item.dimension === dimension && item.reviewState === "accepted" &&
     typeof item.sourceId === "string" && text(item.sourceId).length <= 160 &&
     typeof item.evidenceId === "string" && text(item.evidenceId).length <= 160 &&
     finite(item.sourceConfidence) && item.sourceConfidence >= 0 && item.sourceConfidence <= 1 &&
@@ -291,4 +293,105 @@ export function scoreWorkspaceCandidates({criteria,candidates=[],asOf}={}) {
     b.confidence-a.confidence ||
     String(a.canonicalEntityId||a.candidateId||"").localeCompare(String(b.canonicalEntityId||b.candidateId||""))
   );
+}
+
+
+function canonicalize(value) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("E11 snapshot contains a non-finite number.");
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (isObject(value)) {
+    const output={};
+    for (const name of Object.keys(value).sort()) {
+      if (value[name] === undefined) throw new Error("E11 snapshot contains an undefined property.");
+      output[name]=canonicalize(value[name]);
+    }
+    return output;
+  }
+  throw new Error("E11 snapshots must contain JSON-compatible values only.");
+}
+
+function sha256(value) {
+  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+}
+
+function safeCandidateSnapshot(candidate,criteria) {
+  const snapshot={
+    entityKind:"organization",
+    canonicalEntityId:text(candidate.canonicalEntityId)
+  };
+  const configured=criteria.dimensions;
+  if (configured.geography) {
+    const geo=isObject(candidate.geography)?candidate.geography:{};
+    snapshot.geography={
+      countries:list(geo.countries ?? geo.country),
+      states:list(geo.states ?? geo.state),
+      cities:list(geo.cities ?? geo.city)
+    };
+  }
+  for (const dimension of CATEGORICAL) {
+    if (configured[dimension]) snapshot[dimension]=list(candidate[dimension]);
+  }
+  if (configured.ticket) {
+    const ticket=isObject(candidate.ticket)?candidate.ticket:{};
+    snapshot.ticket={
+      amount:finite(ticket.amount)?ticket.amount:null,
+      currency:/^[A-Z]{3}$/.test(text(ticket.currency).toUpperCase())
+        ? text(ticket.currency).toUpperCase() : null
+    };
+  }
+  const dimensions=Object.keys(configured).filter(name=>name!=="evidence_freshness");
+  snapshot.evidence=dimensions.flatMap(dimension=>
+    evidenceFor(candidate,dimension).map(item=>({
+      dimension,
+      sourceId:text(item.sourceId),
+      evidenceId:text(item.evidenceId),
+      sourceConfidence:item.sourceConfidence,
+      publishedAt:item.publishedAt || null,
+      capturedAt:item.capturedAt || null,
+      reviewState:"accepted"
+    }))
+  ).sort((a,b)=>
+    a.dimension.localeCompare(b.dimension) ||
+    a.sourceId.localeCompare(b.sourceId) ||
+    a.evidenceId.localeCompare(b.evidenceId)
+  );
+  return snapshot;
+}
+
+export function buildMatchScoreRecord({profile,candidate,criteria,asOf}={}) {
+  if (!isObject(profile) || !text(profile.id) || !text(profile.company_id) ||
+      !text(profile.workspace_key) || !["LENDER","CUSTOMER"].includes(text(profile.discovery_mode).toUpperCase())) {
+    throw new Error("E11 requires a persisted company-scoped LENDER/CUSTOMER workspace profile.");
+  }
+  if (!isObject(candidate) || candidate.entityKind !== "organization" ||
+      !text(candidate.canonicalEntityId)) {
+    throw new Error("E11 scoring persistence is limited to an assigned canonical organization.");
+  }
+  const normalizedCriteria=validateMatchCriteria(criteria);
+  const result=scoreWorkspaceFit({criteria:normalizedCriteria,candidate,asOf});
+  const candidateSnapshot=safeCandidateSnapshot(candidate,normalizedCriteria);
+  return {
+    company_id:text(profile.company_id),
+    profile_id:text(profile.id),
+    canonical_entity_id:text(candidate.canonicalEntityId),
+    workspace_key:text(profile.workspace_key),
+    discovery_mode:text(profile.discovery_mode).toUpperCase(),
+    criteria_hash:sha256(normalizedCriteria),
+    candidate_hash:sha256(candidateSnapshot),
+    rule_version:result.ruleVersion,
+    match_score:result.matchScore,
+    confidence:result.confidence,
+    coverage:result.coverage,
+    score_state:result.state,
+    score_components:result.components,
+    rationale:result.rationale,
+    evidence_refs:result.evidenceRefs,
+    criteria_snapshot:normalizedCriteria,
+    candidate_snapshot:candidateSnapshot,
+    review_state:"pending_review"
+  };
 }
