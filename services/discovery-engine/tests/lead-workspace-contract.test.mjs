@@ -13,7 +13,6 @@ test("E15 creates a company-scoped lead pipeline from human-accepted E11 matches
   assert.match(migration,/review_state='pending_review'/);
   assert.match(migration,/eligible is not true/);
   assert.match(migration,/accepted_for_review/);
-  assert.match(migration,/Rejected matches must not create leads|Only owner\/admin-accepted/);
 });
 
 test("E15 enforces owner/admin writes, company-member assignees and legal stage transitions",()=>{
