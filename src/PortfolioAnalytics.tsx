@@ -176,8 +176,8 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
         }} disabled={focus === "cashflow" || (focus === "allocation" && !visibleItems.length)}>Explore selected data <ArrowUpRight size={15}/></button>
       </aside>
     </div>
-    {focus !== "cashflow" && <div className="ax-chart-legend">
-      {visibleItems.slice(0, 8).map((item, index) => <button type="button" key={item.name} className={selected === item.name ? "selected" : ""} aria-pressed={selected === item.name} onClick={() => { setSelected(selected === item.name ? "" : item.name); if (focus === "allocation" && modules.some(module => module.name === item.name)) onOpenModule(item.name); }}>
+    {focus !== "cashflow" && <div className="ax-chart-legend" role="group" aria-label={focus === "allocation" ? "All recorded workspace categories" : "All recorded pipeline statuses"}>
+      {visibleItems.map((item, index) => <button type="button" key={item.name} className={selected === item.name ? "selected" : ""} aria-pressed={selected === item.name} onClick={() => { setSelected(selected === item.name ? "" : item.name); if (focus === "allocation" && modules.some(module => module.name === item.name)) onOpenModule(item.name); }}>
         <i style={{ background: item.color || PALETTE[index % PALETTE.length] }}/><span>{item.name}</span><strong>{focus === "allocation" && metric === "value" ? compact(item.value) : item.value}</strong>
       </button>)}
       {visibleItems.length === 0 && <span className="ax-muted">No module allocation until you add records.</span>}
