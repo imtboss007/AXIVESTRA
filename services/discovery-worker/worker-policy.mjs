@@ -39,7 +39,7 @@ export function isPublicAddress(address) {
   // benchmarking and special-use subranges as well.
   if (value < 0x2000 || value > 0x3fff) return false;
   const normalized = parsed.normalized;
-  if (normalized.startsWith("2001:db8:") || normalized.startsWith("2001:0000:") || normalized.startsWith("2002:")) return false;
+  if (normalized.startsWith("2001:db8:") || normalized.startsWith("2001:0:") || normalized.startsWith("2001:0000:") || normalized.startsWith("2002:")) return false;
   return true;
 }
 
@@ -89,10 +89,8 @@ export function parseRobotsRules(content, userAgent = "AXIVESTRA-DiscoveryBot") 
 
   const agent = userAgent.toLowerCase();
   const matching = groups.filter(group => group.agents.some(name => name === "*" || agent.includes(name)));
-  const bestSpecificity = matching.reduce((best, group) => Math.max(best, ...group.agents.map(name => name === "*" ? 0 : name.length)), -1);
-  const rules = matching
-    .filter(group => group.agents.some(name => (name === "*" ? 0 : name.length) === bestSpecificity))
-    .flatMap(group => group.rules);
+  // RFC 9309: when multiple groups match, combine their rules.
+  const rules = matching.flatMap(group => group.rules);
 
   return Object.freeze({
     allows(urlValue) {
