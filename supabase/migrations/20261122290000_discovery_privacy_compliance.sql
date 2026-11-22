@@ -540,7 +540,7 @@ begin
     end if;
   elsif p_subject_table='discovery_extracted_entities' then
     for v_candidate in
-      select id from public.discovery_contact_candidates
+      select id,extracted_fact_id from public.discovery_contact_candidates
       where company_id=p_company_id and extracted_entity_id=p_subject_record_id
     loop
       for v_point in select id from public.discovery_contact_points
@@ -548,6 +548,10 @@ begin
       loop
         perform public.erase_discovery_personal_subject(p_company_id,'discovery_contact_points',v_point);
       end loop;
+      delete from public.discovery_extracted_facts
+        where company_id=p_company_id and id=v_candidate.extracted_fact_id;
+      delete from public.discovery_contact_candidates
+        where company_id=p_company_id and id=v_candidate.id;
     end loop;
     delete from public.discovery_professional_role_candidates
       where company_id=p_company_id and extracted_person_id=p_subject_record_id;
