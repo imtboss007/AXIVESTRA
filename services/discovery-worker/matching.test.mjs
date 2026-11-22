@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scoreWorkspaceFit,scoreWorkspaceCandidates,validateMatchCriteria } from "./matching.mjs";
+import { scoreWorkspaceFit,scoreWorkspaceCandidates,validateMatchCriteria,buildMatchScoreRecord } from "./matching.mjs";
 
 const criteria={
   schemaVersion:1,
@@ -23,7 +23,7 @@ const criteria={
 const asOf="2026-11-22T12:00:00.000Z";
 const evidence=[
   ...["geography","type","ticket","instrument","collateral","stage","mandate"].map((dimension,i)=>({
-    dimension,sourceId:"source-"+dimension,evidenceId:"evidence-"+dimension,
+    dimension,sourceId:"source-"+dimension,evidenceId:"evidence-"+dimension,reviewState:"accepted",
     sourceConfidence:0.9-i*0.02,publishedAt:"2026-10-01T00:00:00.000Z",
     capturedAt:"2026-10-02T00:00:00.000Z"
   }))
@@ -128,4 +128,64 @@ test("E11 never treats fit score or confidence as approval or a credit decision"
   assert.equal(result.reviewState,"pending_review");
   assert.equal(Object.hasOwn(result,"approved"),false);
   assert.equal(Object.hasOwn(result,"creditDecision"),false);
+});
+
+
+test("E11 excludes pending and conflict-review evidence from scores",()=>{
+  const unreviewed=evidence.map(item=>item.dimension==="collateral"
+    ? {...item,reviewState:"pending_review"} : item);
+  const result=scoreWorkspaceFit({
+    criteria,candidate:{...candidate,evidence:unreviewed},asOf
+  });
+  const collateral=result.components.find(item=>item.dimension==="collateral");
+  assert.equal(collateral.status,"unknown");
+  assert.equal(collateral.score,null);
+
+  const conflictEvidence=evidence.map(item=>item.dimension==="ticket"
+    ? {...item,reviewState:"conflict_review"} : item);
+  const conflictResult=scoreWorkspaceFit({
+    criteria,candidate:{...candidate,evidence:conflictEvidence},asOf
+  });
+  assert.equal(conflictResult.components.find(item=>item.dimension==="ticket").status,"unknown");
+});
+
+test("E11 builds a stable, privacy-minimised database record for a canonical organization",()=>{
+  const profile={
+    id:"profile-1",company_id:"company-1",workspace_key:"startup",discovery_mode:"LENDER"
+  };
+  const persistable={
+    ...candidate,
+    entityKind:"organization",
+    canonicalEntityId:"canonical-1",
+    contactEmail:"secret-contact@example.invalid",
+    phone:"+91-9999999999",
+    personalNotes:"not for scoring"
+  };
+  const record=buildMatchScoreRecord({
+    profile,candidate:persistable,criteria,asOf
+  });
+  assert.equal(record.company_id,"company-1");
+  assert.equal(record.profile_id,"profile-1");
+  assert.equal(record.canonical_entity_id,"canonical-1");
+  assert.match(record.criteria_hash,/^[a-f0-9]{64}$/);
+  assert.match(record.candidate_hash,/^[a-f0-9]{64}$/);
+  assert.equal(record.rule_version,"deterministic-rules-v1");
+  assert.equal(record.match_score,100);
+  assert.equal(record.review_state,"pending_review");
+  assert.equal(record.candidate_snapshot.entityKind,"organization");
+  const snapshot=JSON.stringify(record.candidate_snapshot);
+  assert.doesNotMatch(snapshot,/secret-contact|9999999999|personalNotes/);
+  assert.equal(record.candidate_snapshot.evidence.every(item=>item.reviewState==="accepted"),true);
+});
+
+test("E11 persistence builder rejects person candidates and incomplete profiles",()=>{
+  const profile={
+    id:"profile-1",company_id:"company-1",workspace_key:"startup",discovery_mode:"LENDER"
+  };
+  assert.throws(()=>buildMatchScoreRecord({
+    profile,candidate:{...candidate,entityKind:"person",canonicalEntityId:"person-1"},criteria,asOf
+  }),/canonical organization/);
+  assert.throws(()=>buildMatchScoreRecord({
+    profile:{...profile,id:""},candidate:{...candidate,entityKind:"organization"},criteria,asOf
+  }),/persisted company-scoped/);
 });
