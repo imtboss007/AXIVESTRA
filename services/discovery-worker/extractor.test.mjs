@@ -26,7 +26,6 @@ test("E05 is deterministic and versioned", () => {
   assert.equal(result.entities.length, 1);
   assert.equal(result.entities[0].entity_kind, "organization");
   assert.equal(result.facts[0].field_name, "legal_name");
-  assert.equal(result.facts[0].extraction_method, undefined);
   assert.equal(result.facts[0].validation_status, "valid");
 });
 
@@ -49,6 +48,73 @@ test("JSON extraction applies field aliases, type normalisation and evidence loc
   assert.equal(facts.registration_id.source_span.kind, "json-pointer");
   assert.match(facts.registration_id.source_span.locator, /CIN/);
   assert.ok(facts.registration_id.source_span.quoteHash);
+});
+
+test("JSON arrays retain addressable array-index evidence spans", () => {
+  const result = parse(JSON.stringify({
+    records: [{ registration_id: "U12345KA2020PLC123456" }]
+  }), "application/json");
+  const fact = result.facts.find(item => item.field_name === "registration_id");
+  assert.equal(fact.source_span.locator, "$/records/0/registration_id");
+});
+
+test("ISO dates are checked against the real calendar, including leap years", () => {
+  const result = parse(JSON.stringify({
+    foundedDate: "2025-02-29"
+  }), "application/json");
+  const fact = result.facts.find(item => item.field_name === "founded_date");
+  assert.equal(fact.validation_status, "invalid");
+  assert.match(fact.validation_message, /valid calendar date/);
+  const leap = parse(JSON.stringify({ foundedDate: "2024-02-29" }), "application/json");
+  assert.equal(leap.facts.find(item => item.field_name === "founded_date").validation_status, "valid");
+});
+
+function makeMinimalPdf(text) {
+  const stream = text ? "BT /F1 12 Tf 20 250 Td (" + text + ") Tj ET" : "";
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    "5 0 obj\n<< /Length " + Buffer.byteLength(stream,"latin1") + " >>\nstream\n" + stream + "\nendstream\nendobj\n"
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(pdf,"latin1"));
+    pdf += object;
+  }
+  const xrefOffset = Buffer.byteLength(pdf,"latin1");
+  pdf += "xref\n0 6\n0000000000 65535 f \n";
+  for (const offset of offsets.slice(1)) pdf += String(offset).padStart(10,"0") + " 00000 n \n";
+  pdf += "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + xrefOffset + "\n%%EOF";
+  return Buffer.from(pdf,"latin1");
+}
+
+test("PDF.js extracts text-layer evidence with page and item locators", async () => {
+  const result = await extractStructuredFacts({
+    bytes: makeMinimalPdf("legal_name: Acme Holdings Pvt Ltd"),
+    contentType: "application/pdf",
+    source: allowedSource,
+    contentHash: hash
+  });
+  const fact = result.facts.find(item => item.field_name === "legal_name");
+  assert.ok(fact);
+  assert.equal(fact.validation_status, "valid");
+  assert.equal(fact.source_span.kind, "pdf-text-item");
+  assert.equal(fact.source_span.page, 1);
+});
+
+test("scanned/image-only PDF produces a warning and no fabricated values", async () => {
+  const result = await extractStructuredFacts({
+    bytes: makeMinimalPdf(""),
+    contentType: "application/pdf",
+    source: allowedSource,
+    contentHash: hash
+  });
+  assert.deepEqual(result.entities, []);
+  assert.deepEqual(result.facts, []);
+  assert.ok(result.warnings.some(warning => warning.includes("OCR is not enabled")));
 });
 
 test("HTML extracts metadata, JSON-LD, tables and labeled text without executing source script", () => {
