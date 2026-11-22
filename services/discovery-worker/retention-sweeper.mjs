@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const MAX_BATCH_SIZE = 100;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -103,7 +105,7 @@ export async function runRetentionSweep() {
   return result;
 }
 
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], "file:").href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   runRetentionSweep().then(result => {
     if (result.failed > 0) process.exitCode = 1;
   }).catch(error => {
