@@ -13,7 +13,7 @@ The Lead & Customer Intelligence Matrix defines E11 as a configurable fit score 
 - Workspace criteria use a versioned schema with explicit weights that sum to 100 and an adjustable minimum evidence-coverage threshold.
 - Geography supports country/state/city allow-lists and country exclusions. Categorical type, instrument, collateral, stage and mandate rules support positive and excluded values.
 - Ticket range matching requires the same three-letter currency. Currency conversion is never attempted.
-- A dimension is assessed only when a source-backed candidate value and its matching source/evidence references are present. Missing values remain unknown, reduce coverage and confidence, and are not guessed.
+- A dimension is assessed only when a source-backed candidate value and its matching source/evidence references are present **and the underlying observation/place evidence has been owner/admin accepted**. Pending, conflict-review or rejected inputs are treated as unknown. Missing values remain unknown, reduce coverage and confidence, and are not guessed.
 - Evidence freshness uses the oldest publication/capture date among evidence used in the score. Stale inputs reduce the freshness component and overall confidence; future or invalid evidence dates are not silently accepted.
 - Each component includes its weight, score, status, positive/negative/unknown factor, written rationale, source/evidence references and source confidence.
 - Overall fit score is normalized over assessed dimensions only. Coverage makes the share of configured weight that was actually assessed explicit. Confidence combines source confidence, coverage and freshness; it is not a statistical probability.
@@ -44,7 +44,7 @@ Profile-specific match criteria are stored in the existing \`discovery_profiles.
 }
 \`\`\`
 
-Candidate input values are source-backed normalized facts. Each evidence entry identifies its dimension, source ID, evidence ID, source confidence, and publication/capture timestamp. No unsupported value is synthesized. The criteria and candidate snapshots stored with a score must be privacy-reviewed by the calling server before persistence.
+Candidate input values are source-backed normalized facts. Each evidence entry identifies its dimension, source ID, evidence ID, source confidence, accepted review state, and publication/capture timestamp. No unsupported value is synthesized. `buildMatchScoreRecord` checks for a persisted company-scoped LENDER/CUSTOMER profile and an assigned canonical organization, then creates a database-ready record with stable SHA-256 hashes. Its candidate snapshot is an explicit allow-list projection of the configured fit dimensions and accepted evidence references; contact details and free-form notes are not copied. The calling server remains responsible for authorizing the profile/candidate read and checking tenant ownership before insertion.
 
 ## Storage and access
 
@@ -59,4 +59,4 @@ E11 does not determine creditworthiness, borrower risk, property title/ownership
 
 ## Validation
 
-Unit tests cover all eight dimensions, positive/negative factors, exclusions, missing-data treatment, confidence/coverage, stale evidence, incompatible currency, criteria validation and deterministic ordering. The PostgreSQL integration suite applies the E11 migration and checks the resulting tables and review function. The full governance workflow also runs the regression suite and application build.
+Unit tests cover all eight dimensions, positive/negative factors, exclusions, missing or unreviewed evidence, confidence/coverage, stale evidence, incompatible currency, criteria validation, deterministic ordering, and privacy-minimised persistence snapshots. The PostgreSQL integration suite applies the E11 migration and checks the resulting tables and review function. The full governance workflow also runs the regression suite and application build.
