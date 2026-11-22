@@ -84,3 +84,14 @@ console.log("AXIVESTRA enterprise design-system contract passed.");
 assert.match(theme,/\.ax-modern-shell\s*\{[^}]*color-scheme:\s*dark/s,"Shell remains dark.");
 assert.match(theme,/\.ax-enterprise-grid__viewport/,"Enterprise table dark styling exists.");
 assert.match(theme,/\.ax-echart-host/,"Chart container styling exists.");
+
+assert.ok(theme.lastIndexOf(".ax-modern-shell .topbar") > theme.indexOf(".ax-modern-shell .topbar"),
+  "The final Night Marine surface harmonization must override legacy topbar styling.");
+assert.match(theme, /\.ax-modern-shell \.topbar\s*\{[^}]*background:\s*rgba\(9,23,37,\.96\)/s,
+  "The desktop topbar must use the dark marine surface.");
+assert.match(theme, /\.ax-modern-shell \.search-box,[\s\S]*?background:\s*#0f2030/s,
+  "Search controls must use the dark marine surface.");
+assert.match(theme, /\.ax-modern-shell \.institutional-banner\s*\{[^}]*background:\s*linear-gradient\(115deg,#142b3d 0%,#102536 62%,#1d343b 100%\)/s,
+  "The workspace banner must not fall back to a light legacy surface.");
+assert.match(theme, /\.ax-modern-shell \.module-card,[\s\S]*?background:\s*var\(--axiv-surface\)/s,
+  "Workspace cards must use the shared marine surface.");
