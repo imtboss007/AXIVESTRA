@@ -195,7 +195,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const extractionRunId = runResult.rows[0].run_id;
     assert.ok(extractionRunId);
     const extractedFact = await pool.query(
-      "select field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
+      "select id,field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
       [extractionRunId]
     );
     assert.equal(extractedFact.rows.length, 1);
