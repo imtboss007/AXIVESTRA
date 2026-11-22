@@ -71,8 +71,7 @@ test("source registration rejects wildcard and traversal path policies", () => {
 });
 
 test("browser rendering is opt-in and only allowed for permitted public websites", () => {
-  const pending = normalizeSourceRegistration({ ...baseSource, sourceType: "official_api", renderMode: "browser" });
-  assert.equal(pending.render_mode, "http");
+  assert.throws(() => normalizeSourceRegistration({ ...baseSource, sourceType: "official_api", renderMode: "browser" }), /only for an explicitly permitted public website/);
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, renderMode: "browser" }), /only for an explicitly permitted public website/);
   const publicPage = normalizeSourceRegistration({
     ...baseSource,
@@ -116,7 +115,7 @@ test("source path policy enforces exact host and path boundaries", () => {
   const source = approvedSource();
   assert.equal(assertAllowedSourceUrl(source, endpoint + "/123").hostname, "registry.example.gov.in");
   assert.throws(() => assertAllowedSourceUrl(source, "https://sub.registry.example.gov.in/api/v1/entities"), /exact approved source origin/);
-  assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /exact approved source origin/);
+  assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /standard-port HTTPS/);
   assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in/private"), /approved source path list/);
   assert.throws(() => assertAllowedSourceUrl(source, "http://registry.example.gov.in/api/v1/entities"), /HTTPS/);
 });
