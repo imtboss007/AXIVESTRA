@@ -159,15 +159,32 @@ Deno.serve(async request => {
         .select("id,enabled").eq("company_id", companyId)
         .eq("workspace_key", workspaceKey).eq("discovery_mode", discoveryMode).maybeSingle();
       if (existingProfileError) throw existingProfileError;
-      let sourceCount = 0;
+      let compatibleApprovedSources: Record<string, unknown>[] = [];
       if (existingProfile?.id) {
-        const { count, error: countError } = await admin.from("discovery_profile_sources")
-          .select("*", { count: "exact", head: true })
-          .eq("company_id", companyId).eq("profile_id", existingProfile.id);
-        if (countError) throw countError;
-        sourceCount = count || 0;
+        const { data: links, error: linkError } = await admin.from("discovery_profile_sources")
+          .select("source_id").eq("company_id", companyId).eq("profile_id", existingProfile.id);
+        if (linkError) throw linkError;
+        const sourceIds = (links || []).map((link: { source_id: string }) => link.source_id);
+        if (sourceIds.length) {
+          const { data: approvedSources, error: sourceError } = await admin.from("discovery_source_registry")
+            .select("*").eq("company_id", companyId).eq("status", "approved").in("id", sourceIds);
+          if (sourceError) throw sourceError;
+          compatibleApprovedSources = (approvedSources || []).filter((source: Record<string, unknown>) => {
+            try {
+              assertSourceCanBeAttached({
+                workspace_key: workspaceKey,
+                discovery_mode: discoveryMode,
+                purpose: String(payload.purpose || ""),
+                criteria: payload.criteria || {}
+              }, source);
+              return true;
+            } catch {
+              return false;
+            }
+          });
+        }
       }
-      const profile = normalizeProfile(payload, sourceCount);
+      const profile = normalizeProfile(payload, compatibleApprovedSources.length);
       const saved = await admin.from("discovery_profiles").upsert({
         ...profile, company_id: companyId,
         ...(existingProfile?.id ? {} : { created_by: caller.id }),
@@ -185,7 +202,7 @@ Deno.serve(async request => {
         company_id: companyId, actor_user_id: caller.id,
         action: auditAction,
         entity_type: "profile", entity_id: saved.data.id,
-        details: { workspaceKey, discoveryMode, enabled: saved.data.enabled, approvedSourceCount: sourceCount }
+        details: { workspaceKey, discoveryMode, enabled: saved.data.enabled, compatibleApprovedSourceCount: compatibleApprovedSources.length }
       });
       return jsonResponse(200, { ok: true, profile: saved.data });
     }

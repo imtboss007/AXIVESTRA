@@ -49,10 +49,16 @@ export class ConnectorRegistry {
     const text = typeof query?.text === "string" ? query.text.trim() : "";
     const limit = Number(query?.limit ?? 10);
     if (!text || text.length > 500) throw new Error("Search text is required and must not exceed 500 characters.");
-    if (!Number.isInteger(limit) || limit < 1 || limit > Math.min(50, source.max_pages_per_job || 50)) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
       throw new Error("Search result limit is outside the approved job bounds.");
     }
-    return connector.search({ source, query: { ...query, text, limit }, context });
+    const endpointUrl = assertAllowedSourceUrl(source, query?.endpointUrl || source.canonical_url);
+    return connector.search({
+      source,
+      endpointUrl: endpointUrl.toString(),
+      query: { ...query, text, limit },
+      context
+    });
   }
 
   async fetchEvidence(source, candidate, context = {}) {

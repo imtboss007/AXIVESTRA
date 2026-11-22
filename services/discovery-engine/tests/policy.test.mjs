@@ -94,7 +94,7 @@ test("source path policy enforces exact host and path boundaries", () => {
 test("connector registry refuses unknown sources and missing adapters", async () => {
   const registry = new ConnectorRegistry();
   await assert.rejects(() => registry.search({ ...approvedSource(), status: "pending" }, { text: "company", limit: 5 }), /Only an approved source/);
-  await assert.rejects(() => registry.search(approvedSource(), { text: "company", limit: 5 }), /No implementation is installed/);
+  await assert.rejects(() => registry.search(approvedSource(), { text: "company", limit: 5, endpointUrl: "https://registry.example.gov.in/api/v1/entities" }), /No implementation is installed/);
 });
 
 test("connector registry rejects unbounded search limits", async () => {
@@ -104,7 +104,7 @@ test("connector registry rejects unbounded search limits", async () => {
     async search() { return []; },
     async fetchEvidence() { return {}; }
   });
-  await assert.rejects(() => registry.search({ ...approvedSource(), max_pages_per_job: 2 }, { text: "company", limit: 10 }), /outside the approved job bounds/);
+  await assert.rejects(() => registry.search({ ...approvedSource(), max_pages_per_job: 2 }, { text: "company", limit: 51, endpointUrl: "https://registry.example.gov.in/api/v1/entities" }), /outside the approved job bounds/);
 });
 
 test("connector evidence fetch validates host and path before adapter execution", async () => {
@@ -150,4 +150,22 @@ test("source attachment enforces exact approved purpose and field allow-lists", 
   assert.equal(assertSourceCanBeAttached(profile, approvedSource()), true);
   assert.throws(() => assertSourceCanBeAttached({ ...profile, purpose: "lead generation" }, approvedSource()), /exact purpose/);
   assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { requiredFields: ["private_credit_score"] } }, approvedSource()), /field allow-list/);
+});
+
+test("connector search endpoint is checked against exact approved host and paths", async () => {
+  const registry = new ConnectorRegistry();
+  let seenEndpoint = "";
+  registry.register({
+    key: "official_api",
+    async search({ endpointUrl }) { seenEndpoint = endpointUrl; return []; },
+    async fetchEvidence() { return {}; }
+  });
+  const source = approvedSource();
+  await assert.rejects(() => registry.search(source, {
+    text: "company", limit: 10, endpointUrl: "https://registry.example.gov.in/private"
+  }), /approved source path list/);
+  await registry.search(source, {
+    text: "company", limit: 10, endpointUrl: "https://registry.example.gov.in/api/v1/entities/search"
+  });
+  assert.equal(seenEndpoint, "https://registry.example.gov.in/api/v1/entities/search");
 });

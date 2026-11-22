@@ -1,0 +1,59 @@
+name: AXIVESTRA discovery governance checks
+
+on:
+  push:
+    branches:
+      - feat/discovery-source-governance
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/discovery-control/**"
+      - "supabase/migrations/*discovery*"
+      - "services/discovery-engine/**"
+      - "package.json"
+      - ".github/workflows/discovery-governance-checks.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axivestra-discovery-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Discovery policy tests and app build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Run discovery governance tests
+        run: npm run test:discovery
+
+      - name: Run full regression suite
+        run: npm test
+
+      - name: Type-check discovery Edge Function
+        run: deno check supabase/functions/discovery-control/index.ts
+
+      - name: Build AXIVESTRA web application
+        run: npm run build
