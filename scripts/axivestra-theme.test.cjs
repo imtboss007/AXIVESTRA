@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, "..");
 const main = fs.readFileSync(path.join(root, "src", "main.tsx"), "utf8");
 const theme = fs.readFileSync(path.join(root, "src", "axivestra-theme.css"), "utf8");
 const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
+const orbitalHub = fs.readFileSync(path.join(root, "src", "AxivestraOrbitalHub.tsx"), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
 assert.match(main, /import "\.\/styles\.css";[\s\S]*import "\.\/axivestra-theme\.css";/,
@@ -95,3 +96,21 @@ assert.match(theme, /\.ax-modern-shell \.institutional-banner\s*\{[^}]*backgroun
   "The workspace banner must not fall back to a light legacy surface.");
 assert.match(theme, /\.ax-modern-shell \.module-card,[\s\S]*?background:\s*var\(--axiv-surface\)/s,
   "Workspace cards must use the shared marine surface.");
+
+
+assert.match(orbitalHub, /window\.matchMedia\("\(prefers-reduced-motion: reduce\)"\)/,
+  "The orbital UI must detect the user's system reduced-motion preference.");
+assert.match(orbitalHub, /motionPreference\.addEventListener\("change", syncMotionPreference\)/,
+  "The orbital UI must react when the reduced-motion preference changes.");
+assert.match(orbitalHub, /disabled=\{motionSuppressed\}/,
+  "The rotation control must not offer an ineffective action in grid or reduced-motion mode.");
+assert.match(orbitalHub, /if \(motionSuppressed\) \{[\s\S]*?onOpen\(name\);[\s\S]*?return;/,
+  "Grid and reduced-motion navigation must not impose an artificial animation delay.");
+assert.match(orbitalHub, /onMouseLeave=\{\(\) => setFocused\(/,
+  "Hover focus must clear when the pointer leaves a workspace node.");
+assert.match(orbitalHub, /role="group" aria-label="Selectable workspace orbits"/,
+  "Workspace node collection must expose a named group to assistive technology.");
+assert.match(theme, /\.ax-modern-shell \.ax-orbit-hub \.ax-orbit-node-inspect\s*\{[^}]*width:\s*28px;[^}]*height:\s*28px/s,
+  "Workspace inspection controls must use larger touch targets.");
+assert.match(theme, /\.ax-modern-shell \.ax-orbit-hub \.ax-orbit-motion-toggle:disabled/,
+  "Reduced-motion and grid-view controls must communicate their disabled state.");
