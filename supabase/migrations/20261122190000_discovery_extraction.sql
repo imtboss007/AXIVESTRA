@@ -438,6 +438,10 @@ begin
   ) then
     raise exception 'Parent discovery job, profile or source attachment is no longer eligible for extraction' using errcode = '42501';
   end if;
+  if v_source.field_schema is distinct from p_run->'source_field_schema_snapshot'
+    or to_jsonb(v_source.allowed_fields) is distinct from p_run->'source_allowed_fields_snapshot' then
+    raise exception 'Source extraction schema changed during processing; retry against the current reviewed schema' using errcode = '40001';
+  end if;
 
   insert into public.discovery_extraction_runs(
     company_id, extraction_job_id, evidence_id, source_id,
