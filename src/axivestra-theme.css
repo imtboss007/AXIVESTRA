@@ -1450,3 +1450,113 @@ body { background: #0b1420; color: #e8f0f4; }
     height: 30px;
   }
 }
+
+
+/* Portfolio intelligence — clear hierarchy, usable controls and dark chart surfaces. */
+.ax-modern-shell .ax-analytics-panel {
+  border: 1px solid var(--axiv-line);
+  border-radius: 18px;
+  color: var(--axiv-ink);
+  background: linear-gradient(145deg,#132638 0%,#0d1f2e 100%);
+  box-shadow: var(--axiv-shadow);
+}
+.ax-modern-shell .ax-panel-topline {
+  color: #a7c3c8;
+}
+.ax-modern-shell .ax-analytics-heading h2 { color: var(--axiv-ink); }
+.ax-modern-shell .ax-analytics-heading p,
+.ax-modern-shell .ax-chart-mode-title p { color: var(--axiv-muted); }
+.ax-modern-shell .ax-chart-type,
+.ax-modern-shell .ax-analytics-tabs,
+.ax-modern-shell .ax-metric-switch {
+  border-color: var(--axiv-line);
+  background: #0e2030;
+}
+.ax-modern-shell .ax-chart-type button,
+.ax-modern-shell .ax-analytics-tabs > button,
+.ax-modern-shell .ax-metric-switch button {
+  min-height: 38px;
+  color: var(--axiv-body);
+  border-color: transparent;
+  background: transparent;
+}
+.ax-modern-shell .ax-chart-type button[aria-pressed="true"],
+.ax-modern-shell .ax-analytics-tabs > button[aria-selected="true"],
+.ax-modern-shell .ax-metric-switch button.active {
+  color: #e8f5f1;
+  border-color: #3d7774;
+  background: #193d43;
+  box-shadow: inset 0 1px rgba(255,255,255,.04);
+}
+.ax-modern-shell .ax-chart-type button:focus-visible,
+.ax-modern-shell .ax-analytics-tabs > button:focus-visible,
+.ax-modern-shell .ax-metric-switch button:focus-visible,
+.ax-modern-shell .ax-chart-legend button:focus-visible {
+  outline: 2px solid #8acdc1;
+  outline-offset: 2px;
+}
+.ax-modern-shell .ax-chart-stage {
+  min-width: 0;
+  border: 1px solid #294254;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 50% 42%,rgba(59,145,137,.12),transparent 70%),#0d1d2b;
+}
+.ax-modern-shell .ax-chart-inspector {
+  min-width: 0;
+  color: var(--axiv-ink);
+  border: 1px solid var(--axiv-line);
+  border-radius: 14px;
+  background: linear-gradient(155deg,#172f40,#102334);
+}
+.ax-modern-shell .ax-inspector-head { color: #8ec5bb; border-bottom-color: #294254; }
+.ax-modern-shell .ax-inspector-head svg { color: #8ec5bb; }
+.ax-modern-shell .ax-inspector-total { color: #eef5f4; font-variant-numeric: tabular-nums; }
+.ax-modern-shell .ax-chart-inspector > small,
+.ax-modern-shell .ax-inspector-pair span { color: var(--axiv-muted); }
+.ax-modern-shell .ax-inspector-pair { border-bottom-color: #294254; }
+.ax-modern-shell .ax-inspector-pair strong { color: var(--axiv-ink); font-variant-numeric: tabular-nums; }
+.ax-modern-shell .ax-toggle-row { color: var(--axiv-body); }
+.ax-modern-shell .ax-toggle-row input { accent-color: var(--axiv-primary); }
+.ax-modern-shell .ax-inspector-action {
+  min-height: 42px;
+  color: #eaf5f2;
+  border-color: #3c7772;
+  background: #173c42;
+}
+.ax-modern-shell .ax-inspector-action:hover:not(:disabled) {
+  border-color: #68a99f;
+  background: #1b4a4c;
+}
+.ax-modern-shell .ax-inspector-action:disabled { opacity: .5; }
+.ax-modern-shell .ax-chart-empty { color: var(--axiv-ink); }
+.ax-modern-shell .ax-chart-empty strong { color: #eaf1f5; }
+.ax-modern-shell .ax-chart-empty p { color: var(--axiv-muted); }
+.ax-modern-shell .ax-chart-empty small { color: #8099a7; }
+.ax-modern-shell .ax-empty-chart-ring circle { stroke: #294254; }
+.ax-modern-shell .ax-chart-legend button {
+  min-width: 0;
+  min-height: 42px;
+  color: var(--axiv-body);
+  border-color: var(--axiv-line);
+  background: #122638;
+}
+.ax-modern-shell .ax-chart-legend button:hover,
+.ax-modern-shell .ax-chart-legend button.selected {
+  color: #eef6f4;
+  border-color: #4a827d;
+  background: #193d43;
+}
+.ax-modern-shell .ax-chart-legend button span { color: var(--axiv-body); }
+.ax-modern-shell .ax-chart-legend button strong { color: var(--axiv-ink); font-variant-numeric: tabular-nums; }
+.ax-modern-shell .ax-chart-mode-title strong { color: #eaf1f5; }
+.ax-modern-shell .ax-chart-mode-title p { color: var(--axiv-muted); }
+@media (max-width: 760px) {
+  .ax-modern-shell .ax-analytics-grid { grid-template-columns: minmax(0,1fr); }
+  .ax-modern-shell .ax-chart-inspector { min-height: 0; }
+}
+@media (max-width: 520px) {
+  .ax-modern-shell .ax-chart-type button,
+  .ax-modern-shell .ax-analytics-tabs > button { min-height: 40px; }
+  .ax-modern-shell .ax-chart-legend { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .ax-modern-shell .ax-chart-legend button { padding: 9px 8px; }
+}
