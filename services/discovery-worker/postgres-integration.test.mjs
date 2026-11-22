@@ -291,6 +291,55 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     );
     assert.equal(failedInvalidClaim.rows[0].ok,true);
 
+    // Two extraction consumers must claim separate jobs under PostgreSQL row locks.
+    const parallelParentJobs = [
+      "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5",
+      "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6"
+    ];
+    const parallelEvidenceIds = [
+      "ffffffff-ffff-4fff-8fff-fffffffffff1",
+      "ffffffff-ffff-4fff-8fff-fffffffffff2"
+    ];
+    await pool.query(`
+      insert into public.discovery_jobs(
+        id,company_id,profile_id,source_id,requested_by,status,payload,idempotency_key,started_at,finished_at
+      ) values
+        ($1,$3,$4,$5,$6,'succeeded',
+          '{"purpose":"company identity verification","criteria":{},"candidateUrls":["https://registry.example.gov.in/api/v1/entities/3"]}'::jsonb,
+          'integration-evidence-job-0005',now(),now()),
+        ($2,$3,$4,$5,$6,'succeeded',
+          '{"purpose":"company identity verification","criteria":{},"candidateUrls":["https://registry.example.gov.in/api/v1/entities/4"]}'::jsonb,
+          'integration-evidence-job-0006',now(),now())
+    `, [parallelParentJobs[0],parallelParentJobs[1],companyId,profileId,sourceId,actorId]);
+    await pool.query(`
+      insert into public.discovery_evidence_items(
+        id,company_id,job_id,source_id,canonical_url,captured_at,content_hash,raw_blob_ref,
+        content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
+      ) values
+        ($1,$3,$4,$5,'https://registry.example.gov.in/api/v1/entities/3',now(),
+          repeat('e',64),'discovery-evidence:'||$3||'/'||$4||'/'||$1||'-'||repeat('e',64)||'.bin',
+          'application/json',20,'Example registry','IN','{"retention_days":30}'::jsonb,'{}'::jsonb),
+        ($2,$3,$6,$5,'https://registry.example.gov.in/api/v1/entities/4',now(),
+          repeat('f',64),'discovery-evidence:'||$3||'/'||$6||'/'||$2||'-'||repeat('f',64)||'.bin',
+          'application/json',20,'Example registry','IN','{"retention_days":30}'::jsonb,'{}'::jsonb)
+    `, [
+      parallelEvidenceIds[0],parallelEvidenceIds[1],companyId,
+      parallelParentJobs[0],sourceId,parallelParentJobs[1]
+    ]);
+    const parallelClaims = await Promise.all([
+      pool.query("select * from public.claim_discovery_extraction_job($1,90)", ["extraction-parallel-worker-1"]),
+      pool.query("select * from public.claim_discovery_extraction_job($1,90)", ["extraction-parallel-worker-2"])
+    ]);
+    const parallelClaimed = parallelClaims.flatMap(result => result.rows);
+    assert.equal(parallelClaimed.length,2,"two extraction worker slots must claim two separate queued evidence jobs");
+    assert.notEqual(parallelClaimed[0].id,parallelClaimed[1].id,"SKIP LOCKED must not hand one job to two workers");
+    await Promise.all(parallelClaimed.map(job =>
+      pool.query(
+        "select public.fail_discovery_extraction_job($1,$2,$3,$4)",
+        [job.id,job.lease_owner,"PARALLEL_CLAIM_TEST_CLEANUP","End-to-end parallel claim test cleanup"]
+      )
+    ));
+
     await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
     const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
     assert.equal(expiredEvidence.rows.length, 1, "per-source evidence retention is enforced by PostgreSQL");
