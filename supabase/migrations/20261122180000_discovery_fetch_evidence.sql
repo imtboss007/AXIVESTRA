@@ -59,7 +59,7 @@ create table if not exists public.discovery_fetch_events (
   company_id uuid not null references public.companies(id) on delete cascade,
   job_id uuid not null references public.discovery_jobs(id) on delete cascade,
   source_id uuid not null references public.discovery_source_registry(id) on delete restrict,
-  evidence_id uuid references public.discovery_evidence_items(id) on delete set null,
+  evidence_id uuid, -- retained as a historical identifier even after evidence retention purge
   event_type text not null check (event_type in (
     'request_started','response_received','request_failed','quota_denied',
     'robots_blocked','cache_hit','policy_rejected','worker_paused'
