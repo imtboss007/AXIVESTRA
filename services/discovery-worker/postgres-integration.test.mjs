@@ -1170,11 +1170,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durableEnrichmentReviews.rows[0].has_conflict_review,true);
 
     // E12 creates idempotent exact-match candidates and records human review without merging.
-    const duplicateCanonicalId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
     await pool.query(
       "insert into public.discovery_canonical_entities(company_id,entity_kind,legal_name,normalized_name,jurisdiction,entity_type,status,source_evidence_id,created_by) values($1,'organization','Acme Holdings Ltd','acme holdings','IN','company','active',$2,$3)",
       [companyId,evidenceId,actorId]
-    ).then(async () => {});
+    );
     const duplicateGenerated = await pool.query(
       "select public.generate_discovery_deduplication_candidates($1) as count",
       [companyId]
