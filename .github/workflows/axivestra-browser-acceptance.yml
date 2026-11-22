@@ -3,6 +3,7 @@ name: AXIVESTRA browser acceptance
 on:
   pull_request:
     branches: [main]
+    
     paths:
       - "src/**"
       - "index.html"
@@ -11,7 +12,7 @@ on:
       - "tests/browser/**"
       - ".github/workflows/axivestra-browser-acceptance.yml"
   push:
-    branches: [main]
+    branches: [main, feature/axivestra-visual-integration]
     paths:
       - "src/**"
       - "index.html"
