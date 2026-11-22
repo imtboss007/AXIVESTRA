@@ -117,7 +117,7 @@ test("connector evidence fetch validates host and path before adapter execution"
     async fetchEvidence({ candidate }) { called = true; return candidate.url; }
   });
   const source = approvedSource();
-  await assert.rejects(() => registry.fetchEvidence(source, { url: "https://elsewhere.example.org/api/v1/entities" }), /exact approved source domain/);
+  await assert.rejects(() => registry.fetchEvidence(source, { url: "https://elsewhere.example.org/api/v1/entities" }), /exact approved source origin/);
   assert.equal(called, false);
   assert.equal(await registry.fetchEvidence(source, { url: "https://registry.example.gov.in/api/v1/entities/42" }), "https://registry.example.gov.in/api/v1/entities/42");
   assert.equal(called, true);
