@@ -8,6 +8,10 @@ import {
   assertAllowedSourceUrl
 } from "../../../supabase/functions/_shared/discovery-policy.mjs";
 import { ConnectorRegistry } from "../../../supabase/functions/_shared/discovery-connector-registry.mjs";
+import {
+  createExecutionSession,
+  buildEvidenceProvenance
+} from "../../../supabase/functions/_shared/discovery-execution-policy.mjs";
 
 const baseSource = {
   name: "Example company registry",
@@ -26,6 +30,7 @@ const baseSource = {
 function approvedSource() {
   const pending = normalizeSourceRegistration(baseSource);
   return {
+    id: "source-test-1",
     ...pending,
     ...normalizeSourceReview({ status: "approved", legalBasis: baseSource.legalBasis }, {
       ...pending,
@@ -35,6 +40,17 @@ function approvedSource() {
     }, "reviewer-user-id")
   };
 }
+
+function session(source, options = {}) {
+  return createExecutionSession(source, {
+    jobId: "job-test-1",
+    wait: async () => {},
+    ...options
+  });
+}
+
+const purpose = "company identity verification";
+const endpoint = "https://registry.example.gov.in/api/v1/entities";
 
 test("source registration normalises exact HTTPS host and always begins pending", () => {
   const source = normalizeSourceRegistration(baseSource);
@@ -85,27 +101,35 @@ test("personal-loan customer discovery cannot be enabled or attached to internet
 
 test("source path policy enforces exact host and path boundaries", () => {
   const source = approvedSource();
-  assert.equal(assertAllowedSourceUrl(source, "https://registry.example.gov.in/api/v1/entities/123").hostname, "registry.example.gov.in");
+  assert.equal(assertAllowedSourceUrl(source, endpoint + "/123").hostname, "registry.example.gov.in");
   assert.throws(() => assertAllowedSourceUrl(source, "https://sub.registry.example.gov.in/api/v1/entities"), /exact approved source origin/);
   assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /exact approved source origin/);
   assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in/private"), /approved source path list/);
   assert.throws(() => assertAllowedSourceUrl(source, "http://registry.example.gov.in/api/v1/entities"), /HTTPS/);
 });
 
-test("connector registry refuses unknown sources and missing adapters", async () => {
+test("connector registry refuses unapproved sources and missing adapters", async () => {
   const registry = new ConnectorRegistry();
-  await assert.rejects(() => registry.search({ ...approvedSource(), status: "pending" }, { text: "company", limit: 5 }), /Only an approved source/);
-  await assert.rejects(() => registry.search(approvedSource(), { text: "company", limit: 5, endpointUrl: "https://registry.example.gov.in/api/v1/entities" }), /No implementation is installed/);
+  const pending = { ...approvedSource(), status: "pending" };
+  await assert.rejects(() => registry.search(pending, { text: "company", limit: 5 }, {
+    purpose, executionSession: session(pending)
+  }), /Only an approved source/);
+  await assert.rejects(() => registry.search(approvedSource(), { text: "company", limit: 5 }, {
+    purpose, executionSession: session(approvedSource())
+  }), /No implementation is installed/);
 });
 
 test("connector registry rejects unbounded search limits", async () => {
   const registry = new ConnectorRegistry();
+  const source = approvedSource();
   registry.register({
     key: "official_api",
     async search() { return []; },
     async fetchEvidence() { return {}; }
   });
-  await assert.rejects(() => registry.search({ ...approvedSource(), max_pages_per_job: 2 }, { text: "company", limit: 51, endpointUrl: "https://registry.example.gov.in/api/v1/entities" }), /outside the approved job bounds/);
+  await assert.rejects(() => registry.search(source, { text: "company", limit: 51, endpointUrl: endpoint }, {
+    purpose, executionSession: session(source)
+  }), /outside the approved job bounds/);
 });
 
 test("connector evidence fetch validates host and path before adapter execution", async () => {
@@ -114,12 +138,22 @@ test("connector evidence fetch validates host and path before adapter execution"
   registry.register({
     key: "official_api",
     async search() { return []; },
-    async fetchEvidence({ candidate }) { called = true; return candidate.url; }
+    async fetchEvidence({ candidate, context }) {
+      called = true;
+      assert.ok(context.signal instanceof AbortSignal);
+      assert.equal(context.jobId, "job-test-1");
+      return candidate.url;
+    }
   });
   const source = approvedSource();
-  await assert.rejects(() => registry.fetchEvidence(source, { url: "https://elsewhere.example.org/api/v1/entities" }), /exact approved source origin/);
+  const jobSession = session(source);
+  await assert.rejects(() => registry.fetchEvidence(source, { url: "https://elsewhere.example.org/api/v1/entities" }, {
+    purpose, executionSession: jobSession
+  }), /exact approved source origin/);
   assert.equal(called, false);
-  assert.equal(await registry.fetchEvidence(source, { url: "https://registry.example.gov.in/api/v1/entities/42" }), "https://registry.example.gov.in/api/v1/entities/42");
+  assert.equal(await registry.fetchEvidence(source, { url: endpoint + "/42" }, {
+    purpose, executionSession: jobSession
+  }), endpoint + "/42");
   assert.equal(called, true);
 });
 
@@ -136,16 +170,16 @@ test("manual research connector accepts explicit user-supplied evidence only", a
     source_type: "manual_research"
   };
   const evidence = { sourceUrl: "https://registry.example.gov.in/public-record", note: "User reviewed source" };
-  assert.deepEqual(await registry.recordManual(source, evidence), evidence);
+  assert.deepEqual(await registry.recordManual(source, evidence, { purpose }), evidence);
   assert.equal(received, true);
-  await assert.rejects(() => registry.recordManual(source, "not-an-object"), /must be an object/);
+  await assert.rejects(() => registry.recordManual(source, "not-an-object", { purpose }), /must be an object/);
 });
 
 test("source attachment enforces exact approved purpose and field allow-lists", () => {
   const profile = {
     workspace_key: "startup",
     discovery_mode: "LENDER",
-    purpose: "company identity verification",
+    purpose,
     criteria: { requiredFields: ["legal_name", "registration_id"] }
   };
   assert.equal(assertSourceCanBeAttached(profile, approvedSource()), true);
@@ -162,17 +196,17 @@ test("connector search endpoint is checked against exact approved host and paths
     async fetchEvidence() { return {}; }
   });
   const source = approvedSource();
+  const jobSession = session(source);
   await assert.rejects(() => registry.search(source, {
     text: "company", limit: 10, endpointUrl: "https://registry.example.gov.in/private"
-  }), /approved source path list/);
+  }, { purpose, executionSession: jobSession }), /approved source path list/);
   await registry.search(source, {
-    text: "company", limit: 10, endpointUrl: "https://registry.example.gov.in/api/v1/entities/search"
-  });
-  assert.equal(seenEndpoint, "https://registry.example.gov.in/api/v1/entities/search");
+    text: "company", limit: 10, endpointUrl: endpoint + "/search"
+  }, { purpose, executionSession: jobSession });
+  assert.equal(seenEndpoint, endpoint + "/search");
 });
 
 test("a paused or rejected source is not eligible for source use", async () => {
-  const pending = normalizeSourceRegistration(baseSource);
   const approved = approvedSource();
   const paused = { ...approved, ...normalizeSourceReview({ status: "paused", reason: "policy review" }, approved, "reviewer") };
   const rejected = { ...approved, ...normalizeSourceReview({ status: "rejected", reason: "terms do not permit reuse" }, approved, "reviewer") };
@@ -182,6 +216,102 @@ test("a paused or rejected source is not eligible for source use", async () => {
     async search() { return []; },
     async fetchEvidence() { return {}; }
   });
-  await assert.rejects(() => registry.search(paused, { text: "company", limit: 5 }), /Only an approved source/);
-  await assert.rejects(() => registry.search(rejected, { text: "company", limit: 5 }), /Only an approved source/);
+  await assert.rejects(() => registry.search(paused, { text: "company", limit: 5 }, {
+    purpose, executionSession: session(paused)
+  }), /Only an approved source/);
+  await assert.rejects(() => registry.search(rejected, { text: "company", limit: 5 }, {
+    purpose, executionSession: session(rejected)
+  }), /Only an approved source/);
+});
+
+test("a job cannot fetch more evidence pages than the source page budget", async () => {
+  const registry = new ConnectorRegistry();
+  let calls = 0;
+  registry.register({
+    key: "official_api",
+    async search() { return []; },
+    async fetchEvidence() { calls += 1; return { ok: true }; }
+  });
+  const source = { ...approvedSource(), max_pages_per_job: 1 };
+  const jobSession = session(source);
+  await registry.fetchEvidence(source, { url: endpoint + "/1" }, { purpose, executionSession: jobSession });
+  await assert.rejects(() => registry.fetchEvidence(source, { url: endpoint + "/2" }, {
+    purpose, executionSession: jobSession
+  }), /maximum pages per job/);
+  assert.equal(calls, 1);
+  assert.equal(jobSession.snapshot().pageCount, 1);
+});
+
+test("each connector call is spaced at the source's declared per-minute rate", async () => {
+  const source = approvedSource();
+  let clock = 1000;
+  const delays = [];
+  const jobSession = createExecutionSession(source, {
+    jobId: "rate-test",
+    now: () => clock,
+    wait: async milliseconds => { delays.push(milliseconds); clock += milliseconds; }
+  });
+  await jobSession.run("search", async () => "one");
+  await jobSession.run("search", async () => "two");
+  assert.ok(delays.some(delay => delay >= 1000));
+});
+
+test("connector timeout aborts the adapter signal and rejects the operation", async () => {
+  const source = approvedSource();
+  const jobSession = createExecutionSession(source, { jobId: "timeout-test", timeoutMs: 5, wait: async () => {} });
+  await assert.rejects(() => jobSession.run("search", ({ signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new Error("adapter aborted")), { once: true });
+  })), /adapter aborted|configured timeout/);
+});
+
+test("only explicitly retryable transient errors use the configured retry budget", async () => {
+  const source = approvedSource();
+  const jobSession = createExecutionSession(source, { jobId: "retry-test", maxRetries: 1, wait: async () => {} });
+  let calls = 0;
+  const result = await jobSession.run("search", async () => {
+    calls += 1;
+    if (calls === 1) {
+      const error = new Error("temporary network failure");
+      error.retryable = true;
+      throw error;
+    }
+    return "recovered";
+  });
+  assert.equal(result, "recovered");
+  assert.equal(calls, 2);
+  assert.equal(jobSession.snapshot().requestCount, 2);
+});
+
+test("evidence provenance records the reviewed source and rejects fields outside its allow-list", () => {
+  const source = approvedSource();
+  const provenance = buildEvidenceProvenance(source, {
+    jobId: "job-provenance",
+    purpose,
+    url: endpoint + "/42",
+    fields: ["legal_name", "registration_id"],
+    retrievedAt: "2026-11-22T10:00:00.000Z"
+  });
+  assert.equal(provenance.source_id, source.id);
+  assert.equal(provenance.purpose, purpose);
+  assert.deepEqual(provenance.observed_fields, ["legal_name", "registration_id"]);
+  assert.equal(provenance.license_ref, baseSource.licenseRef);
+  assert.throws(() => buildEvidenceProvenance(source, {
+    jobId: "job-provenance", purpose, url: endpoint + "/42", fields: ["personal_mobile"]
+  }), /field allow-list/);
+  assert.throws(() => buildEvidenceProvenance(source, {
+    jobId: "job-provenance", purpose: "unapproved purpose", url: endpoint + "/42"
+  }), /purpose allow-list/);
+});
+
+test("connector search refuses adapter results above the requested result limit", async () => {
+  const registry = new ConnectorRegistry();
+  registry.register({
+    key: "official_api",
+    async search() { return Array.from({ length: 3 }, (_, index) => index); },
+    async fetchEvidence() { return {}; }
+  });
+  const source = approvedSource();
+  await assert.rejects(() => registry.search(source, { text: "company", limit: 2 }, {
+    purpose, executionSession: session(source)
+  }), /more results than the approved search limit/);
 });
