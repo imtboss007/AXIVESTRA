@@ -11,6 +11,7 @@ on:
       - feat/discovery-e05-complete
       - feat/discovery-e06-entity-intelligence
       - feat/discovery-e07-professional-roles
+      - feat/discovery-e08-contact-validation
   pull_request:
     branches:
       - main
@@ -18,6 +19,8 @@ on:
       - feat/discovery-e04-complete
       - feat/discovery-e05-complete
       - feat/discovery-e06-entity-intelligence
+      - feat/discovery-e07-professional-roles
+      - feat/discovery-e08-contact-validation
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
