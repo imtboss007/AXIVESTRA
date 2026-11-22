@@ -23,7 +23,7 @@ test("fetch destination guard rejects private, loopback, link-local and reserved
 });
 
 test("fetch destination guard accepts only public global-unicast IPv6", () => {
-  for (const ip of ["::1","::","fe80::1","fc00::1","ff02::1","2001:db8::1","2002::1"]) {
+  for (const ip of ["::1","::","fe80::1","fc00::1","ff02::1","2001:db8::1","2001:2::1","2001:20::1","2002::1","3fff::1","5f00::1"]) {
     assert.equal(isPublicAddress(ip), false, ip);
   }
   assert.equal(isPublicAddress("2606:4700:4700::1111"), true);
