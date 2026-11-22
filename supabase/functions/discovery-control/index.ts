@@ -139,6 +139,33 @@ Deno.serve(async request => {
       return jsonResponse(200, { ok: true, jobs: data || [] });
     }
 
+    if (action === "extractions.list") {
+      const { data: runs, error: runsError } = await admin.from("discovery_extraction_runs")
+        .select("id,extraction_job_id,evidence_id,source_id,extractor_version,schema_hash,extraction_method,status,extracted_entity_count,fact_count,invalid_fact_count,warnings,source_content_hash,completed_at")
+        .eq("company_id", companyId).order("completed_at", { ascending: false }).limit(25);
+      if (runsError) throw runsError;
+      const runIds = (runs || []).map((run: { id: string }) => run.id);
+      if (!runIds.length) return jsonResponse(200, { ok: true, runs: [], facts: [], entities: [], reviews: [] });
+      const [{ data: facts, error: factsError }, { data: entities, error: entitiesError }, { data: reviews, error: reviewsError }] = await Promise.all([
+        admin.from("discovery_extracted_facts")
+          .select("id,extraction_run_id,evidence_id,extracted_entity_id,field_name,value_type,raw_value,normalized_value,source_span,confidence,validation_status,validation_message,extraction_method,created_at")
+          .eq("company_id", companyId).in("extraction_run_id", runIds).order("created_at", { ascending: true }).limit(1000),
+        admin.from("discovery_extracted_entities")
+          .select("id,extraction_run_id,evidence_id,mention_key,entity_kind,raw_name,normalized_name,source_span,confidence,extraction_method,created_at")
+          .eq("company_id", companyId).in("extraction_run_id", runIds).order("created_at", { ascending: true }).limit(500),
+        admin.from("discovery_extraction_review_events")
+          .select("id,extraction_run_id,fact_id,extracted_entity_id,actor_user_id,decision,reason,corrected_value,occurred_at")
+          .eq("company_id", companyId).in("extraction_run_id", runIds).order("occurred_at", { ascending: false }).limit(1000)
+      ]);
+      if (factsError) throw factsError;
+      if (entitiesError) throw entitiesError;
+      if (reviewsError) throw reviewsError;
+      return jsonResponse(200, {
+        ok: true, runs: runs || [], facts: facts || [], entities: entities || [], reviews: reviews || [],
+        limits: { runs: 25, facts: 1000, entities: 500, reviews: 1000 }
+      });
+    }
+
     if (action === "jobs.enqueue") {
       if (!isUuid(payload.profileId) || !isUuid(payload.sourceId)) return jsonResponse(400, { error: "Valid profile and source IDs are required." });
       const idempotencyKey = typeof payload.idempotencyKey === "string" ? payload.idempotencyKey.trim() : "";
@@ -200,6 +227,61 @@ Deno.serve(async request => {
       });
     }
     if (!canManage && action !== "jobs.enqueue") return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources, profiles or worker permissions." });
+
+
+    if (action === "extractions.review") {
+      if (!isUuid(payload.runId)) return jsonResponse(400, { error: "A valid extraction run ID is required." });
+      const factId = isUuid(payload.factId) ? payload.factId : null;
+      const entityId = isUuid(payload.entityId) ? payload.entityId : null;
+      if (Boolean(factId) === Boolean(entityId)) return jsonResponse(400, { error: "Review exactly one extracted fact or entity mention." });
+      const decision = typeof payload.decision === "string" ? payload.decision : "";
+      if (!["accepted","rejected","corrected","escalated"].includes(decision)) {
+        return jsonResponse(400, { error: "Choose an explicit extraction review decision." });
+      }
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (!reason || reason.length > 1000) return jsonResponse(400, { error: "A review reason is required and must not exceed 1000 characters." });
+      const correctedValue = payload.correctedValue;
+      if (decision === "corrected" && correctedValue === undefined) {
+        return jsonResponse(400, { error: "A corrected value is required for a correction review event." });
+      }
+      if (correctedValue !== undefined && new TextEncoder().encode(JSON.stringify(correctedValue)).length > 4096) {
+        return jsonResponse(413, { error: "Corrected value must not exceed 4 KB." });
+      }
+      const { data: run, error: runError } = await admin.from("discovery_extraction_runs")
+        .select("id").eq("company_id", companyId).eq("id", payload.runId).maybeSingle();
+      if (runError) throw runError;
+      if (!run) return jsonResponse(404, { error: "Extraction run was not found in this company." });
+      if (factId) {
+        const { data, error } = await admin.from("discovery_extracted_facts")
+          .select("id").eq("company_id", companyId).eq("extraction_run_id", run.id).eq("id", factId).maybeSingle();
+        if (error) throw error;
+        if (!data) return jsonResponse(404, { error: "The fact was not found in this extraction run." });
+      } else {
+        const { data, error } = await admin.from("discovery_extracted_entities")
+          .select("id").eq("company_id", companyId).eq("extraction_run_id", run.id).eq("id", entityId).maybeSingle();
+        if (error) throw error;
+        if (!data) return jsonResponse(404, { error: "The entity mention was not found in this extraction run." });
+      }
+      const { data: review, error: reviewError } = await admin.from("discovery_extraction_review_events").insert({
+        company_id: companyId,
+        extraction_run_id: run.id,
+        fact_id: factId,
+        extracted_entity_id: entityId,
+        actor_user_id: caller.id,
+        decision,
+        reason,
+        corrected_value: decision === "corrected" ? correctedValue : null
+      }).select("id,decision,reason,occurred_at").single();
+      if (reviewError) throw reviewError;
+      await writeAudit(admin, {
+        company_id: companyId, actor_user_id: caller.id,
+        action: "extraction_review_recorded",
+        entity_type: "extraction_review_event",
+        entity_id: review.id,
+        details: { extractionRunId: run.id, factId, entityId, decision }
+      });
+      return jsonResponse(201, { ok: true, review, message: "Human review receipt recorded. The immutable extracted fact or entity mention was not overwritten." });
+    }
 
     if (action === "workers.control") {
       const enabled = payload.enabled === true;
