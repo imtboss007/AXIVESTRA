@@ -55,6 +55,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(deduplicationMigration);
     const deduplicationQueueMigration = await readFile(new URL("../../supabase/migrations/20261122270000_discovery_deduplication_queue.sql", import.meta.url), "utf8");
     await pool.query(deduplicationQueueMigration);
+    const provenanceMigration = await readFile(new URL("../../supabase/migrations/20261122280000_discovery_provenance_ledger.sql", import.meta.url), "utf8");
+    await pool.query(provenanceMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -171,6 +173,16 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         repeat('a',64),'discovery-evidence:company/job/evidence.bin',
         'application/json',12,'Example registry','IN','{"retention_days":1}'::jsonb,'{}'::jsonb)
     `, [evidenceId, companyId, evidenceJobId, sourceId]);
+    const evidenceCaptureLineage=await pool.query(
+      "select evidence_content_hash,source_name_snapshot,source_attribution_snapshot,evidence_retained from public.discovery_field_provenance where company_id=$1 and subject_kind='evidence' and subject_id=$2 and event_type='evidence_captured'",
+      [companyId,evidenceId]
+    );
+    assert.equal(evidenceCaptureLineage.rows.length,1,"E13 must begin lineage at original evidence capture");
+    assert.equal(evidenceCaptureLineage.rows[0].evidence_content_hash,"a".repeat(64));
+    assert.ok(evidenceCaptureLineage.rows[0].source_name_snapshot);
+    assert.ok(evidenceCaptureLineage.rows[0].source_attribution_snapshot);
+    assert.equal(evidenceCaptureLineage.rows[0].evidence_retained,true);
+
     const extractionClaim = await pool.query(
       "select * from public.claim_discovery_extraction_job($1,90)",
       ["extraction-worker-test"]
@@ -473,10 +485,35 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId,extractionRunId,evidenceId,JSON.stringify({kind:"html-text",start:20,end:28})]
     );
     const personMentionId = personMention.rows[0].id;
+    const mentionLineage=await pool.query(
+      "select event_type,field_name,evidence_content_hash,source_span from public.discovery_field_provenance where company_id=$1 and origin_table='discovery_extracted_entities' and origin_record_id=$2",
+      [companyId,personMentionId]
+    );
+    assert.equal(mentionLineage.rows.length,1,"E13 must preserve extracted-entity mention lineage");
+    assert.equal(mentionLineage.rows[0].field_name,"entity_mention");
+    assert.equal(mentionLineage.rows[0].source_span.kind,"html-text");
+    assert.match(mentionLineage.rows[0].evidence_content_hash,/^[a-f0-9]{64}$/);
     await pool.query(
       "insert into public.discovery_extracted_facts(company_id,extraction_run_id,evidence_id,extracted_entity_id,field_name,value_type,raw_value,normalized_value,source_span,confidence,validation_status) values ($1,$2,$3,$4,'job_title','string','Chief Financial Officer',to_jsonb('Chief Financial Officer'::text),'{\"kind\":\"html-text\",\"start\":30,\"end\":53}'::jsonb,0.94,'valid'),($1,$2,$3,$4,'employer_entity_id','identifier',$5,to_jsonb($5::text),'{\"kind\":\"json-pointer\",\"locator\":\"$/officers/0/company\"}'::jsonb,0.91,'valid')",
       [companyId,extractionRunId,evidenceId,personMentionId,extractedEntity.rows[0].id]
     );
+    const sourceFieldLineage = await pool.query(
+      "select field_name,evidence_id,extraction_run_id,evidence_content_hash,source_span,source_name_snapshot,source_attribution_snapshot,evidence_retained from public.discovery_field_provenance where company_id=$1 and extraction_run_id=$2 and origin_table='discovery_extracted_facts' and field_name in ('job_title','employer_entity_id') order by field_name",
+      [companyId,extractionRunId]
+    );
+    assert.equal(sourceFieldLineage.rows.length,2,"E13 must append lineage for each extracted field");
+    assert.ok(sourceFieldLineage.rows.every(row=>row.evidence_id===evidenceId));
+    assert.ok(sourceFieldLineage.rows.every(row=>/^[a-f0-9]{64}$/.test(row.evidence_content_hash)));
+    assert.ok(sourceFieldLineage.rows.every(row=>row.source_name_snapshot&&row.source_attribution_snapshot));
+    const jobTitleLineage=sourceFieldLineage.rows.find(row=>row.field_name==="job_title");
+    const employerLineage=sourceFieldLineage.rows.find(row=>row.field_name==="employer_entity_id");
+    assert.equal(jobTitleLineage.source_span.kind,"html-text");
+    assert.equal(jobTitleLineage.source_span.start,30);
+    assert.equal(employerLineage.source_span.kind,"json-pointer");
+    assert.equal(employerLineage.source_span.locator,"$/officers/0/company");
+    assert.ok(sourceFieldLineage.rows.every(row=>row.evidence_retained===true),
+      "raw evidence is retained until a purge receipt is recorded");
+
     const roleClaim = await pool.query(
       "select * from public.claim_discovery_professional_role_job($1,90)",
       ["professional-role-worker-test"]
@@ -1080,6 +1117,19 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [evidenceId]
     );
     assert.equal(purgeReceipt.rows[0].count,1,"retention sweep terminal event must be accepted by the fetch ledger");
+    const purgedLineage = await pool.query(
+      "select provenance_event_id,evidence_content_hash,evidence_retained from public.discovery_field_provenance where company_id=$1 and evidence_id=$2 and origin_table='discovery_extracted_facts' and field_name='job_title'",
+      [companyId,evidenceId]
+    );
+    assert.equal(purgedLineage.rows.length,1,"E13 source lineage must survive the evidence purge receipt");
+    assert.equal(purgedLineage.rows[0].evidence_retained,false,
+      "E13 must mark raw evidence as no longer retained after the terminal purge receipt");
+    assert.match(purgedLineage.rows[0].evidence_content_hash,/^[a-f0-9]{64}$/);
+    await assert.rejects(
+      pool.query("update public.discovery_provenance_events set decision='tampered' where id=$1",
+        [purgedLineage.rows[0].provenance_event_id]),
+      /append-only/
+    );
     await assert.rejects(
       pool.query("update public.discovery_evidence_items set attribution='changed' where id=$1", [evidenceId]),
       /immutable/
@@ -1094,6 +1144,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
 
     // E06 canonical identity and owner review receipts must outlive raw E05 evidence retention.
     await pool.query("delete from public.discovery_evidence_items where id=$1", [evidenceId]);
+    const lineageAfterRawDelete = await pool.query(
+      "select count(*)::int as count from public.discovery_field_provenance where company_id=$1 and evidence_id=$2 and field_name='job_title'",
+      [companyId,evidenceId]
+    );
+    assert.equal(lineageAfterRawDelete.rows[0].count,1,
+      "E13 provenance metadata must remain traceable after raw evidence row deletion");
     const durableEntity = await pool.query(
       "select id,legal_name,source_evidence_id from public.discovery_canonical_entities where company_id=$1 and normalized_name='acme holdings'",
       [companyId]
@@ -1197,6 +1253,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select id,left_record_id,right_record_id,review_state from public.discovery_deduplication_candidates where company_id=$1 and candidate_kind='organization' and match_rule='exact_legal_name'",[companyId]);
     assert.equal(duplicateCandidate.rows.length,1);
     assert.equal(duplicateCandidate.rows[0].review_state,"pending_review");
+    const duplicateCandidateLineage=await pool.query(
+      "select event_type,event_metadata from public.discovery_field_provenance where company_id=$1 and origin_table='discovery_deduplication_candidates' and origin_record_id=$2",
+      [companyId,duplicateCandidate.rows[0].id]
+    );
+    assert.equal(duplicateCandidateLineage.rows.length,1,"E13 must capture E12 candidate creation");
+    assert.equal(duplicateCandidateLineage.rows[0].event_type,"deduplication_candidate_created");
 
     const secondDedupClaim=await pool.query(
       "select * from public.claim_discovery_deduplication_job($1,90)",["deduplication-worker-integration-two"]);
@@ -1208,10 +1270,34 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select status from public.discovery_deduplication_jobs where company_id=$1",[companyId]);
     assert.equal(completedDedupJob.rows[0].status,"succeeded");
 
+    const matchResult=await pool.query(
+      `insert into public.discovery_match_results(
+        company_id,canonical_entity_id,workspace_key,criteria_version,
+        criteria_snapshot,candidate_snapshot,score,confidence,eligible,method,created_by
+      ) values($1,$2,'startup','integration-v1','{}'::jsonb,'{}'::jsonb,82.5,0.90,true,
+        'deterministic_weighted_rules_v1',$3) returning id`,
+      [companyId,duplicateCandidate.rows[0].left_record_id,actorId]
+    );
+    const matchLineage=await pool.query(
+      "select event_type,event_metadata from public.discovery_field_provenance where company_id=$1 and origin_table='discovery_match_results' and origin_record_id=$2",
+      [companyId,matchResult.rows[0].id]
+    );
+    assert.equal(matchLineage.rows.length,1,"E13 must capture E11 score provenance");
+    assert.equal(matchLineage.rows[0].event_type,"match_score_recorded");
+    assert.equal(Number(matchLineage.rows[0].event_metadata.score),82.5);
+
     const duplicateReview=await pool.query(
       "select * from public.record_discovery_deduplication_review($1,$2,$3,'confirmed_duplicate',$4)",
       [companyId,actorId,duplicateCandidate.rows[0].id,"Integration fixture confirms an exact same-jurisdiction legal-name duplicate."]);
     assert.equal(duplicateReview.rows[0].decision,"confirmed_duplicate");
+    const duplicateReviewLineage=await pool.query(
+      "select event_type,decision,actor_user_id from public.discovery_field_provenance where company_id=$1 and origin_table='discovery_deduplication_review_events' and origin_record_id=$2",
+      [companyId,duplicateReview.rows[0].id]
+    );
+    assert.equal(duplicateReviewLineage.rows.length,1,"E13 must preserve E12 human review");
+    assert.equal(duplicateReviewLineage.rows[0].event_type,"deduplication_reviewed");
+    assert.equal(duplicateReviewLineage.rows[0].decision,"confirmed_duplicate");
+    assert.equal(duplicateReviewLineage.rows[0].actor_user_id,actorId);
     const duplicateStillActive=await pool.query(
       "select count(*)::int as count from public.discovery_canonical_entities where company_id=$1 and id in ($2,$3) and status='active'",
       [companyId,duplicateCandidate.rows[0].left_record_id,duplicateCandidate.rows[0].right_record_id]);

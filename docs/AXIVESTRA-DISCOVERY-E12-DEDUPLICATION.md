@@ -1,8 +1,8 @@
 # AXIVESTRA E12 — Deduplication & Relationship Graph
 
 **Implementation:** feat/discovery-e11-explainable-matching  
-**Stage:** deterministic duplicate candidate engine and reviewed graph read model implemented; CI verification pending.  
-**Activation:** candidate generation is an explicit server-side RPC; no background worker or automatic merge is enabled.
+**Stage:** deterministic duplicate candidate engine, reviewed graph read model, coalesced queue/worker integration and PostgreSQL integration coverage implemented. E12 CI passed at branch head `96622f2` before the E13 changes.  
+**Activation:** the worker is opt-in through `DISCOVERY_DEDUPLICATION_WORKER_ENABLED=true`, and each company also requires a temporary owner/admin worker grant. No company grant is created by the migration; no production worker is activated.
 
 ## Matrix scope
 
@@ -29,9 +29,9 @@ E12 covers duplicate organizations, professional people and contact points while
 
 deduplication.test.mjs covers exact jurisdiction-scoped company matches, registry identifiers, aliases, professional-role overlap, contact fingerprint privacy, no automatic merge, and bounded results. The SQL contract test checks company scope, owner/admin review, immutable receipts and accepted-edge graph semantics.
 
-## Not yet complete
+## Deliberately deferred
 
-The E12 RPC is not yet wired to an automatic queue/worker or review UI. Merge execution, cross-workspace relationship presentation, full Postgres runtime migration test and production activation remain pending. Do not treat candidate generation as active until the server explicitly invokes the RPC under its authenticated company scope.
+The E12 queue and worker are implemented, but remain disabled by default and require the temporary company-level owner/admin grant. The review UI, safe merge execution and cross-workspace relationship presentation remain pending. A confirmed-duplicate decision is not a merge; no records are rewritten or deleted. Production activation remains separate and requires explicit approval.
 
 
 ## Queue and worker integration (E12.1)
