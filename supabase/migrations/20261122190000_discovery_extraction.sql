@@ -74,6 +74,8 @@ create table if not exists public.discovery_extraction_jobs (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(company_id, evidence_id),
+  unique(company_id, id),
+  unique(company_id, id, evidence_id, source_id),
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade,
   foreign key (company_id, source_id)
@@ -89,7 +91,7 @@ create index if not exists discovery_extraction_jobs_company_idx
 create table if not exists public.discovery_extraction_runs (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  extraction_job_id uuid not null references public.discovery_extraction_jobs(id) on delete cascade,
+  extraction_job_id uuid not null,
   evidence_id uuid not null,
   source_id uuid not null,
   extractor_version text not null,
@@ -104,6 +106,9 @@ create table if not exists public.discovery_extraction_runs (
   completed_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   unique(company_id, id),
+  unique(company_id, id, evidence_id),
+  foreign key (company_id, extraction_job_id, evidence_id, source_id)
+    references public.discovery_extraction_jobs(company_id, id, evidence_id, source_id) on delete cascade,
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade,
   foreign key (company_id, source_id)
@@ -116,7 +121,7 @@ create index if not exists discovery_extraction_runs_evidence_idx
 create table if not exists public.discovery_extracted_entities (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  extraction_run_id uuid not null references public.discovery_extraction_runs(id) on delete cascade,
+  extraction_run_id uuid not null,
   evidence_id uuid not null,
   mention_key text not null check (length(mention_key) between 1 and 160),
   entity_kind text not null check (entity_kind in ('organization','person','location','unknown')),
@@ -129,6 +134,9 @@ create table if not exists public.discovery_extracted_entities (
   created_at timestamptz not null default now(),
   unique(extraction_run_id, mention_key),
   unique(company_id, id),
+  unique(company_id, extraction_run_id, id),
+  foreign key (company_id, extraction_run_id, evidence_id)
+    references public.discovery_extraction_runs(company_id, id, evidence_id) on delete cascade,
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade
 );
@@ -157,6 +165,9 @@ create table if not exists public.discovery_extracted_facts (
     check (extraction_method in ('deterministic','llm_experimental')),
   created_at timestamptz not null default now(),
   unique(company_id, id),
+  unique(company_id, extraction_run_id, id),
+  foreign key (company_id, extraction_run_id, evidence_id)
+    references public.discovery_extraction_runs(company_id, id, evidence_id) on delete cascade,
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade,
   foreign key (company_id, extracted_entity_id)
@@ -182,10 +193,10 @@ create table if not exists public.discovery_extraction_review_events (
   check (fact_id is not null or extracted_entity_id is not null),
   foreign key (company_id, extraction_run_id)
     references public.discovery_extraction_runs(company_id, id) on delete cascade,
-  foreign key (company_id, fact_id)
-    references public.discovery_extracted_facts(company_id, id) on delete cascade,
-  foreign key (company_id, extracted_entity_id)
-    references public.discovery_extracted_entities(company_id, id) on delete cascade
+  foreign key (company_id, extraction_run_id, fact_id)
+    references public.discovery_extracted_facts(company_id, extraction_run_id, id) on delete cascade,
+  foreign key (company_id, extraction_run_id, extracted_entity_id)
+    references public.discovery_extracted_entities(company_id, extraction_run_id, id) on delete cascade
 );
 
 create index if not exists discovery_extraction_review_events_run_idx
