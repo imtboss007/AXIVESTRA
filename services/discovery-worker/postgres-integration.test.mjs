@@ -37,12 +37,14 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const extractionMigration = await readFile(new URL("../../supabase/migrations/20261122190000_discovery_extraction.sql", import.meta.url), "utf8");
     const entityIntelligenceMigration = await readFile(new URL("../../supabase/migrations/20261122200000_discovery_entity_intelligence.sql", import.meta.url), "utf8");
     const professionalRolesMigration = await readFile(new URL("../../supabase/migrations/20261122210000_discovery_professional_roles.sql", import.meta.url), "utf8");
+    const contactValidationMigration = await readFile(new URL("../../supabase/migrations/20261122220000_discovery_contact_validation.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
     await pool.query(extractionMigration);
     await pool.query(entityIntelligenceMigration);
     await pool.query(professionalRolesMigration);
+    await pool.query(contactValidationMigration);
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -63,8 +65,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       ) values (
         $1,$2,'Example registry','https://registry.example.gov.in/api','registry.example.gov.in',
         'official_api','official_api','IN','https://registry.example.gov.in/terms','Reviewed terms',
-        array['company identity verification'],array['legal_name','registration_id','status'],
-        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]}}'::jsonb,
+        array['company identity verification'],array['legal_name','registration_id','status','work_email','work_phone'],
+        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]},"work_email":{"type":"email","aliases":["work_email"]},"work_phone":{"type":"phone","aliases":["work_phone"]}}'::jsonb,
         array['/api/v1/entities'],'official_api',1,10,30,'Source attribution','Approved public company registry use',
         'approved',$3,now(),$3,$3
       )
@@ -177,9 +179,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           source_field_schema_snapshot: {
             legal_name: { type: "string", aliases: ["legal_name"], required: true, entityKind: "organization" },
             registration_id: { type: "identifier", aliases: ["registration_id"] },
-            status: { type: "string", aliases: ["status"] }
+            status: { type: "string", aliases: ["status"] },
+            work_email: { type: "email", aliases: ["work_email"] },
+            work_phone: { type: "phone", aliases: ["work_phone"] }
           },
-          source_allowed_fields_snapshot: ["legal_name","registration_id","status"],
+          source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone"],
           invalid_fact_count: 0,
           warnings: []
         }),
@@ -201,6 +205,20 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             normalized_value: "REG-AXI-0001",
             source_span: { kind: "json-pointer", locator: "$/registration_id" },
             confidence: 0.99, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "work_email",
+            value_type: "email", raw_value: "team@acme.example",
+            normalized_value: "team@acme.example",
+            source_span: { kind: "json-pointer", locator: "$/contact/email" },
+            confidence: 0.97, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "work_phone",
+            value_type: "phone", raw_value: "+91 98765 43210",
+            normalized_value: "+919876543210",
+            source_span: { kind: "json-pointer", locator: "$/contact/phone" },
+            confidence: 0.96, validation_status: "valid"
           }
         ])
       ]
@@ -211,7 +229,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select id,field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
       [extractionRunId]
     );
-    assert.equal(extractedFact.rows.length, 2);
+    assert.equal(extractedFact.rows.length, 4);
     assert.equal(extractedFact.rows[0].normalized_value, "Acme Holdings Pvt Ltd");
     assert.equal(extractedFact.rows[0].source_span.locator, "$/legal_name");
 
@@ -438,6 +456,80 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     );
     assert.equal(roleAudit.rows[0].count,1,"professional role approval and audit receipt must commit together");
 
+    // E08 consumes only E05 source-allow-listed, typed contact facts.
+    const contactClaim = await pool.query(
+      "select * from public.claim_discovery_contact_validation_job($1,90)",
+      ["contact-validation-worker-test"]
+    );
+    assert.equal(contactClaim.rows.length,1,"completed E05 run with approved contact fields must enqueue E08");
+    const contactJob = contactClaim.rows[0];
+    const contactFacts = await pool.query(
+      "select f.id as fact_id,f.extracted_entity_id,f.field_name,f.value_type,f.source_span,x.entity_kind from public.discovery_extracted_facts f join public.discovery_extracted_entities x on x.company_id=f.company_id and x.extraction_run_id=f.extraction_run_id and x.id=f.extracted_entity_id where f.company_id=$1 and f.extraction_run_id=$2 and f.field_name in ('work_email','work_phone') order by f.field_name",
+      [companyId,extractionRunId]
+    );
+    assert.equal(contactFacts.rows.length,2);
+    const contactPayload = contactFacts.rows.map(row => ({
+      extracted_fact_id:row.fact_id,
+      extracted_entity_id:row.extracted_entity_id,
+      entity_kind:row.entity_kind,
+      contact_type:row.value_type,
+      field_name:row.field_name,
+      value_ciphertext:"Y2lwaGVydGV4dA==",
+      value_nonce:"AAAAAAAAAAAAAAAA",
+      value_auth_tag:"AAAAAAAAAAAAAAAAAAAAAA==",
+      value_fingerprint:"c".repeat(64),
+      encryption_version:"aes-256-gcm-v1",
+      masked_value:row.value_type==="email"?"t***@acme.example":"+91********10",
+      validation_method:"syntax_only",
+      validation_result:"syntax_valid",
+      validation_confidence:0.99,
+      validation:{method:"syntax_only",result:"syntax_valid",reason:null,confidence:0.99,catch_all_result:null,bounce_type:null},
+      source_span:row.source_span,
+      evidence_id:evidenceId
+    }));
+    const contactComplete = await pool.query(
+      "select public.complete_discovery_contact_validation_job($1,$2,$3::jsonb) as count",
+      [contactJob.id,contactJob.lease_owner,JSON.stringify(contactPayload)]
+    );
+    assert.equal(contactComplete.rows[0].count,2);
+    const contactCandidates = await pool.query(
+      "select id,contact_type,masked_value,value_ciphertext,validation_result from public.discovery_contact_candidates where company_id=$1 and extraction_run_id=$2 order by contact_type",
+      [companyId,extractionRunId]
+    );
+    assert.equal(contactCandidates.rows.length,2);
+    assert.equal(contactCandidates.rows.some(row=>row.masked_value.includes("team@acme.example")),false);
+    assert.ok(contactCandidates.rows.every(row=>row.value_ciphertext!=="team@acme.example"));
+
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_contact_review($1,$2,$3,'approved',$4,$5,$6,$7,null)",
+        [companyId,viewerId,contactCandidates.rows[0].id,"viewer cannot approve contact data","company contact verification",retentionDate,canonical.rows[0].id]
+      ),
+      /Only a company owner or admin can review contact points/
+    );
+    const approvedContact = await pool.query(
+      "select * from public.record_discovery_contact_review($1,$2,$3,'approved',$4,$5,$6,$7,null)",
+      [companyId,actorId,contactCandidates.rows[0].id,"owner verified source-disclosed company contact","company contact verification",retentionDate,canonical.rows[0].id]
+    );
+    assert.equal(approvedContact.rows[0].contact_type,contactCandidates.rows[0].contact_type);
+    assert.equal(approvedContact.rows[0].status,"active");
+    assert.equal(approvedContact.rows[0].masked_value,contactCandidates.rows[0].masked_value);
+    const catchAllEvent = await pool.query(
+      "select * from public.record_discovery_contact_validation_event($1,'reacher_self_hosted','catch_all',0.72,true,null,$2,'{}'::jsonb)",
+      [approvedContact.rows[0].id,"integration-catch-all"]
+    );
+    assert.equal(catchAllEvent.rows[0].result,"catch_all");
+    assert.equal(catchAllEvent.rows[0].catch_all_result,true);
+    const bounceEvent = await pool.query(
+      "select * from public.record_discovery_contact_validation_event($1,'inbound_bounce','bounced',0.99,false,'hard_bounce',$2,'{}'::jsonb)",
+      [approvedContact.rows[0].id,"integration-bounce"]
+    );
+    assert.equal(bounceEvent.rows[0].bounce_type,"hard_bounce");
+    await assert.rejects(
+      pool.query("update public.discovery_contact_validation_events set result='reachable' where id=$1",[catchAllEvent.rows[0].id]),
+      /append-only/
+    );
+
 
     await assert.rejects(
       pool.query(
@@ -491,9 +583,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             source_field_schema_snapshot: {
               legal_name: { type: "string", aliases: ["legal_name"], required: true, entityKind: "organization" },
               registration_id: { type: "identifier", aliases: ["registration_id"] },
-              status: { type: "string", aliases: ["status"] }
+              status: { type: "string", aliases: ["status"] },
+              work_email: { type: "email", aliases: ["work_email"] },
+              work_phone: { type: "phone", aliases: ["work_phone"] }
             },
-            source_allowed_fields_snapshot: ["legal_name","registration_id","status"],
+            source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone"],
             invalid_fact_count:0, warnings:[]
           }),
           "[]",
@@ -624,6 +718,20 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durableProfessionalReview.rows[0].count,1,"E07 professional review receipt must survive evidence purge");
     assert.equal(durableProfessionalReview.rows[0].linked_count,0,"E07 review receipt must detach from the purged candidate");
     assert.equal(durableProfessionalReview.rows[0].role_title,"Chief Financial Officer","E07 review snapshot must retain the reviewed role, without retaining the person's name");
+    const durableContactPoint = await pool.query(
+      "select count(*)::int as count,min(source_evidence_id::text) as evidence_id,min(masked_value) as masked_value from public.discovery_contact_points where company_id=$1 and status='active'",
+      [companyId]
+    );
+    assert.equal(durableContactPoint.rows[0].count,1,"owner-approved E08 contact point must survive raw evidence purge");
+    assert.equal(durableContactPoint.rows[0].evidence_id,evidenceId,"E08 contact point must retain only the historical evidence identifier");
+    assert.ok(durableContactPoint.rows[0].masked_value.includes("***"),"E08 contact point must remain masked at rest");
+    const durableContactEvents = await pool.query(
+      "select count(*)::int as count,bool_or(result='catch_all') as has_catch_all,bool_or(result='bounced') as has_bounce from public.discovery_contact_validation_events where company_id=$1 and contact_point_id=$2",
+      [companyId,approvedContact.rows[0].id]
+    );
+    assert.equal(durableContactEvents.rows[0].count,3,"E08 syntax, catch-all and bounce validation events must survive candidate/evidence purge");
+    assert.equal(durableContactEvents.rows[0].has_catch_all,true);
+    assert.equal(durableContactEvents.rows[0].has_bounce,true);
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
