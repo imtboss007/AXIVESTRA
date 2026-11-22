@@ -89,6 +89,10 @@ create index if not exists discovery_fetch_events_job_idx
 create index if not exists discovery_fetch_events_source_idx
   on public.discovery_fetch_events(source_id, occurred_at desc);
 
+create unique index if not exists discovery_retention_purge_receipt_unique
+  on public.discovery_fetch_events(evidence_id, event_type)
+  where event_type = 'retention_purged' and evidence_id is not null;
+
 create table if not exists public.discovery_fetch_cache (
   source_id uuid not null references public.discovery_source_registry(id) on delete cascade,
   company_id uuid not null references public.companies(id) on delete cascade,
@@ -343,8 +347,9 @@ $grant$;
 
 create or replace function public.list_expired_discovery_evidence(p_limit integer default 100)
 returns table (
-  company_id uuid, id uuid, raw_blob_ref text, canonical_url text,
-  captured_at timestamptz, retention_days integer, content_hash text
+  company_id uuid, id uuid, job_id uuid, source_id uuid,
+  raw_blob_ref text, canonical_url text, captured_at timestamptz,
+  retention_days integer, content_hash text
 )
 language plpgsql
 security definer
@@ -355,7 +360,7 @@ begin
     raise exception 'Retention sweep limit must be between 1 and 500' using errcode = '22023';
   end if;
   return query
-    select e.company_id, e.id, e.raw_blob_ref, e.canonical_url, e.captured_at, s.retention_days, e.content_hash
+    select e.company_id, e.id, e.job_id, e.source_id, e.raw_blob_ref, e.canonical_url, e.captured_at, s.retention_days, e.content_hash
     from public.discovery_evidence_items e
     join public.discovery_source_registry s
       on s.company_id = e.company_id and s.id = e.source_id
