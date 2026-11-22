@@ -324,3 +324,15 @@ assert.match(registry, /downloadIntelligencePdf[\s\S]*?downloadIntelligencePptx/
 assert.match(app, /__primaryGroupIds/, "Every module record form must store selected primary WhatsApp group IDs.");
 assert.match(app, /__followUpGroupIds/, "Every module record form must store selected follow-up WhatsApp group IDs.");
 console.log("AXIVESTRA Intelligence Hub, INR and report-export contract passed.");
+
+
+assert.match(analytics, /valueFormatter:formatTooltipValue/,
+  "Portfolio chart tooltips must format saved INR values and record counts consistently.");
+assert.match(analytics, /parseIndianAmount\(row\.value\) === null/,
+  "Missing-value coverage must parse Indian currency shorthand instead of relying on Number().");
+assert.match(analytics, /cashflowRows\.every\(row => row\.count === 0\)/,
+  "Cashflow empty state must reflect the selected period, not all-time transaction existence.");
+assert.match(analytics, /toLocaleLowerCase\(\)/,
+  "Pipeline status grouping must be case-insensitive.");
+assert.match(analytics, /aria-pressed=\{chartType === "donut"\}/,
+  "Chart type controls must expose their pressed state to assistive technology.");
