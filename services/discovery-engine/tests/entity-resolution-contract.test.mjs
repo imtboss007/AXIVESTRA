@@ -20,7 +20,8 @@ test("E06 persists canonical organisations, aliases, identifiers and evidence-ba
   }
   assert.match(migration, /source_evidence_id/);
   assert.match(migration, /source_span jsonb/);
-  assert.match(migration, /foreign key \(company_id,extraction_run_id,extracted_entity_id\)/);
+  assert.match(migration, /extraction_run_id, extracted_entity_id and source_evidence_id are historical/);
+  assert.match(migration, /candidate_id remains a historical reference after E05 evidence retention/);
   assert.match(migration, /discovery_entity_identifiers_accepted_unique/);
 });
 
