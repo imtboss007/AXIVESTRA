@@ -138,6 +138,21 @@ test("HTML extracts metadata, JSON-LD, tables and labeled text without executing
   assert.equal(result.facts.some(fact => fact.raw_value.includes("window.evil")), false);
 });
 
+test("HTML multi-column tables bind header names to each source cell with row/column locators", () => {
+  const html = `<table>
+    <thead><tr><th>legal_name</th><th>registration_id</th><th>public_email</th></tr></thead>
+    <tbody><tr><td>Acme Holdings Pvt Ltd</td><td>U12345KA2020PLC123456</td><td>info@example.com</td></tr></tbody>
+  </table>`;
+  const result = parse(html, "text/html");
+  const facts = Object.fromEntries(result.facts.map(fact => [fact.field_name, fact]));
+  assert.equal(facts.legal_name.normalized_value, "Acme Holdings Pvt Ltd");
+  assert.equal(facts.registration_id.normalized_value, "U12345KA2020PLC123456");
+  assert.equal(facts.public_email.normalized_value, "info@example.com");
+  assert.equal(facts.public_email.source_span.row, 2);
+  assert.equal(facts.public_email.source_span.column, 3);
+  assert.match(facts.public_email.source_span.locator, /tr:nth-of-type\(2\)/);
+});
+
 test("XML leaf values and text key-value spans map to allowed schemas", () => {
   const xml = "<company><legal_name>Acme Holdings Pvt Ltd</legal_name><registration_id>U12345KA2020PLC123456</registration_id><public_email>info@example.com</public_email></company>";
   const xmlResult = parse(xml, "application/xml");
