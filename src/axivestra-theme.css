@@ -1844,3 +1844,16 @@ body { background: #0b1420; color: #e8f0f4; }
   }
   .ax-modern-shell .ax-followup-form .form-actions button { width: 100%; }
 }
+
+/* Cashflow classification note — make excluded transaction types explicit. */
+.ax-modern-shell .ax-chart-inspector .ax-inspector-note {
+  margin: 9px 0 0;
+  padding: 9px 10px;
+  color: #d8c79f;
+  border-left: 2px solid var(--axiv-warning);
+  border-radius: 0 7px 7px 0;
+  background: rgba(214,173,105,.08);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
