@@ -215,7 +215,7 @@ function parseHtmlEvidence(text, observations) {
 }
 
 function parseCsvRows(text) {
-  const input = String(text || "").replace(/^\\uFEFF/, "");
+  const input = String(text || "").replace(/^\uFEFF/, "");
   const rows = [];
   let row = [];
   let cell = "";
@@ -249,8 +249,8 @@ function parseCsvRows(text) {
       cell = "";
     } else if (character === ",") {
       pushCell();
-    } else if (character === "\\n" || character === "\\r") {
-      if (character === "\\r" && input[index + 1] === "\\n") index += 1;
+    } else if (character === "\n" || character === "\r") {
+      if (character === "\r" && input[index + 1] === "\n") index += 1;
       pushRow();
     } else {
       cell += character;
