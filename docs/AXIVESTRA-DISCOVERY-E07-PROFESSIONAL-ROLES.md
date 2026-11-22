@@ -26,7 +26,7 @@ No fuzzy person matching or fuzzy employer linking is performed. If employer ide
 - \`discovery_professional_role_review_events\`: append-only decision and reviewer receipt.
 - \`discovery_professional_role_jobs\`: bounded queue, leases, heartbeat, capped retries and source/profile rechecks.
 
-No email, phone, home address, personal financial attributes, consent status, social profile or outreach fields are created in E07. Contact points and validation are reserved for E08. Discovery or public availability is not consent to contact.
+No email, phone, home address, personal financial attributes, consent status, social profile or outreach fields are created in E07. Contact points and validation are reserved for E08. Discovery or public availability is not consent to contact. The schema records an explicit retention expiry; an automated expiry/purge schedule remains a later E14 governance integration and is not claimed as implemented here.
 
 ## Execution
 
