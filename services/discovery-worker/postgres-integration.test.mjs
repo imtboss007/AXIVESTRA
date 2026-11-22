@@ -312,6 +312,49 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     );
     assert.equal(entityAudit.rows[0].count,1,"canonical entity review and audit receipt must commit together");
 
+    // Legal-entity relationships are recorded only through the owner/admin evidence review RPC.
+    const relatedEntity = await pool.query(
+      \`insert into public.discovery_canonical_entities(
+        company_id,entity_kind,legal_name,normalized_name,jurisdiction,entity_type,
+        status,source_evidence_id,created_by
+      ) values($1,'organization','Acme Finance Services Ltd','acme finance services',
+        'IN','company','active',$2,$3) returning id\`,
+      [companyId,evidenceId,actorId]
+    );
+    const relatedEntityId = relatedEntity.rows[0].id;
+    const relationshipArgs = [
+      companyId,actorId,canonical.rows[0].id,relatedEntityId,"subsidiary",evidenceId,
+      JSON.stringify({kind:"html-table-cell",locator:"table:nth-of-type(1) tr:nth-of-type(4) td:nth-of-type(2)",row:4,column:2}),
+      "owner_accepted","The official registry filing identifies the subsidiary relationship."
+    ];
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_entity_relationship_review($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)",
+        [companyId,viewerId,...relationshipArgs.slice(2)]
+      ),
+      /Only a company owner or admin can review entity relationships/
+    );
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_entity_relationship_review($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)",
+        [companyId,actorId,canonical.rows[0].id,canonical.rows[0].id,"subsidiary",evidenceId,
+          relationshipArgs[6],"owner_accepted","Self-relationship must be rejected"]
+      ),
+      /cannot have a relationship to itself/
+    );
+    const acceptedRelationship = await pool.query(
+      "select * from public.record_discovery_entity_relationship_review($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)",
+      relationshipArgs
+    );
+    assert.equal(acceptedRelationship.rows[0].relationship_type,"subsidiary");
+    assert.equal(acceptedRelationship.rows[0].review_state,"owner_accepted");
+    const relationshipAudit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='entity_relationship_review_recorded' and entity_id=$2",
+      [companyId,acceptedRelationship.rows[0].id]
+    );
+    assert.equal(relationshipAudit.rows[0].count,1,"relationship decision must have an audit receipt");
+
+
     await assert.rejects(
       pool.query(
         "select * from public.record_discovery_extraction_review($1,$2,$3,$4,null,$5,$6,null)",
@@ -485,6 +528,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId]
     );
     assert.equal(durableReview.rows[0].count,1,"owner review receipt must survive candidate and evidence retention cleanup");
+    const durableRelationship = await pool.query(
+      "select count(*)::int as count from public.discovery_entity_relationships where company_id=$1 and evidence_id=$2 and review_state='owner_accepted'",
+      [companyId,evidenceId]
+    );
+    assert.equal(durableRelationship.rows[0].count,1,"accepted entity relationships must survive evidence purge");
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
