@@ -497,9 +497,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             source_field_schema_snapshot: {
               legal_name: { type: "string", aliases: ["legal_name"], required: true, entityKind: "organization" },
               registration_id: { type: "identifier", aliases: ["registration_id"] },
-              status: { type: "string", aliases: ["status"] }
+              status: { type: "string", aliases: ["status"] },
+              director_name: { type: "string", aliases: ["director_name"], entityKind: "person" },
+              designation: { type: "string", aliases: ["designation"] }
             },
-            source_allowed_fields_snapshot: ["legal_name","registration_id","status"],
+            source_allowed_fields_snapshot: ["legal_name","registration_id","status","director_name","designation"],
             invalid_fact_count:0, warnings:[]
           }),
           "[]",
