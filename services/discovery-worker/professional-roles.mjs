@@ -66,19 +66,26 @@ function resolveEmployer(personFacts, organizationMentions, assignments, canonic
     if (!EMPLOYER_NAME_FIELDS.has(keyOf(fact.field_name))) continue;
     const proposed = normalizeCompany(valueOf(fact));
     if (!proposed) continue;
-    const hits = [];
-    for (const mention of organizationMentions) {
-      const canonicalId = assigned.get(mention.id);
-      const canonicalEntity = canonical.get(canonicalId);
-      if (!canonicalEntity) continue;
-      if (normalizeCompany(canonicalEntity.normalized_name || canonicalEntity.legal_name) === proposed ||
-          normalizeCompany(mention.normalized_name || mention.raw_name) === proposed) {
-        hits.push(canonicalEntity);
-      }
-    }
-    const unique = [...new Map(hits.map(item => [item.id, item])).values()];
-    if (unique.length === 1) {
-      return { canonicalEntity: unique[0], relationFact: fact, linkMethod: "exact_reviewed_company_name" };
+    // Check the full canonical company set for collisions, not only companies
+    // represented by assigned extracted mentions. Otherwise an unrepresented
+    // duplicate canonical entity is invisible and ambiguity is missed.
+    const matchingCanonical = canonicalEntities.filter(entity =>
+      entity.entity_kind === "organization" &&
+      entity.status === "active" &&
+      (normalizeCompany(entity.normalized_name) === proposed ||
+       normalizeCompany(entity.legal_name) === proposed)
+    );
+    const uniqueCanonical = [...new Map(matchingCanonical.map(item => [item.id, item])).values()];
+    if (uniqueCanonical.length !== 1) continue;
+
+    const selected = uniqueCanonical[0];
+    const hasReviewedMention = organizationMentions.some(mention =>
+      assigned.get(mention.id) === selected.id &&
+      (normalizeCompany(mention.normalized_name || mention.raw_name) === proposed ||
+       normalizeCompany(selected.normalized_name || selected.legal_name) === proposed)
+    );
+    if (hasReviewedMention) {
+      return { canonicalEntity: selected, relationFact: fact, linkMethod: "exact_reviewed_company_name" };
     }
   }
   return null;
