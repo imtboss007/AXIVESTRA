@@ -43,6 +43,20 @@ test("E05 worker is disabled by default and verifies immutable evidence bytes be
   assert.match(extractor, /MAX_OBSERVATIONS/);
 });
 
+test("E05 extraction uses bounded parallel slots backed by PostgreSQL SKIP LOCKED claims", () => {
+  assert.match(worker, /DISCOVERY_EXTRACTION_CONCURRENCY \|\| 2/);
+  assert.match(worker, /Math\.min\(4,/);
+  assert.match(worker, /Promise\.all\(workerSlots\.map/);
+  assert.match(worker, /runExtractionWorkerOnce\(admin, slotId\)/);
+  assert.match(migration, /for update of j skip locked/);
+});
+
+test("PDF parser releases the PDF.js loading task and keeps OCR disabled", () => {
+  assert.match(extractor, /const loadingTask = getDocument/);
+  assert.match(extractor, /await loadingTask\.destroy\(\)/);
+  assert.match(extractor, /OCR is not enabled/);
+});
+
 test("E05 human review and audit receipt use one owner/admin-only database transaction", () => {
   assert.match(migration, /create or replace function public\.record_discovery_extraction_review/);
   assert.match(migration, /Only a company owner or admin can review extracted facts/);
