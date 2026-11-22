@@ -38,6 +38,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const entityIntelligenceMigration = await readFile(new URL("../../supabase/migrations/20261122200000_discovery_entity_intelligence.sql", import.meta.url), "utf8");
     const professionalRolesMigration = await readFile(new URL("../../supabase/migrations/20261122210000_discovery_professional_roles.sql", import.meta.url), "utf8");
     const contactValidationMigration = await readFile(new URL("../../supabase/migrations/20261122220000_discovery_contact_validation.sql", import.meta.url), "utf8");
+    const geoResolutionMigration = await readFile(new URL("../../supabase/migrations/20261122230000_discovery_geo_resolution.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
@@ -45,6 +46,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(entityIntelligenceMigration);
     await pool.query(professionalRolesMigration);
     await pool.query(contactValidationMigration);
+    await pool.query(geoResolutionMigration);
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -65,8 +67,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       ) values (
         $1,$2,'Example registry','https://registry.example.gov.in/api','registry.example.gov.in',
         'official_api','official_api','IN','https://registry.example.gov.in/terms','Reviewed terms',
-        array['company identity verification'],array['legal_name','registration_id','status','work_email','work_phone'],
-        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]},"work_email":{"type":"email","aliases":["work_email"]},"work_phone":{"type":"phone","aliases":["work_phone"]}}'::jsonb,
+        array['company identity verification','geocoding'],array['legal_name','registration_id','status','work_email','work_phone','address_line_1','city','state','country','country_code','latitude','longitude'],
+        '{"legal_name":{"type":"string","aliases":["legal_name"],"required":true,"entityKind":"organization"},"registration_id":{"type":"identifier","aliases":["registration_id"]},"status":{"type":"string","aliases":["status"]},"work_email":{"type":"email","aliases":["work_email"]},"work_phone":{"type":"phone","aliases":["work_phone"]},"address_line_1":{"type":"string","aliases":["address_line_1"]},"city":{"type":"string","aliases":["city"]},"state":{"type":"string","aliases":["state"]},"country":{"type":"string","aliases":["country"]},"country_code":{"type":"string","aliases":["country_code"]},"latitude":{"type":"number","aliases":["latitude"]},"longitude":{"type":"number","aliases":["longitude"]}}'::jsonb,
         array['/api/v1/entities'],'official_api',1,10,30,'Source attribution','Approved public company registry use',
         'approved',$3,now(),$3,$3
       )
@@ -181,9 +183,16 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             registration_id: { type: "identifier", aliases: ["registration_id"] },
             status: { type: "string", aliases: ["status"] },
             work_email: { type: "email", aliases: ["work_email"] },
-            work_phone: { type: "phone", aliases: ["work_phone"] }
+            work_phone: { type: "phone", aliases: ["work_phone"] },
+            address_line_1: { type: "string", aliases: ["address_line_1"] },
+            city: { type: "string", aliases: ["city"] },
+            state: { type: "string", aliases: ["state"] },
+            country: { type: "string", aliases: ["country"] },
+            country_code: { type: "string", aliases: ["country_code"] },
+            latitude: { type: "number", aliases: ["latitude"] },
+            longitude: { type: "number", aliases: ["longitude"] }
           },
-          source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone"],
+          source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone","address_line_1","city","state","country","country_code","latitude","longitude"],
           invalid_fact_count: 0,
           warnings: []
         }),
@@ -219,6 +228,55 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             normalized_value: "+919876543210",
             source_span: { kind: "json-pointer", locator: "$/contact/phone" },
             confidence: 0.96, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "address_line_1",
+            value_type: "string", raw_value: "12 Industrial Road",
+            normalized_value: "12 Industrial Road",
+            source_span: { kind: "json-pointer", locator: "$/address" },
+            confidence: 0.96, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "city",
+            value_type: "string", raw_value: "Bengaluru",
+            normalized_value: "Bengaluru",
+            source_span: { kind: "json-pointer", locator: "$/city" },
+            confidence: 0.98, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "state",
+            value_type: "string", raw_value: "Karnataka",
+            normalized_value: "Karnataka",
+            source_span: { kind: "json-pointer", locator: "$/state" },
+            confidence: 0.98, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "country",
+            value_type: "string", raw_value: "India",
+            normalized_value: "India",
+            source_span: { kind: "json-pointer", locator: "$/country" },
+            confidence: 0.97, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "country_code",
+            value_type: "string", raw_value: "IN",
+            normalized_value: "IN",
+            source_span: { kind: "json-pointer", locator: "$/country_code" },
+            confidence: 0.97, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "latitude",
+            value_type: "number", raw_value: "12.9716",
+            normalized_value: 12.9716,
+            source_span: { kind: "json-pointer", locator: "$/latitude" },
+            confidence: 0.96, validation_status: "valid"
+          },
+          {
+            mention_key: "organization:acme-1", field_name: "longitude",
+            value_type: "number", raw_value: "77.5946",
+            normalized_value: 77.5946,
+            source_span: { kind: "json-pointer", locator: "$/longitude" },
+            confidence: 0.96, validation_status: "valid"
           }
         ])
       ]
@@ -229,7 +287,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select id,field_name,normalized_value,source_span,confidence from public.discovery_extracted_facts where extraction_run_id=$1",
       [extractionRunId]
     );
-    assert.equal(extractedFact.rows.length, 4);
+    assert.equal(extractedFact.rows.length, 11);
     assert.equal(extractedFact.rows[0].normalized_value, "Acme Holdings Pvt Ltd");
     assert.equal(extractedFact.rows[0].source_span.locator, "$/legal_name");
 
@@ -585,9 +643,16 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
               registration_id: { type: "identifier", aliases: ["registration_id"] },
               status: { type: "string", aliases: ["status"] },
               work_email: { type: "email", aliases: ["work_email"] },
-              work_phone: { type: "phone", aliases: ["work_phone"] }
+              work_phone: { type: "phone", aliases: ["work_phone"] },
+              address_line_1: { type: "string", aliases: ["address_line_1"] },
+              city: { type: "string", aliases: ["city"] },
+              state: { type: "string", aliases: ["state"] },
+              country: { type: "string", aliases: ["country"] },
+              country_code: { type: "string", aliases: ["country_code"] },
+              latitude: { type: "number", aliases: ["latitude"] },
+              longitude: { type: "number", aliases: ["longitude"] }
             },
-            source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone"],
+            source_allowed_fields_snapshot: ["legal_name","registration_id","status","work_email","work_phone","address_line_1","city","state","country","country_code","latitude","longitude"],
             invalid_fact_count:0, warnings:[]
           }),
           "[]",
@@ -656,6 +721,78 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         [job.id,job.lease_owner,"PARALLEL_CLAIM_TEST_CLEANUP","End-to-end parallel claim test cleanup"]
       )
     ));
+
+    // E09: source-backed address normalisation and source coordinates are separate from title/ownership.
+    const geoClaim = await pool.query(
+      "select * from public.claim_discovery_geo_resolution_job($1,90)",
+      ["geo-resolution-worker-test"]
+    );
+    assert.equal(geoClaim.rows.length,1,"E05 source-approved location fields must enqueue E09");
+    const geoJob=geoClaim.rows[0];
+    const geoFactRows=await pool.query(
+      "select f.field_name,f.source_span from public.discovery_extracted_facts f where f.company_id=$1 and f.extraction_run_id=$2 and f.field_name=any($3::text[]) and f.validation_status='valid'",
+      [companyId,extractionRunId,["address_line_1","city","state","country","country_code","latitude","longitude"]]
+    );
+    assert.equal(geoFactRows.rows.length,7);
+    const geoFieldSpans={};
+    for(const row of geoFactRows.rows) geoFieldSpans[row.field_name]=row.source_span;
+    const geoPayload=[{
+      extracted_entity_id:extractedEntity.rows[0].id,
+      entity_kind:"organization",
+      place_label:"Acme Holdings Pvt Ltd",
+      address:{
+        formatted:"12 Industrial Road, Bengaluru, Karnataka, India",
+        line1:"12 Industrial Road",street:null,house_number:null,
+        locality:null,district:null,city:"Bengaluru",state:"Karnataka",
+        region:null,postcode:null,country:"India",country_code:"IN"
+      },
+      source_coordinates:{latitude:12.9716,longitude:77.5946},
+      coordinate_state:"source_coordinates",
+      source_coordinate_confidence:0.96,
+      source_confidence:0.96,
+      confidence_method:"minimum_source_lat_lon_fact_confidence",
+      address_completeness:{has_formatted_address:true,component_count:4,country_code_validated:true},
+      provider:null,provider_candidates:[],provider_attribution:null,
+      source_span:{entity:span,fields:geoFieldSpans},
+      evidence_id:evidenceId,
+      candidate_state:"source_coordinates_available",
+      rationale:{
+        no_person_entities:true,source_field_allowlist_enforced:true,
+        coordinates_not_inferred:true,geocoding_is_not_ownership_evidence:true,
+        requires_human_review:true
+      }
+    }];
+    const geoComplete=await pool.query(
+      "select public.complete_discovery_geo_resolution_job($1,$2,$3::jsonb) as count",
+      [geoJob.id,geoJob.lease_owner,JSON.stringify(geoPayload)]
+    );
+    assert.equal(geoComplete.rows[0].count,1);
+    const placeCandidate=await pool.query(
+      "select id,entity_kind,address_components,source_coordinates,review_state,candidate_state from public.discovery_place_candidates where company_id=$1 and extraction_run_id=$2",
+      [companyId,extractionRunId]
+    );
+    assert.equal(placeCandidate.rows.length,1);
+    assert.equal(placeCandidate.rows[0].entity_kind,"organization");
+    assert.equal(placeCandidate.rows[0].address_components.city,"Bengaluru");
+    assert.equal(placeCandidate.rows[0].source_coordinates.latitude,12.9716);
+    assert.equal(placeCandidate.rows[0].review_state,"pending_review");
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_place_review($1,$2,$3,'accepted',$4)",
+        [companyId,viewerId,placeCandidate.rows[0].id,"Viewer cannot accept geo candidates"]
+      ),
+      /Only a company owner or admin can review place candidates/
+    );
+    const placeReview=await pool.query(
+      "select * from public.record_discovery_place_review($1,$2,$3,'accepted',$4)",
+      [companyId,actorId,placeCandidate.rows[0].id,"Owner reviewed the published business location"]
+    );
+    assert.equal(placeReview.rows[0].decision,"accepted");
+    const placeAudit=await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='place_resolution_review_recorded' and entity_id=$2",
+      [companyId,placeCandidate.rows[0].id]
+    );
+    assert.equal(placeAudit.rows[0].count,1);
 
     await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
     const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
