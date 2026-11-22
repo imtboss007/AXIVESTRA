@@ -158,7 +158,8 @@ export function buildPlaceCandidates({
         allEvidenceConfidence.length ? "minimum_observed_fact_confidence" : null,
       address_completeness: {
         has_formatted_address: Boolean(address.formatted),
-        component_count: requiredAddressComponents.length,
+        component_count: Object.entries(address)
+          .filter(([key, value]) => key !== "formatted" && key !== "country_code" && Boolean(value)).length,
         country_code_validated: Boolean(address.country_code)
       },
       provider: null,
