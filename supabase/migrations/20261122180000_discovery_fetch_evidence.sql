@@ -134,10 +134,10 @@ alter table public.discovery_evidence_items enable row level security;
 alter table public.discovery_fetch_events enable row level security;
 alter table public.discovery_fetch_cache enable row level security;
 
-revoke all on public.discovery_company_worker_controls from anon, authenticated;
-revoke all on public.discovery_evidence_items from anon, authenticated;
-revoke all on public.discovery_fetch_events from anon, authenticated;
-revoke all on public.discovery_fetch_cache from anon, authenticated;
+revoke all on public.discovery_company_worker_controls from public, anon, authenticated;
+revoke all on public.discovery_evidence_items from public, anon, authenticated;
+revoke all on public.discovery_fetch_events from public, anon, authenticated;
+revoke all on public.discovery_fetch_cache from public, anon, authenticated;
 
 grant all on public.discovery_company_worker_controls to service_role;
 grant all on public.discovery_evidence_items to service_role;
@@ -183,6 +183,7 @@ declare
   v_job public.discovery_jobs%rowtype;
   v_existing public.discovery_jobs%rowtype;
   v_purpose text;
+  v_member_role text;
   v_candidate_count integer;
 begin
   if p_payload is null or jsonb_typeof(p_payload) <> 'object'
@@ -233,6 +234,12 @@ begin
   end if;
   if p_requested_by is null then
     raise exception 'Discovery requester is required' using errcode = '22023';
+  end if;
+  select role into v_member_role from public.company_memberships
+    where company_id = p_company_id and user_id = p_requested_by
+    for share;
+  if v_member_role is null then
+    raise exception 'Discovery requester is not a member of this company' using errcode = '42501';
   end if;
 
   select * into v_existing from public.discovery_jobs
@@ -303,7 +310,7 @@ begin
     from public.company_memberships
     where company_id = p_company_id and user_id = p_actor_user_id
     for share;
-  if v_role not in ('owner','admin') then
+  if p_actor_user_id is null or v_role is null or v_role not in ('owner','admin') then
     raise exception 'Only a company owner or admin can change the worker grant' using errcode = '42501';
   end if;
 
