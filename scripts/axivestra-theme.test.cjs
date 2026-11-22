@@ -130,10 +130,12 @@ assert.match(theme, /\.ax-modern-shell \.ax-chart-type button\[aria-pressed="tru
   "Selected chart controls must have a clear visual treatment tied to their accessible state.");
 
 
-assert.match(table, /aria-rowcount=\{rows\.length\+1\}/,
-  "Virtualized tables must expose their filtered row count to assistive technology.");
-assert.match(table, /aria-rowindex=\{v\.index\+2\}/,
-  "Virtualized rows must preserve their absolute position in the filtered result.");
+assert.match(table, /aria-rowcount=\{headerRowCount\+Math\.max\(rows\.length,1\)\}/,
+  "Virtualized tables must expose filtered rows and grouped headers accurately to assistive technology.");
+assert.match(table, /aria-rowindex=\{v\.index\+headerRowCount\+1\}/,
+  "Virtualized rows must preserve their absolute position after all grouped header rows.");
+assert.match(table, /<tr aria-rowindex=\{headerRowCount\+1\}/,
+  "Virtualized table empty states must have a correct absolute row index.");
 assert.match(table, /aria-sort=\{/,
   "Column headers must expose the current sort direction.");
 assert.match(table, /Showing \{rows\.length\.toLocaleString\("en-IN"\)\} of \{data\.length\.toLocaleString\("en-IN"\)\} records/,
