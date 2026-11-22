@@ -20,7 +20,7 @@ type Review = {
   id:string; extraction_run_id:string; fact_id:string|null; extracted_entity_id:string|null;
   actor_user_id:string; decision:string; reason:string; corrected_value:unknown; occurred_at:string;
 };
-type Response = {ok?:boolean;error?:string;runs?:Run[];facts?:Fact[];entities?:Entity[];reviews?:Review[];review?:Review};
+type Response = {ok?:boolean;error?:string;runs?:Run[];facts?:Fact[];entities?:Entity[];reviews?:Review[];evidence?:Evidence[];review?:Review};
 
 function pretty(value:unknown) {
   if (value === null || value === undefined) return "—";
@@ -39,7 +39,7 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
   const [runs,setRuns]=useState<Run[]>([]);
   const [facts,setFacts]=useState<Fact[]>([]);
   const [entities,setEntities]=useState<Entity[]>([]);
-  const [reviews,setReviews]=useState<Review[]>([]);
+  const [reviews,setReviews]=useState<Review[]>([]);\n  const [evidence,setEvidence]=useState<Evidence[]>([]);
   const [selectedRunId,setSelectedRunId]=useState("");
   const [loading,setLoading]=useState(false);
   const [busyId,setBusyId]=useState("");
@@ -64,7 +64,7 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
     try{
       const result=await invoke("extractions.list");
       const nextRuns=result.runs||[];
-      setRuns(nextRuns);setFacts(result.facts||[]);setEntities(result.entities||[]);setReviews(result.reviews||[]);
+      setRuns(nextRuns);setFacts(result.facts||[]);setEntities(result.entities||[]);setReviews(result.reviews||[]);setEvidence(result.evidence||[]);
       setSelectedRunId(current=>nextRuns.some(run=>run.id===current)?current:(nextRuns[0]?.id||""));
     }catch(reason){setError(reason instanceof Error?reason.message:"Could not load extraction results.");}
     finally{setLoading(false);}
@@ -72,7 +72,7 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
 
   useEffect(()=>{void refresh();},[refresh]);
 
-  const selectedRun=runs.find(run=>run.id===selectedRunId);
+  const selectedRun=runs.find(run=>run.id===selectedRunId);\n  const selectedEvidence=selectedRun?evidence.find(item=>item.id===selectedRun.evidence_id):undefined;
   const runFacts=useMemo(()=>facts.filter(fact=>fact.extraction_run_id===selectedRunId),[facts,selectedRunId]);
   const runEntities=useMemo(()=>entities.filter(entity=>entity.extraction_run_id===selectedRunId),[entities,selectedRunId]);
   const runReviews=useMemo(()=>reviews.filter(review=>review.extraction_run_id===selectedRunId),[reviews,selectedRunId]);
@@ -125,7 +125,10 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
           <div><b>Facts</b><span>{selectedRun.fact_count}</span></div>
           <div><b>Completed</b><span>{dateLabel(selectedRun.completed_at)}</span></div>
           <div><b>Parser</b><span>{selectedRun.extractor_version}</span></div>
+          <div><b>Evidence captured</b><span>{selectedEvidence?dateLabel(selectedEvidence.captured_at):"—"}</span></div>
+          <div><b>Source jurisdiction</b><span>{selectedEvidence?.jurisdiction||"—"}</span></div>
           <div><b>Evidence SHA-256</b><span className="discovery-hash">{selectedRun.source_content_hash?selectedRun.source_content_hash.slice(0,16)+"…":"—"}</span></div>
+          {selectedEvidence?.canonical_url&&<div className="discovery-evidence-source"><b>Original source</b><a href={selectedEvidence.canonical_url} target="_blank" rel="noreferrer">{selectedEvidence.canonical_url}</a><small>{selectedEvidence.content_type} · {selectedEvidence.byte_length.toLocaleString()} bytes · {selectedEvidence.attribution}</small></div>}
         </div>
         {selectedRun.warnings?.length>0&&<div className="discovery-extraction-warnings"><b>Parser warnings</b>{selectedRun.warnings.map((warning,index)=><p key={index}>{warning}</p>)}</div>}
         <div className="discovery-fact-list">
