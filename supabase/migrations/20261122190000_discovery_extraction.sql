@@ -199,7 +199,7 @@ create table if not exists public.discovery_extraction_review_events (
   reason text not null check (length(trim(reason)) between 1 and 1000),
   corrected_value jsonb,
   occurred_at timestamptz not null default now(),
-  check (fact_id is not null or extracted_entity_id is not null),
+  check ((fact_id is null) <> (extracted_entity_id is null)),
   foreign key (company_id, extraction_run_id)
     references public.discovery_extraction_runs(company_id, id) on delete cascade,
   foreign key (company_id, extraction_run_id, fact_id)
