@@ -12,6 +12,7 @@ on:
       - feat/discovery-e06-entity-intelligence
       - feat/discovery-e07-professional-roles
       - feat/discovery-e08-contact-validation
+      - feat/discovery-e09-geo-resolution
   pull_request:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - feat/discovery-e06-entity-intelligence
       - feat/discovery-e07-professional-roles
       - feat/discovery-e08-contact-validation
+      - feat/discovery-e09-geo-resolution
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
