@@ -498,6 +498,12 @@ begin
   if not found then raise exception 'Pending E06 candidate was not found in this company' using errcode='P0002'; end if;
   select evidence_id into v_evidence_id from public.discovery_extraction_runs
     where company_id=p_company_id and id=v_candidate.extraction_run_id;
+  if not found or v_evidence_id is null or not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_evidence_id
+  ) then
+    raise exception 'Original evidence is no longer available; this candidate cannot be reviewed after retention purge' using errcode='P0002';
+  end if;
 
   if p_decision='linked_existing' then
     if v_candidate.matched_entity_id is null then
@@ -508,11 +514,14 @@ begin
         and jurisdiction=v_candidate.jurisdiction for share;
     if not found then raise exception 'Suggested canonical entity is no longer active in this jurisdiction' using errcode='42501'; end if;
   elsif p_decision='created_new' then
+    if v_candidate.jurisdiction is null or length(trim(v_candidate.jurisdiction))<2 then
+      raise exception 'A verified jurisdiction is required before creating a canonical entity' using errcode='22023';
+    end if;
     insert into public.discovery_canonical_entities(
       company_id,entity_kind,legal_name,normalized_name,jurisdiction,status,source_evidence_id,created_by
     ) values (
       p_company_id,'organization',v_candidate.proposed_name,v_candidate.normalized_name,
-      coalesce(v_candidate.jurisdiction,'UNKNOWN'),'active',v_evidence_id,p_actor_user_id
+      v_candidate.jurisdiction,'active',v_evidence_id,p_actor_user_id
     ) returning * into v_canonical;
     for v_identifier in select value from jsonb_array_elements(v_candidate.identifier_proposals)
     loop
@@ -527,7 +536,7 @@ begin
         raw_value,field_name,source_evidence_id,source_span,review_state
       ) values (
         p_company_id,v_canonical.id,v_scheme,
-        coalesce(v_identifier->>'jurisdiction',v_candidate.jurisdiction,'UNKNOWN'),
+        coalesce(v_identifier->>'jurisdiction',v_candidate.jurisdiction),
         v_identifier->>'normalized_value',
         left(coalesce(v_identifier->>'raw_value',v_identifier->>'normalized_value'),1000),
         left(coalesce(v_identifier->>'field_name','registration_id'),128),
