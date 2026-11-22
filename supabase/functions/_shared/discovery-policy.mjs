@@ -91,6 +91,11 @@ export function normalizeSourceRegistration(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("A source registration object is required.");
   const sourceType = requiredText(input.sourceType, "Source type", 48);
   if (!SOURCE_TYPES.includes(sourceType)) throw new Error("Choose a supported source type.");
+  const renderMode = requiredText(input.renderMode || "http", "Fetch mode", 16);
+  if (!["http", "browser"].includes(renderMode)) throw new Error("Fetch mode must be HTTP or browser.");
+  if (renderMode === "browser" && sourceType !== "permitted_public_page") {
+    throw new Error("Playwright rendering is available only for an explicitly permitted public website, never an API, dataset or manual source.");
+  }
   const canonical = httpsUrl(input.canonicalUrl, "Canonical URL");
   if (canonical.search) throw new Error("Canonical URL cannot contain query parameters.");
   const termsUrl = input.termsUrl ? httpsUrl(input.termsUrl, "Terms URL").toString() : null;
@@ -115,6 +120,7 @@ export function normalizeSourceRegistration(input) {
     domain: canonical.hostname.toLowerCase(),
     source_type: sourceType,
     connector_key: sourceType,
+    render_mode: renderMode,
     jurisdiction,
     terms_url: termsUrl,
     license_ref: requiredText(input.licenseRef || "unreviewed", "Licence reference", 500),
