@@ -36,22 +36,29 @@ test("DNS answers fail closed when any answer is non-public", () => {
   ]), /private or reserved/);
 });
 
-test("robots policy applies user-agent groups and most-specific allow/disallow rule", () => {
-  const rules = parseRobotsRules(`
+test("robots parser follows RFC 9309 product-token groups, specificity, wildcards and fallback", () => {
+  const rules = parseRobotsRules(\`
 User-agent: *
-Disallow: /private
-Disallow: /api/internal
-Allow: /api/internal/public
+Disallow: /global
 User-agent: AXIVESTRA-DiscoveryBot
 Disallow: /restricted
 Allow: /restricted/public$
-`);
+User-agent: AXIVESTRA-DiscoveryBot
+Disallow: /api/internal
+Allow: /api/internal/public
+Disallow: /files/*.private
+\`);
+  assert.equal(rules.allows("https://registry.example.gov.in/global"), true, "wildcard group is fallback, not merged with specific group");
   assert.equal(rules.allows("https://registry.example.gov.in/api/v1/entities/1"), true);
-  assert.equal(rules.allows("https://registry.example.gov.in/private/record"), false);
   assert.equal(rules.allows("https://registry.example.gov.in/api/internal/record"), false);
-  assert.equal(rules.allows("https://registry.example.gov.in/api/internal/public/record"), true);
+  assert.equal(rules.allows("https://registry.example.gov.in/api/internal/public/record"), true, "longest Allow rule wins");
   assert.equal(rules.allows("https://registry.example.gov.in/restricted/private"), false);
-  assert.equal(rules.allows("https://registry.example.gov.in/restricted/public"), true);
+  assert.equal(rules.allows("https://registry.example.gov.in/restricted/public"), true, "end-anchor pattern matches exact path");
+  assert.equal(rules.allows("https://registry.example.gov.in/files/a.private"), false, "asterisk is a wildcard");
+  assert.equal(rules.allows("https://registry.example.gov.in/robots.txt"), true, "robots.txt is implicitly allowed");
+
+  const fallback = parseRobotsRules("User-agent: *\\nDisallow: /private");
+  assert.equal(fallback.allows("https://registry.example.gov.in/private/record"), false);
 });
 
 test("candidate URL validation is exact-host, path-allow-listed and page-budget limited", () => {
