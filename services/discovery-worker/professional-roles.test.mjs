@@ -76,7 +76,7 @@ test("E07 does not infer an employer from a person name or fuzzy company text", 
 test("E07 exact employer-name linking requires a unique reviewed canonical company", () => {
   const result = buildProfessionalRoleCandidates({
     extractedEntities: [person, organization],
-    extractedFacts: [facts[0], { ...facts[1], field_name: "employer_name", raw_value: "Acme Holdings Pvt Ltd" }],
+    extractedFacts: [facts[0], { ...facts[1], field_name: "employer_name", raw_value: "Acme Holdings Pvt Ltd", normalized_value: "Acme Holdings Pvt Ltd" }],
     assignments, canonicalEntities: canonical, evidenceId, jurisdiction: "IN"
   })[0];
   assert.equal(result.canonical_entity_id, "canonical-acme");
@@ -87,7 +87,7 @@ test("E07 ambiguous company names are not linked", () => {
   const second = { ...canonical[0], id: "canonical-acme-2", legal_name: "Acme Holdings Pvt Ltd", normalized_name: "acme holdings" };
   const result = buildProfessionalRoleCandidates({
     extractedEntities: [person, organization],
-    extractedFacts: [facts[0], { ...facts[1], field_name: "employer_name", raw_value: "Acme Holdings" }],
+    extractedFacts: [facts[0], { ...facts[1], field_name: "employer_name", raw_value: "Acme Holdings", normalized_value: "Acme Holdings" }],
     assignments, canonicalEntities: [canonical[0], second], evidenceId, jurisdiction: "IN"
   })[0];
   assert.equal(result.canonical_entity_id, null);
