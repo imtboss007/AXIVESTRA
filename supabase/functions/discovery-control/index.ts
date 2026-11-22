@@ -243,7 +243,7 @@ Deno.serve(async request => {
           .eq("company_id", companyId).in("id", entityIds)
         : { data: [], error: null };
       if (entityError) throw entityError;
-      const byId = new Map((entities || []).map((entity: Record<string, unknown>) => [String(entity.id), entity]));
+      const byId = new Map<string, Record<string, unknown>>((entities || []).map((entity: Record<string, unknown>) => [String(entity.id), entity] as [string, Record<string, unknown>]));
       return jsonResponse(200, { ok: true, matches: (matches || []).map((match: Record<string, unknown>) => ({
         ...match, candidate: byId.get(String(match.canonical_entity_id)) || null
       })) });
@@ -270,8 +270,8 @@ Deno.serve(async request => {
       if (matchResult.error) throw matchResult.error;
       if (entityResult.error) throw entityResult.error;
       if (eventResult.error) throw eventResult.error;
-      const matchesById = new Map((matchResult.data || []).map((row: Record<string, unknown>) => [String(row.id), row]));
-      const entitiesById = new Map((entityResult.data || []).map((row: Record<string, unknown>) => [String(row.id), row]));
+      const matchesById = new Map<string, Record<string, unknown>>((matchResult.data || []).map((row: Record<string, unknown>) => [String(row.id), row] as [string, Record<string, unknown>]));
+      const entitiesById = new Map<string, Record<string, unknown>>((entityResult.data || []).map((row: Record<string, unknown>) => [String(row.id), row] as [string, Record<string, unknown>]));
       const eventsByLead = new Map<string, Record<string, unknown>[]>();
       for (const event of eventResult.data || []) {
         const key = String((event as Record<string, unknown>).lead_id);
