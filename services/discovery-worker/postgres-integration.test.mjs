@@ -1334,8 +1334,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "insert into public.discovery_professional_people(company_id,full_name,normalized_name,public_professional_source,purpose,retention_until,source_evidence_id,created_by,status) values($1,'Retention Fixture Person','retention fixture person',true,'integration retention test',$2,$3,$4,'active') returning id",
       [companyId,retentionDate,evidenceId,actorId]
     );
-    // Insert a test-only already-approved point from the second encrypted candidate.
-    // This isolates retention processing from the review-state transitions above.
+    // Duplicate the already-approved contact into a test-only expired point
+    // linked to the retention fixture person. The source candidate is historical.
     const retentionContact=await pool.query(
       `insert into public.discovery_contact_points(
         company_id,contact_type,value_ciphertext,value_nonce,value_auth_tag,value_fingerprint,
@@ -1343,10 +1343,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         source_candidate_id,source_evidence_id,purpose,retention_until,created_by,status
       )
       select company_id,contact_type,value_ciphertext,value_nonce,value_auth_tag,value_fingerprint,
-        encryption_version,masked_value,$3,$4,id,evidence_id,'integration contact retention test',$5,$6,'active'
-      from public.discovery_contact_candidates
+        encryption_version,masked_value,canonical_entity_id,$3,source_candidate_id,source_evidence_id,
+        'integration contact retention test',$4,$5,'active'
+      from public.discovery_contact_points
       where company_id=$1 and id=$2 returning id`,
-      [companyId,contactCandidates.rows[1].id,canonical.rows[0].id,retentionPerson.rows[0].id,retentionDate,actorId]
+      [companyId,privacyContact.rows[0].id,retentionPerson.rows[0].id,retentionDate,actorId]
     );
     assert.equal(retentionContact.rows.length,1,"E14 retention fixture must have a second contact point");
     await pool.query(
