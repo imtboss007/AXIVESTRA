@@ -521,6 +521,22 @@ test("desktop and mobile: every module formats crores and opens table details, h
   await expect(page.getByText("16 matching records")).toBeVisible();
   await openSection("Follow-up Registry");
   await expect(page.getByRole("heading",{name:"Follow-up Registry"})).toBeVisible();
+  await page.getByRole("button",{name:"Calendar",exact:true}).click();
+  await page.getByLabel("Jump to month").fill("2026-11");
+  const calendarDays=page.locator(".ax-followup-calendar__day");
+  await expect(calendarDays).toHaveCount(30);
+  const appointmentDay=page.locator('.ax-followup-calendar__day[aria-label^="15 Nov 2026"]');
+  await expect(appointmentDay).toContainText("1 due");
+  await appointmentDay.click();
+  await expect(appointmentDay).toHaveAttribute("aria-pressed","true");
+  const selectedDay=page.getByRole("region",{name:"Assignments for 15 Nov 2026"});
+  await expect(selectedDay).toContainText("QA appointment · Property Sale");
+  await page.getByRole("button",{name:"Next month"}).click();
+  await expect(page.locator(".ax-followup-calendar__heading > strong")).toContainText("December 2026");
+  await page.getByRole("button",{name:"Previous month"}).click();
+  await expect(page.locator(".ax-followup-calendar__heading > strong")).toContainText("November 2026");
+  await page.getByRole("button",{name:"Today",exact:true}).click();
+  await page.getByRole("button",{name:"Person",exact:true}).click();
   // The structured appointment was moved off the legacy record date. The independent legacy next-action now appears as a second item.
   await expect(page.locator(".ax-followup-banner .banner-aside strong")).toContainText("17");
   await expect(page.getByText("QA appointment · Property Sale",{exact:true}).first()).toBeVisible();
