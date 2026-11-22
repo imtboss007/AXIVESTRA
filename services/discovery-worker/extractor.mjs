@@ -214,6 +214,91 @@ function parseHtmlEvidence(text, observations) {
   parseLabeledText($("body").text().slice(0, MAX_TEXT_CHARS), observations, "html-labeled-text");
 }
 
+function parseCsvRows(text) {
+  const input = String(text || "").replace(/^\\uFEFF/, "");
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  const pushCell = () => {
+    row.push(cell.trim());
+    cell = "";
+    if (row.length > 500) throw new Error("CSV exceeds the 500-column extraction limit.");
+  };
+  const pushRow = () => {
+    pushCell();
+    if (row.some(value => value.length > 0)) rows.push(row);
+    row = [];
+    if (rows.length > 20_000) throw new Error("CSV exceeds the 20,000-row extraction limit.");
+  };
+
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index];
+    if (quoted) {
+      if (character === '"' && input[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (character === '"') {
+        quoted = false;
+      } else {
+        cell += character;
+      }
+    } else if (character === '"' && cell.trim().length === 0) {
+      quoted = true;
+      cell = "";
+    } else if (character === ",") {
+      pushCell();
+    } else if (character === "\\n" || character === "\\r") {
+      if (character === "\\r" && input[index + 1] === "\\n") index += 1;
+      pushRow();
+    } else {
+      cell += character;
+    }
+
+    if (cell.length > 20_000) throw new Error("CSV cell exceeds the 20,000-character extraction limit.");
+  }
+
+  if (quoted) throw new Error("CSV contains an unterminated quoted cell.");
+  if (cell.length || row.length) pushRow();
+  return rows;
+}
+
+function parseCsvEvidence(text, observations) {
+  const rows = parseCsvRows(text);
+  if (!rows.length) return "CSV did not contain a header row or data records.";
+  const headers = rows[0].map(value => value.trim());
+  if (!headers.length || headers.some(header => !header)) {
+    throw new Error("CSV header row contains an empty column name.");
+  }
+
+  const keys = headers.map(normalizeKey);
+  if (new Set(keys).size !== keys.length) {
+    throw new Error("CSV header row contains duplicate or ambiguously normalized column names.");
+  }
+
+  const warnings = [];
+  if (rows.length === 1) warnings.push("CSV contains a header row but no data rows.");
+  for (let rowIndex = 1; rowIndex < rows.length && observations.length < MAX_OBSERVATIONS; rowIndex += 1) {
+    const values = rows[rowIndex];
+    if (values.length !== headers.length && warnings.length < 10) {
+      warnings.push("CSV row " + (rowIndex + 1) + " contains " + values.length + " cells; header declares " + headers.length + ".");
+    }
+    const count = Math.min(values.length, headers.length);
+    for (let columnIndex = 0; columnIndex < count && observations.length < MAX_OBSERVATIONS; columnIndex += 1) {
+      const value = values[columnIndex];
+      if (!value) continue;
+      pushObservation(observations, headers[columnIndex], value, {
+        kind: "csv-cell",
+        row: rowIndex + 1,
+        column: columnIndex + 1,
+        header: headers[columnIndex]
+      }, 0.94);
+    }
+  }
+  return warnings.length ? warnings.join(" ") : null;
+}
+
 function parseXmlEvidence(text, observations) {
   const $ = cheerio.load(text, { xmlMode: true, decodeEntities: true });
   $("*").each((index, element) => {
@@ -396,6 +481,7 @@ export function extractStructuredFacts({
 
   if (["application/json","application/ld+json"].includes(mime)) parseJsonEvidence(text, observations);
   else if (mime === "text/html") parseHtmlEvidence(text, observations);
+  else if (["text/csv","application/csv"].includes(mime)) parserWarning = parseCsvEvidence(text, observations);
   else if (["application/xml","text/xml"].includes(mime)) parseXmlEvidence(text, observations);
   else if (mime === "text/plain") parseLabeledText(text, observations, "text-line");
   else if (mime === "application/pdf") {
