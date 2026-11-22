@@ -70,7 +70,7 @@ create index if not exists discovery_extraction_jobs_company_idx
 create table if not exists public.discovery_extraction_runs (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  extraction_job_id uuid not null references public.discovery_extraction_jobs(id) on delete restrict,
+  extraction_job_id uuid not null references public.discovery_extraction_jobs(id) on delete cascade,
   evidence_id uuid not null,
   source_id uuid not null,
   extractor_version text not null,
@@ -84,6 +84,7 @@ create table if not exists public.discovery_extraction_runs (
   source_content_hash text not null check (source_content_hash ~ '^[a-f0-9]{64}$'),
   completed_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
+  unique(company_id, id),
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade,
   foreign key (company_id, source_id)
@@ -121,7 +122,7 @@ create table if not exists public.discovery_extracted_facts (
   company_id uuid not null references public.companies(id) on delete cascade,
   extraction_run_id uuid not null references public.discovery_extraction_runs(id) on delete cascade,
   evidence_id uuid not null,
-  extracted_entity_id uuid references public.discovery_extracted_entities(id) on delete restrict,
+  extracted_entity_id uuid,
   field_name text not null check (length(trim(field_name)) between 1 and 128),
   value_type text not null check (value_type in (
     'string','number','boolean','date','email','phone','url','identifier',
@@ -136,10 +137,11 @@ create table if not exists public.discovery_extracted_facts (
   extraction_method text not null default 'deterministic'
     check (extraction_method in ('deterministic','llm_experimental')),
   created_at timestamptz not null default now(),
+  unique(company_id, id),
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade,
   foreign key (company_id, extracted_entity_id)
-    references public.discovery_extracted_entities(company_id, id) on delete restrict
+    references public.discovery_extracted_entities(company_id, id) on delete cascade
 );
 
 create index if not exists discovery_extracted_facts_run_idx
@@ -150,15 +152,21 @@ create index if not exists discovery_extracted_facts_evidence_idx
 create table if not exists public.discovery_extraction_review_events (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  extraction_run_id uuid not null references public.discovery_extraction_runs(id) on delete cascade,
-  fact_id uuid references public.discovery_extracted_facts(id) on delete restrict,
-  extracted_entity_id uuid references public.discovery_extracted_entities(id) on delete restrict,
+  extraction_run_id uuid not null,
+  fact_id uuid,
+  extracted_entity_id uuid,
   actor_user_id uuid not null references auth.users(id) on delete restrict,
   decision text not null check (decision in ('accepted','rejected','corrected','escalated')),
   reason text not null check (length(trim(reason)) between 1 and 1000),
   corrected_value jsonb,
   occurred_at timestamptz not null default now(),
-  check (fact_id is not null or extracted_entity_id is not null)
+  check (fact_id is not null or extracted_entity_id is not null),
+  foreign key (company_id, extraction_run_id)
+    references public.discovery_extraction_runs(company_id, id) on delete cascade,
+  foreign key (company_id, fact_id)
+    references public.discovery_extracted_facts(company_id, id) on delete cascade,
+  foreign key (company_id, extracted_entity_id)
+    references public.discovery_extracted_entities(company_id, id) on delete cascade
 );
 
 create index if not exists discovery_extraction_review_events_run_idx
@@ -245,6 +253,12 @@ begin
       on s.company_id = j.company_id and s.id = j.source_id and s.status = 'approved'
     join public.discovery_evidence_items e
       on e.company_id = j.company_id and e.id = j.evidence_id
+    join public.discovery_jobs dj
+      on dj.company_id = e.company_id and dj.id = e.job_id and dj.status = 'succeeded'
+    join public.discovery_profiles p
+      on p.company_id = dj.company_id and p.id = dj.profile_id and p.enabled = true
+    join public.discovery_profile_sources ps
+      on ps.company_id = dj.company_id and ps.profile_id = dj.profile_id and ps.source_id = j.source_id
     where j.status = 'queued' and j.available_at <= v_now and j.attempts < j.max_attempts
     order by j.available_at, j.created_at
     for update of j skip locked
@@ -288,6 +302,13 @@ begin
       and exists (
         select 1 from public.discovery_source_registry s
         where s.company_id = j.company_id and s.id = j.source_id and s.status = 'approved'
+      )
+      and exists (
+        select 1 from public.discovery_evidence_items e
+        join public.discovery_jobs dj on dj.company_id=e.company_id and dj.id=e.job_id and dj.status='succeeded'
+        join public.discovery_profiles p on p.company_id=dj.company_id and p.id=dj.profile_id and p.enabled=true
+        join public.discovery_profile_sources ps on ps.company_id=dj.company_id and ps.profile_id=dj.profile_id and ps.source_id=j.source_id
+        where e.company_id=j.company_id and e.id=j.evidence_id
       );
   get diagnostics v_updated = row_count;
   return v_updated = 1;
@@ -317,9 +338,11 @@ declare
   v_field text;
   v_fact_count integer := 0;
   v_entity_count integer := 0;
+  v_evidence public.discovery_evidence_items%rowtype;
 begin
   if jsonb_typeof(p_run) <> 'object' or jsonb_typeof(p_entities) <> 'array'
     or jsonb_typeof(p_facts) <> 'array'
+    or (p_run ? 'warnings' and jsonb_typeof(p_run->'warnings') <> 'array')
     or jsonb_array_length(p_entities) > 500
     or jsonb_array_length(p_facts) > 2000 then
     raise exception 'Extraction result payload is outside approved bounds' using errcode = '22023';
@@ -336,6 +359,12 @@ begin
   select * into v_source from public.discovery_source_registry
     where company_id = v_job.company_id and id = v_job.source_id and status = 'approved'
     for share;
+  select * into v_evidence from public.discovery_evidence_items
+    where company_id = v_job.company_id and id = v_job.evidence_id
+    for share;
+  if not found or v_evidence.content_hash is distinct from p_run->>'source_content_hash' then
+    raise exception 'Extraction evidence hash does not match the immutable source snapshot' using errcode = '42501';
+  end if;
   if not found then
     raise exception 'Extraction source approval has been revoked' using errcode = '42501';
   end if;
