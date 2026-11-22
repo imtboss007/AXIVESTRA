@@ -63,6 +63,21 @@ test("E09 validates coordinate ranges and requires a latitude/longitude pair", (
   assert.equal(incomplete[0].source_coordinates,null);
 });
 
+test("E09 detects a partial coordinate pair even when no address components exist", () => {
+  const result = buildPlaceCandidates({
+    extractedEntities:[entities[0]],
+    extractedFacts:[{
+      id:"partial-lat",extracted_entity_id:"company-1",field_name:"latitude",
+      raw_value:"12.9",validation_status:"valid",
+      source_span:{kind:"json-pointer",locator:"$/latitude"},confidence:0.8
+    }],
+    allowedFields:["latitude"],fieldSchema:{latitude:schema.latitude},evidenceId:"evidence-1"
+  });
+  assert.equal(result.length,1);
+  assert.equal(result[0].coordinate_state,"invalid_or_incomplete_source_coordinates");
+  assert.equal(result[0].candidate_state,"needs_coordinate_review");
+});
+
 test("E09 does not infer a country or country code", () => {
   const candidates = buildPlaceCandidates({
     extractedEntities:[entities[1]],
