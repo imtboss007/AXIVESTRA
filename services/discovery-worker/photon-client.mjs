@@ -10,6 +10,9 @@ function validateBaseUrl(value) {
       url.search || url.hash) {
     throw new Error("Photon base URL must use HTTP(S) without credentials, query or fragment.");
   }
+  if (["photon.komoot.io", "photon.komoot.de"].includes(url.hostname.toLowerCase())) {
+    throw new Error("AXIVESTRA E09 requires a self-hosted Photon instance, not the public demo.");
+  }
   if (url.protocol === "http:" && !["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
     throw new Error("Non-local Photon endpoints must use HTTPS.");
   }
