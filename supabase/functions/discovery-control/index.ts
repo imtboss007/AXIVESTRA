@@ -244,43 +244,40 @@ Deno.serve(async request => {
       if (decision === "corrected" && correctedValue === undefined) {
         return jsonResponse(400, { error: "A corrected value is required for a correction review event." });
       }
+      if (decision !== "corrected" && correctedValue !== undefined) {
+        return jsonResponse(400, { error: "A corrected value is accepted only for a correction decision." });
+      }
       if (correctedValue !== undefined && new TextEncoder().encode(JSON.stringify(correctedValue)).length > 4096) {
         return jsonResponse(413, { error: "Corrected value must not exceed 4 KB." });
       }
-      const { data: run, error: runError } = await admin.from("discovery_extraction_runs")
-        .select("id").eq("company_id", companyId).eq("id", payload.runId).maybeSingle();
-      if (runError) throw runError;
-      if (!run) return jsonResponse(404, { error: "Extraction run was not found in this company." });
-      if (factId) {
-        const { data, error } = await admin.from("discovery_extracted_facts")
-          .select("id").eq("company_id", companyId).eq("extraction_run_id", run.id).eq("id", factId).maybeSingle();
-        if (error) throw error;
-        if (!data) return jsonResponse(404, { error: "The fact was not found in this extraction run." });
-      } else {
-        const { data, error } = await admin.from("discovery_extracted_entities")
-          .select("id").eq("company_id", companyId).eq("extraction_run_id", run.id).eq("id", entityId).maybeSingle();
-        if (error) throw error;
-        if (!data) return jsonResponse(404, { error: "The entity mention was not found in this extraction run." });
-      }
-      const { data: review, error: reviewError } = await admin.from("discovery_extraction_review_events").insert({
-        company_id: companyId,
-        extraction_run_id: run.id,
-        fact_id: factId,
-        extracted_entity_id: entityId,
-        actor_user_id: caller.id,
-        decision,
-        reason,
-        corrected_value: decision === "corrected" ? correctedValue : null
-      }).select("id,decision,reason,occurred_at").single();
-      if (reviewError) throw reviewError;
-      await writeAudit(admin, {
-        company_id: companyId, actor_user_id: caller.id,
-        action: "extraction_review_recorded",
-        entity_type: "extraction_review_event",
-        entity_id: review.id,
-        details: { extractionRunId: run.id, factId, entityId, decision }
+
+      // The database transaction rechecks owner/admin role, run/fact scope and
+      // writes the review event plus audit receipt atomically.
+      const { data: saved, error: reviewError } = await admin.rpc("record_discovery_extraction_review", {
+        p_company_id: companyId,
+        p_actor_user_id: caller.id,
+        p_run_id: payload.runId,
+        p_fact_id: factId,
+        p_entity_id: entityId,
+        p_decision: decision,
+        p_reason: reason,
+        p_corrected_value: decision === "corrected" ? correctedValue : null
       });
-      return jsonResponse(201, { ok: true, review, message: "Human review receipt recorded. The immutable extracted fact or entity mention was not overwritten." });
+      if (reviewError) {
+        if (reviewError.code === "42501") return jsonResponse(403, { error: reviewError.message });
+        if (reviewError.code === "P0002") return jsonResponse(404, { error: reviewError.message });
+        throw reviewError;
+      }
+      const review = Array.isArray(saved) ? saved[0] : saved;
+      if (!review) throw new Error("The extraction review transaction returned no receipt.");
+      return jsonResponse(201, {
+        ok: true,
+        review: {
+          id: review.id, decision: review.decision,
+          reason: review.reason, occurred_at: review.occurred_at
+        },
+        message: "Human review receipt recorded atomically with its audit event. The immutable extracted fact or entity mention was not overwritten."
+      });
     }
 
     if (action === "workers.control") {
