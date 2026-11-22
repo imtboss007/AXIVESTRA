@@ -101,6 +101,7 @@ create table if not exists public.discovery_professional_people (
   normalized_name text not null check (length(trim(normalized_name)) between 1 and 300),
   public_professional_source boolean not null default true check (public_professional_source=true),
   purpose text not null check (length(trim(purpose)) between 1 and 300),
+  retention_until date not null,
   source_evidence_id uuid not null,
   created_by uuid not null references auth.users(id) on delete restrict,
   status text not null default 'active' check (status in ('active','restricted','rejected')),
@@ -359,8 +360,8 @@ $complete$;
 
 create or replace function public.record_discovery_professional_role_review(
   p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,
-  p_decision text,p_reason text,p_existing_person_id uuid default null,
-  p_purpose text default 'professional role verification'
+  p_decision text,p_reason text,p_purpose text,p_retention_until date,
+  p_existing_person_id uuid default null
 ) returns public.discovery_professional_role_review_events
 language plpgsql security definer
 set search_path=public,pg_temp
@@ -380,6 +381,9 @@ begin
   if p_purpose is null or length(trim(p_purpose))<1 or length(p_purpose)>300 then
     raise exception 'E07 processing purpose is required' using errcode='22023';
   end if;
+  if p_retention_until is null or p_retention_until<=current_date or p_retention_until>current_date+365 then
+    raise exception 'E07 retention expiry must be explicit and no more than 365 days away' using errcode='22023';
+  end if;
   select role into v_role from public.company_memberships
     where company_id=p_company_id and user_id=p_actor_user_id for share;
   if v_role is null or v_role not in ('owner','admin') then
@@ -396,10 +400,10 @@ begin
   if p_decision='created_new' then
     insert into public.discovery_professional_people(
       company_id,full_name,normalized_name,public_professional_source,purpose,
-      source_evidence_id,created_by,status
+      retention_until,source_evidence_id,created_by,status
     ) values (
       p_company_id,v_candidate.person_name,v_candidate.normalized_person_name,true,
-      trim(p_purpose),v_candidate.evidence_id,p_actor_user_id,'active'
+      trim(p_purpose),p_retention_until,v_candidate.evidence_id,p_actor_user_id,'active'
     ) returning * into v_person;
   elsif p_decision='linked_existing' then
     if p_existing_person_id is null then raise exception 'Existing professional person ID is required' using errcode='22023'; end if;
@@ -468,12 +472,12 @@ revoke all on function public.claim_discovery_professional_role_job(text,integer
 revoke all on function public.heartbeat_discovery_professional_role_job(uuid,text,integer) from public,anon,authenticated;
 revoke all on function public.complete_discovery_professional_role_job(uuid,text,jsonb) from public,anon,authenticated;
 revoke all on function public.fail_discovery_professional_role_job(uuid,text,text,text) from public,anon,authenticated;
-revoke all on function public.record_discovery_professional_role_review(uuid,uuid,uuid,text,text,uuid,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_professional_role_review(uuid,uuid,uuid,text,text,text,date,uuid) from public,anon,authenticated;
 grant execute on function public.claim_discovery_professional_role_job(text,integer) to service_role;
 grant execute on function public.heartbeat_discovery_professional_role_job(uuid,text,integer) to service_role;
 grant execute on function public.complete_discovery_professional_role_job(uuid,text,jsonb) to service_role;
 grant execute on function public.fail_discovery_professional_role_job(uuid,text,text,text) to service_role;
-grant execute on function public.record_discovery_professional_role_review(uuid,uuid,uuid,text,text,uuid,text) to service_role;
+grant execute on function public.record_discovery_professional_role_review(uuid,uuid,uuid,text,text,text,date,uuid) to service_role;
 
 comment on table public.discovery_professional_role_candidates is
   'E07 source-backed public professional role candidates; no contact details and no auto-promotion.';
