@@ -25,7 +25,12 @@ const compact = (value: number) => formatIndianCompactAmount(value) || "—";
 type CItem={name:string;value:number;color:string;count?:number};type MFlow={key:string;name:string;fullName:string;inflow:number;outflow:number;net:number;count:number};
 function buildPortfolioChartOption(focus:"allocation"|"pipeline"|"cashflow",type:"donut"|"bar"|"line",metric:"value"|"count",items:CItem[],months:MFlow[],selected:string,labels:boolean):EChartsOption{
  const axis={color:"#9aafbd",fontSize:11},grid="#294254",money=(v:number)=>formatIndianCompactAmount(v)||"0";
- const formatTooltipValue=(value:number|string)=>focus==="cashflow"||metric==="value"?money(Number(value)):Number(value).toLocaleString("en-IN");
+ const formatTooltipValue=(value:unknown)=>{
+  const scalar=Array.isArray(value)?value[0]:value;
+  const numeric=Number(scalar);
+  if(!Number.isFinite(numeric))return String(scalar??"");
+  return focus==="cashflow"||metric==="value"?money(numeric):numeric.toLocaleString("en-IN");
+ };
  const common={backgroundColor:"transparent",animationDuration:240,textStyle:{color:"#c3d1da",fontFamily:"Inter,system-ui,sans-serif"},tooltip:{trigger:"item" as const,confine:true,valueFormatter:formatTooltipValue},aria:{enabled:true,decal:{show:true}}};
  if(focus==="cashflow"&&type==="donut"){const a=months.reduce((s,r)=>s+r.inflow,0),b=months.reduce((s,r)=>s+r.outflow,0);return {...common,color:["#69b9ae","#d17c79"],legend:{bottom:0,textStyle:axis},series:[{type:"pie",radius:["48%","74%"],center:["50%","44%"],label:{show:labels,color:"#c3d1da",formatter:"{b}: {d}%"},data:[{name:"Inflow",value:a},{name:"Outflow",value:b}]}]};}
  if(focus==="cashflow"){const st:"bar"|"line"=type==="bar"?"bar":"line";return {...common,color:["#69b9ae","#d17c79"],legend:{bottom:0,textStyle:axis},grid:{left:84,right:24,top:24,bottom:58},xAxis:{type:"category",data:months.map(x=>x.name),axisLabel:axis,axisLine:{lineStyle:{color:grid}},axisTick:{show:false}},yAxis:{type:"value",axisLabel:{...axis,formatter:(v:string|number)=>money(Number(v))},splitLine:{lineStyle:{color:grid,type:"dashed"}}},series:[{name:"Inflow",type:st,smooth:true,barMaxWidth:22,data:months.map(x=>x.inflow),itemStyle:{color:"#69b9ae"},lineStyle:{width:3},areaStyle:type==="line"?{opacity:.08}:undefined,label:{show:labels,position:"top"}},{name:"Outflow",type:st,smooth:true,barMaxWidth:22,data:months.map(x=>x.outflow),itemStyle:{color:"#d17c79"},lineStyle:{width:3},areaStyle:type==="line"?{opacity:.06}:undefined,label:{show:labels,position:"top"}}]};}
