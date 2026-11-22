@@ -20,6 +20,11 @@ type Review = {
   id:string; extraction_run_id:string; fact_id:string|null; extracted_entity_id:string|null;
   actor_user_id:string; decision:string; reason:string; corrected_value:unknown; occurred_at:string;
 };
+type Evidence = {
+  id:string; canonical_url:string; captured_at:string; source_published_at:string|null;
+  content_type:string; byte_length:number; content_hash:string; attribution:string; jurisdiction:string;
+};
+
 type Response = {ok?:boolean;error?:string;runs?:Run[];facts?:Fact[];entities?:Entity[];reviews?:Review[];evidence?:Evidence[];review?:Review};
 
 function pretty(value:unknown) {
@@ -72,7 +77,8 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
 
   useEffect(()=>{void refresh();},[refresh]);
 
-  const selectedRun=runs.find(run=>run.id===selectedRunId);\n  const selectedEvidence=selectedRun?evidence.find(item=>item.id===selectedRun.evidence_id):undefined;
+  const selectedRun=runs.find(run=>run.id===selectedRunId);
+  const selectedEvidence=selectedRun?evidence.find(item=>item.id===selectedRun.evidence_id):undefined;
   const runFacts=useMemo(()=>facts.filter(fact=>fact.extraction_run_id===selectedRunId),[facts,selectedRunId]);
   const runEntities=useMemo(()=>entities.filter(entity=>entity.extraction_run_id===selectedRunId),[entities,selectedRunId]);
   const runReviews=useMemo(()=>reviews.filter(review=>review.extraction_run_id===selectedRunId),[reviews,selectedRunId]);
