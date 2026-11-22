@@ -10,6 +10,7 @@ const orbitalHub = fs.readFileSync(path.join(root, "src", "AxivestraOrbitalHub.t
 const analytics = fs.readFileSync(path.join(root, "src", "PortfolioAnalytics.tsx"), "utf8");
 const magicGrid = fs.readFileSync(path.join(root, "src", "components", "MagicAnimatedGridPattern.tsx"), "utf8");
 const motionNumber = fs.readFileSync(path.join(root, "src", "components", "MotionAnimatedNumber.tsx"), "utf8");
+const unlumenGlowButton = fs.readFileSync(path.join(root, "src", "components", "UnlumenGlowButton.tsx"), "utf8");
 const thirdPartyNotices = fs.readFileSync(path.join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
 const table = fs.readFileSync(path.join(root, "src", "components", "EnterpriseDataTable.tsx"), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -186,3 +187,21 @@ assert.match(theme, /\.ax-modern-shell \.ax-followup-form \.ax-field-error\s*\{[
   "Follow-up validation errors must be readable on dark form surfaces.");
 assert.match(theme, /@media \(max-width: 640px\)\s*\{[\s\S]*?\.ax-modern-shell \.ax-followup-form \.ax-followup-contact-options\s*\{[^}]*grid-template-columns:\s*minmax\(0,1fr\)/s,
   "Follow-up contact options must collapse to a single touch-friendly column on mobile.");
+
+
+assert.match(app, /import UnlumenGlowButton from "\.\/components\/UnlumenGlowButton";/,
+  "AXIVESTRA must import the adapted Unlumen Glow Button.");
+assert.match(app, /<UnlumenGlowButton type="button" className="hero-button"/,
+  "Only the primary Overview action should use the glow button wrapper.");
+assert.match(unlumenGlowButton, /ButtonHTMLAttributes<HTMLButtonElement>/,
+  "The glow wrapper must preserve native button attributes and keyboard behaviour.");
+assert.match(unlumenGlowButton, /className=\{\["ax-unlumen-glow-button", className\]/,
+  "The wrapper must retain the existing AXIVESTRA hero-button class.");
+assert.match(theme, /\.hero-button\.ax-unlumen-glow-button::before[\s\S]*?conic-gradient/,
+  "The glow layer must use a CSS conic gradient behind the native action.");
+assert.match(theme, /@keyframes ax-unlumen-glow-rotate/,
+  "The Unlumen glow treatment must animate independently without a JS animation runtime.");
+assert.match(theme, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.hero-button\.ax-unlumen-glow-button::before[\s\S]*?animation: none/,
+  "The glow treatment must stop rotating when reduced motion is preferred.");
+assert.match(thirdPartyNotices, /Unlumen UI[\s\S]*?MIT License[\s\S]*?Copyright \(c\) 2026 Léo Wicki/,
+  "The adapted Unlumen component must retain the upstream MIT attribution and licence.");
