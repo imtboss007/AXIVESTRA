@@ -4,6 +4,7 @@ import { request as httpsRequest } from "node:https";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { BasicCrawler } from "crawlee";
+import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import {
   assertAllowedSourceUrl,
@@ -204,7 +205,7 @@ async function getCachedEvidence(admin, job, source, urlValue) {
   return data ? { ...data, cacheKey: key } : null;
 }
 
-async function storeEvidence(admin, job, source, urlValue, response) {
+async function storeEvidence(admin, job, source, urlValue, response, options = {}) {
   const contentType = readContentType(response.headers);
   if (!ALLOWED_CONTENT_TYPES.has(contentType)) {
     throw new Error("Source content type is not in the fetch worker evidence allow-list.");
@@ -231,6 +232,8 @@ async function storeEvidence(admin, job, source, urlValue, response) {
     captured_at: new Date().toISOString(),
     source_published_at: null,
     content_hash: contentHash,
+    evidence_kind: options.evidenceKind || "raw_response",
+    parent_evidence_id: options.parentEvidenceId || null,
     raw_blob_ref: "discovery-evidence:" + objectPath,
     content_type: contentType,
     byte_length: response.body.length,
@@ -244,9 +247,11 @@ async function storeEvidence(admin, job, source, urlValue, response) {
       allowed_fields: source.allowed_fields || [],
       retention_days: source.retention_days || null
     },
-    response_metadata: { http_status: response.status, headers: safeHeaders, fetched_url: redactUrl(response.finalUrl) }
+    response_metadata: { http_status: response.status, headers: safeHeaders, fetched_url: redactUrl(response.finalUrl), ...(options.responseMetadata || {}) }
   }).select("id").single();
   if (insertError) throw new Error("Evidence metadata insert failed: " + insertError.message);
+
+  if (options.cache === false || options.evidenceKind === "rendered_dom") return evidence.id;
 
   const cacheKey = sha256(source.id + ":" + urlValue);
   const retentionSeconds = Math.max(60, Number(source.retention_days || 1) * 86400);
@@ -284,12 +289,131 @@ async function fetchCandidate(admin, job, source, workerId, urlValue, robots, si
       evidence_id: cached.evidence_id, event_type: "cache_hit", url: redactUrl(url),
       outcome: "reused_unexpired_evidence", metadata: { content_hash: cached.content_hash, expires_at: cached.expires_at }
     });
-    return { cached: true, evidenceId: cached.evidence_id };
+    const { data: item, error } = await admin.from("discovery_evidence_items")
+      .select("raw_blob_ref,content_type").eq("id", cached.evidence_id).maybeSingle();
+    if (error || !item?.raw_blob_ref) throw new Error("Cached evidence metadata is unavailable.");
+    const objectPath = String(item.raw_blob_ref).replace(/^discovery-evidence:/, "");
+    const { data: blob, error: downloadError } = await admin.storage.from("discovery-evidence").download(objectPath);
+    if (downloadError || !blob) throw new Error("Cached raw evidence object could not be loaded.");
+    return {
+      cached: true, evidenceId: cached.evidence_id,
+      response: { status: 200, headers: { "content-type": item.content_type }, body: Buffer.from(await blob.arrayBuffer()), finalUrl: url }
+    };
   }
 
   const response = await controlledGet(admin, job, source, workerId, url, signal, budget, "page");
   const evidenceId = await storeEvidence(admin, job, source, url, response);
-  return { cached: false, evidenceId };
+  return { cached: false, evidenceId, response };
+}
+
+
+async function renderCandidateWithPlaywright(admin, job, source, workerId, url, rawResponse, parentEvidenceId, robots, signal, budget) {
+  if (source.render_mode !== "browser" || source.source_type !== "permitted_public_page") {
+    throw new Error("Browser rendering is not approved for this source.");
+  }
+  throwIfAborted(signal);
+  const browser = await chromium.launch({
+    headless: true,
+    executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH || undefined,
+    args: ["--disable-dev-shm-usage"]
+  });
+  let context;
+  try {
+    context = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false, permissions: [] });
+    context.setDefaultTimeout(10_000);
+    const page = await context.newPage();
+    page.on("websocket", socket => { try { socket.close(); } catch { /* closed by browser */ } });
+    page.on("popup", popup => { void popup.close(); });
+    let initialResponseUsed = false;
+
+    await page.route("**/*", async route => {
+      const request = route.request();
+      const requestUrl = request.url();
+      const parsed = new URL(requestUrl);
+      if (["data:", "blob:", "about:"].includes(parsed.protocol)) {
+        await route.continue();
+        return;
+      }
+      if (parsed.protocol !== "https:" || request.method() !== "GET") {
+        await route.abort("blockedbyclient");
+        return;
+      }
+      if (request.isNavigationRequest() && requestUrl !== url) {
+        await route.abort("blockedbyclient");
+        return;
+      }
+      if (requestUrl === url && !initialResponseUsed) {
+        initialResponseUsed = true;
+        await route.fulfill({
+          status: rawResponse.status,
+          headers: {
+            "content-type": rawResponse.headers["content-type"] || "text/html",
+            ...(rawResponse.headers["content-security-policy"] ? { "content-security-policy": String(rawResponse.headers["content-security-policy"]) } : {})
+          },
+          body: rawResponse.body
+        });
+        return;
+      }
+      let target;
+      try { target = assertAllowedSourceUrl(source, requestUrl); }
+      catch {
+        await writeEvent(admin, {
+          company_id: job.company_id, job_id: job.id, source_id: source.id,
+          event_type: "policy_rejected", url: redactUrl(requestUrl), outcome: "browser_subresource_outside_source_allowlist"
+        });
+        await route.abort("blockedbyclient");
+        return;
+      }
+      if (!robots.allows(target.toString())) {
+        await writeEvent(admin, {
+          company_id: job.company_id, job_id: job.id, source_id: source.id,
+          event_type: "robots_blocked", url: redactUrl(target.toString()), outcome: "browser_subresource_disallowed"
+        });
+        await route.abort("blockedbyclient");
+        return;
+      }
+      try {
+        const response = await controlledGet(admin, job, source, workerId, target.toString(), signal, budget, "browser_subresource");
+        await route.fulfill({
+          status: response.status,
+          headers: {
+            "content-type": response.headers["content-type"] || "application/octet-stream",
+            ...(response.headers["content-security-policy"] ? { "content-security-policy": String(response.headers["content-security-policy"]) } : {})
+          },
+          body: response.body
+        });
+      } catch {
+        await route.abort("failed");
+      }
+    });
+
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+    await page.waitForTimeout(1500);
+    throwIfAborted(signal);
+    const renderedHtml = Buffer.from(await page.content(), "utf8");
+    if (renderedHtml.length > MAX_BODY_BYTES) throw new Error("Rendered DOM exceeded the 5 MB evidence limit.");
+    const renderedId = await storeEvidence(admin, job, source, url, {
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: renderedHtml,
+      finalUrl: url
+    }, {
+      evidenceKind: "rendered_dom",
+      parentEvidenceId,
+      cache: false,
+      responseMetadata: { render_mode: "playwright", source_evidence_id: parentEvidenceId, resource_budget_used: budget.used }
+    });
+    await writeEvent(admin, {
+      company_id: job.company_id, job_id: job.id, source_id: source.id,
+      evidence_id: renderedId, event_type: "response_received", url: redactUrl(url),
+      outcome: "rendered_dom_snapshot_stored", response_bytes: renderedHtml.length,
+      metadata: { render_mode: "playwright", source_evidence_id: parentEvidenceId }
+    });
+    return renderedId;
+  } finally {
+    if (context) await context.close();
+    await browser.close();
+  }
 }
 
 async function loadJobContext(admin, job) {
@@ -327,7 +451,14 @@ async function runJob(admin, job, workerId, signal) {
     requestHandlerTimeoutSecs: 45,
     requestHandler: async ({ request }) => {
       try {
-        await fetchCandidate(admin, job, source, workerId, request.url, robots, signal, budget);
+        const fetched = await fetchCandidate(admin, job, source, workerId, request.url, robots, signal, budget);
+        if (!fetched.blocked && source.render_mode === "browser") {
+          if (!fetched.response || !fetched.evidenceId) throw new Error("A raw evidence snapshot is required before browser rendering.");
+          await renderCandidateWithPlaywright(
+            admin, job, source, workerId, request.url, fetched.response,
+            fetched.evidenceId, robots, signal, budget
+          );
+        }
       } catch (error) {
         throw error;
       }
