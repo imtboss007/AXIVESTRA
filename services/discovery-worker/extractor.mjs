@@ -251,14 +251,13 @@ function normalizeTypedValue(value, type) {
     return { valid: true, normalized: text, message: null };
   }
   if (type === "number") {
-    const numeric = typeof raw === "number" ? raw : (/^-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(text) ? Number(text.replace(/,/g, "")) : NaN);
+    const numeric = parseLocaleIndependentNumber(raw);
     return Number.isFinite(numeric)
       ? { valid: true, normalized: numeric, message: null }
       : { valid: false, normalized: null, message: "Value is not an unambiguous number." };
   }
   if (type === "percentage") {
-    const match = text.match(/^(-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?)\s*%?$/);
-    const numeric = match ? Number(match[1].replace(/,/g, "")) : NaN;
+    const numeric = parseLocaleIndependentNumber(text.replace(/%$/, "").trim());
     return Number.isFinite(numeric)
       ? { valid: true, normalized: { value: numeric, unit: "%" }, message: null }
       : { valid: false, normalized: null, message: "Value is not an explicit percentage." };
@@ -314,9 +313,10 @@ function normalizeTypedValue(value, type) {
         return { valid: true, normalized: { amount, currency }, message: null };
       }
     }
-    const match = text.match(/^(INR|USD|EUR|GBP|AED|SGD|JPY|CAD|AUD)\s*(-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?)$/i);
-    if (!match) return { valid: false, normalized: null, message: "Currency must explicitly include an ISO code and unambiguous amount." };
-    return { valid: true, normalized: { amount: Number(match[2].replace(/,/g, "")), currency: match[1].toUpperCase() }, message: null };
+    const match = text.match(/^(INR|USD|EUR|GBP|AED|SGD|JPY|CAD|AUD)\\s+(.+)$/i);
+    const amount = match ? parseLocaleIndependentNumber(match[2]) : NaN;
+    if (!match || !Number.isFinite(amount)) return { valid: false, normalized: null, message: "Currency must explicitly include an ISO code and unambiguous amount." };
+    return { valid: true, normalized: { amount, currency: match[1].toUpperCase() }, message: null };
   }
   return { valid: false, normalized: null, message: "Unsupported value type." };
 }
