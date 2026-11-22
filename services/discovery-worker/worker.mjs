@@ -125,7 +125,7 @@ async function reserveQuota(admin, job, workerId, url, signal) {
   throw new Error("Source quota remained exhausted after the bounded wait budget.");
 }
 
-async function controlledGet(admin, job, source, workerId, urlValue, signal, purpose = "page") {
+async function controlledGet(admin, job, source, workerId, urlValue, signal, budget, purpose = "page") {
   let current = new URL(urlValue);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     throwIfAborted(signal);
@@ -137,6 +137,8 @@ async function controlledGet(admin, job, source, workerId, urlValue, signal, pur
     } else {
       current = assertAllowedSourceUrl(source, current.toString());
     }
+    budget.used += 1;
+    if (budget.used > budget.max) throw new Error("Discovery job reached the hard outbound-request budget.");
     await reserveQuota(admin, job, workerId, current.toString(), signal);
     const safeUrl = redactUrl(current.toString());
     await writeEvent(admin, {
@@ -171,9 +173,9 @@ function readContentType(headers) {
   return String(headers["content-type"] || "").split(";")[0].trim().toLowerCase();
 }
 
-async function loadRobots(admin, job, source, workerId, signal) {
+async function loadRobots(admin, job, source, workerId, signal, budget) {
   const robotsUrl = makeRobotsUrl(source);
-  const response = await controlledGet(admin, job, source, workerId, robotsUrl, signal, "robots");
+  const response = await controlledGet(admin, job, source, workerId, robotsUrl, signal, budget, "robots");
   if ([404, 410].includes(response.status)) return parseRobotsRules("");
   if (response.status < 200 || response.status >= 300) {
     await writeEvent(admin, {
@@ -263,7 +265,7 @@ async function storeEvidence(admin, job, source, urlValue, response) {
   return evidence.id;
 }
 
-async function fetchCandidate(admin, job, source, workerId, urlValue, robots, signal) {
+async function fetchCandidate(admin, job, source, workerId, urlValue, robots, signal, budget) {
   const url = assertAllowedSourceUrl(source, urlValue).toString();
   if (!robots.allows(url)) {
     await writeEvent(admin, {
@@ -283,7 +285,7 @@ async function fetchCandidate(admin, job, source, workerId, urlValue, robots, si
     return { cached: true, evidenceId: cached.evidence_id };
   }
 
-  const response = await controlledGet(admin, job, source, workerId, url, signal, "page");
+  const response = await controlledGet(admin, job, source, workerId, url, signal, budget, "page");
   const evidenceId = await storeEvidence(admin, job, source, url, response);
   return { cached: false, evidenceId };
 }
@@ -311,7 +313,8 @@ async function loadJobContext(admin, job) {
 async function runJob(admin, job, workerId, signal) {
   const { source } = await loadJobContext(admin, job);
   const candidateUrls = validateCandidateUrls(source, job.payload?.candidateUrls);
-  const robots = await loadRobots(admin, job, source, workerId, signal);
+  const budget = { used: 0, max: Math.min(200, (candidateUrls.length + 1) * (MAX_REDIRECTS + 1) * 3) };
+  const robots = await loadRobots(admin, job, source, workerId, signal, budget);
   const failures = [];
   const crawler = new BasicCrawler({
     maxConcurrency: Math.min(2, candidateUrls.length),
@@ -322,7 +325,7 @@ async function runJob(admin, job, workerId, signal) {
     requestHandlerTimeoutSecs: 45,
     requestHandler: async ({ request }) => {
       try {
-        await fetchCandidate(admin, job, source, workerId, request.url, robots, signal);
+        await fetchCandidate(admin, job, source, workerId, request.url, robots, signal, budget);
       } catch (error) {
         throw error;
       }
