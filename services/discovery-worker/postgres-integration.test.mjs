@@ -49,6 +49,9 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(contactValidationMigration);
     await pool.query(geoResolutionMigration);
     await pool.query(enrichmentMigration);
+    const matchingMigration = await readFile(new URL("../../supabase/migrations/20261122250000_discovery_matching.sql", import.meta.url), "utf8");
+    await pool.query(matchingMigration);
+
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
