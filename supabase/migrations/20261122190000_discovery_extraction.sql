@@ -36,7 +36,7 @@ set field_schema = (
         when field_name in ('phone','telephone','public_phone','contact_phone') then 'phone'
         when field_name in ('website','url','source_url') then 'url'
         when field_name in ('date','founded_date','registration_date','updated_date') then 'date'
-        when field_name in ('amount','ticket_size','revenue','assets_under_management') then 'number'
+        when field_name in ('turnover','annual_turnover','amount','ticket_size','revenue','assets_under_management') then 'currency'
         else 'string'
       end,
       'aliases', jsonb_build_array(field_name),
