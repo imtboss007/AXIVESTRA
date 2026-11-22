@@ -201,6 +201,35 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(extractedFact.rows.length, 1);
     assert.equal(extractedFact.rows[0].normalized_value, "Acme Holdings Pvt Ltd");
     assert.equal(extractedFact.rows[0].source_span.locator, "$/legal_name");
+
+    const reviewResult = await pool.query(
+      "select * from public.record_discovery_extraction_review($1,$2,$3,$4,null,$5,$6,null)",
+      [companyId,actorId,extractionRunId,extractedFact.rows[0].id,"accepted","Reviewed original evidence span in PostgreSQL integration test"]
+    );
+    const reviewId = reviewResult.rows[0].id;
+    assert.ok(reviewId);
+    assert.equal(reviewResult.rows[0].decision,"accepted");
+    const reviewAudit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='extraction_review_recorded' and entity_id=$2",
+      [companyId,reviewId]
+    );
+    assert.equal(reviewAudit.rows[0].count,1,"review receipt and audit record must commit atomically");
+
+    const viewerId = "12121212-1212-4121-8121-121212121212";
+    await pool.query("insert into auth.users(id) values($1)",[viewerId]);
+    await pool.query("insert into public.company_memberships(company_id,user_id,role) values($1,$2,'viewer')",[companyId,viewerId]);
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_extraction_review($1,$2,$3,$4,null,$5,$6,null)",
+        [companyId,viewerId,extractionRunId,extractedFact.rows[0].id,"accepted","Viewer role must not write reviews"]
+      ),
+      /Only a company owner or admin/
+    );
+    await assert.rejects(
+      pool.query("update public.discovery_extraction_review_events set reason='rewritten' where id=$1",[reviewId]),
+      /append-only/
+    );
+
     await assert.rejects(
       pool.query("update public.discovery_extracted_facts set raw_value='rewritten' where extraction_run_id=$1", [extractionRunId]),
       /append-only/
