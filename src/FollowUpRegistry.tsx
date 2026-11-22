@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import { buildMonthGrid, formatMonthLabel, shiftMonth } from "./lib/follow-up-calendar.mjs";
 import { formatIndianCompactAmount, isIndianAmountLabel, parseIndianAmount } from "./lib/indian-amount.mjs";
 import { downloadIntelligencePdf, downloadIntelligencePptx } from "./lib/report-export.mjs";
-import { CalendarClock, CheckCircle2, Clock3, Download, FileDown, Filter, ListTodo, MessageCircle, Pencil, Plus, Search, Users } from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Download, FileDown, Filter, ListTodo, MessageCircle, Pencil, Plus, Search, Users } from "lucide-react";
 import { isFollowUpClosed, legacyRecordFollowUp, parseFollowUps, type FollowUpEntry, type FollowUpPriority, type FollowUpRecordLike } from "./lib/follow-ups";
 
 type Contact = { id: string; name: string; phone?: string; role?: string };
@@ -53,6 +54,7 @@ function RegistryCheckList({title,items,selected,onChange}:{title:string;items:{
   return <div className="ax-followup-multi-filter"><strong>{title}</strong><small>{selected.length} selected</small><input type="search" value={query} onChange={event=>setQuery(event.target.value)} placeholder={"Search "+title.toLowerCase()+"…"} aria-label={"Search "+title}/><div className="ax-followup-multi-filter__actions"><button type="button" onClick={()=>onChange(Array.from(new Set([...selected,...filtered.map(item=>item.id)])))}>Select visible</button><button type="button" onClick={()=>onChange([])}>Clear</button></div><div className="ax-followup-multi-filter__items">{filtered.map(item=><label key={item.id}><input type="checkbox" checked={selected.includes(item.id)} onChange={event=>toggle(item.id,event.target.checked)}/><span>{item.label}</span></label>)}{filtered.length===0&&<small>No matching options.</small>}</div></div>;
 }
 const AREA_FACTORS:Record<string,number>={"sq ft":1,"sq yd":9,"sq m":10.7639104167,acre:43560,gunta:1089,hectare:107639.104167,cent:435.6};
+const WEEKDAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 export default function FollowUpRegistry({
   initialTab="All", properties, contacts, groups, moduleFields, tasks, today, onAdd, onEditEntry, onUpdateEntry,
@@ -80,6 +82,7 @@ export default function FollowUpRegistry({
   const [priorityFilter, setPriorityFilter] = useState("");
   const [amountSort, setAmountSort] = useState<"none"|"high"|"low">("none");
   const [month, setMonth] = useState(today.slice(0,7));
+  const [selectedDate, setSelectedDate] = useState(today);
   const [view, setView] = useState<"people"|"timeline"|"calendar">("people");
   const contactById = useMemo(() => new Map<string, Contact>(contacts.map(contact => [contact.id, contact] as const)), [contacts]);
   const readGroupIds=(record:FollowUpRecordLike|null,kind:"primary"|"follow")=>{
@@ -212,6 +215,27 @@ export default function FollowUpRegistry({
   }, [visible, contactById]);
 
   const calendarItems = visible.filter(item => item.entry.date && item.entry.date.slice(0,7) === month);
+  const calendarGrid = useMemo(() => buildMonthGrid(month), [month]);
+  const calendarItemCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of calendarItems) counts.set(item.entry.date, (counts.get(item.entry.date) || 0) + 1);
+    return counts;
+  }, [calendarItems]);
+  const selectedDayItems = useMemo(() => calendarItems.filter(item => item.entry.date === selectedDate), [calendarItems, selectedDate]);
+  const navigateCalendarMonth = (offset: number) => {
+    const nextMonth = shiftMonth(month, offset);
+    setMonth(nextMonth);
+    setSelectedDate(nextMonth + "-01");
+  };
+  const jumpToCalendarMonth = (nextMonth: string) => {
+    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth)) return;
+    setMonth(nextMonth);
+    setSelectedDate(nextMonth + "-01");
+  };
+  const jumpToToday = () => {
+    setMonth(today.slice(0,7));
+    setSelectedDate(today);
+  };
   const groupedByDate = useMemo(() => {
     const groups = new Map<string,Item[]>();
     for (const item of visible) {
@@ -370,8 +394,28 @@ export default function FollowUpRegistry({
     </section>}
 
     {view==="calendar" && <section className="data-panel ax-followup-calendar">
-      <div className="section-heading"><div><h2>Follow-up calendar</h2><p>Scheduled assignments for the selected month.</p></div><label>Month<input type="month" value={month} onChange={event=>setMonth(event.target.value)}/></label></div>
-      {calendarItems.length ? <div className="ax-followup-cards">{calendarItems.map(renderItem)}</div> : <p className="ax-followup-empty">No follow-ups are scheduled for {month} under the current filters.</p>}
+      <div className="ax-followup-calendar__toolbar">
+        <div className="ax-followup-calendar__heading"><div><h2>Follow-up calendar</h2><p>Select a date to inspect its assignments. Counts reflect the active filters.</p></div><strong aria-live="polite">{formatMonthLabel(month)}</strong></div>
+        <div className="ax-followup-calendar__controls">
+          <button type="button" className="ax-followup-calendar__nav" onClick={()=>navigateCalendarMonth(-1)} aria-label="Previous month"><ChevronLeft size={17}/></button>
+          <button type="button" className="ax-followup-calendar__nav" onClick={()=>navigateCalendarMonth(1)} aria-label="Next month"><ChevronRight size={17}/></button>
+          <label>Jump to month<input type="month" value={month} onChange={event=>jumpToCalendarMonth(event.target.value)}/></label>
+          <button type="button" className="ax-followup-calendar__today" onClick={jumpToToday}>Today</button>
+        </div>
+      </div>
+      <div className="ax-followup-calendar__month">
+        <div className="ax-followup-calendar__weekdays" aria-hidden="true">{WEEKDAYS.map(day=><span key={day}>{day}</span>)}</div>
+        <div className="ax-followup-calendar__grid" role="group" aria-label={`Calendar days for ${formatMonthLabel(month)}`}>
+          {calendarGrid.map((day,index)=>day ? <button type="button" key={day.date} className={"ax-followup-calendar__day"+(selectedDate===day.date?" is-selected":"")+(calendarItemCounts.has(day.date)?" has-items":"")} onClick={()=>setSelectedDate(day.date)} aria-pressed={selectedDate===day.date} aria-current={day.date===today?"date":undefined} aria-label={dateLabel(day.date)+", "+(calendarItemCounts.get(day.date)||0)+" follow-ups"}>
+            <span className="ax-followup-calendar__day-number">{day.day}</span>
+            {calendarItemCounts.has(day.date) && <span className="ax-followup-calendar__count">{calendarItemCounts.get(day.date)} due</span>}
+          </button> : <span key={"empty-"+month+"-"+index} className="ax-followup-calendar__blank" aria-hidden="true"/>)}
+        </div>
+      </div>
+      <section className="ax-followup-calendar__details" aria-label={"Assignments for "+dateLabel(selectedDate)}>
+        <div className="ax-followup-calendar__details-heading"><div><h3>{dateLabel(selectedDate)}</h3><p>Selected day</p></div><span>{selectedDayItems.length} assignment{selectedDayItems.length===1?"":"s"}</span></div>
+        {selectedDayItems.length ? <div className="ax-followup-cards">{selectedDayItems.map(renderItem)}</div> : <div className="ax-followup-calendar__empty"><CalendarClock size={22}/><p>No visible follow-ups on this date.</p><button type="button" className="secondary-button" onClick={onAdd}><Plus size={14}/> Add follow-up</button></div>}
+      </section>
     </section>}
   </section>;
 }
