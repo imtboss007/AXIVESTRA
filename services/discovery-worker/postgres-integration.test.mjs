@@ -21,8 +21,14 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         file_size_limit bigint, allowed_mime_types text[]
       );
       create table if not exists public.companies(id uuid primary key);
+      create table if not exists public.company_memberships(
+        company_id uuid not null references public.companies(id),
+        user_id uuid not null references auth.users(id),
+        role text not null,
+        primary key(company_id,user_id)
+      );
       create or replace function public.is_company_member(p_company_id uuid)
-      returns boolean language sql stable as $$ select true $$;
+      returns boolean language sql stable as $ select true $;
     `);
 
     const sourceMigration = await readFile(new URL("../../supabase/migrations/20261122150000_discovery_source_governance.sql", import.meta.url), "utf8");
@@ -64,10 +70,18 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       insert into public.discovery_profile_sources(company_id,profile_id,source_id,created_by)
       values($1,$2,$3,$4)
     `, [companyId, profileId, sourceId, actorId]);
-    await pool.query(`
-      insert into public.discovery_company_worker_controls(company_id,enabled,updated_by,reason,expires_at)
-      values($1,true,$2,'integration test',now()+interval '30 minutes')
-    `, [companyId, actorId]);
+    await pool.query("insert into public.company_memberships(company_id,user_id,role) values($1,$2,'owner')", [companyId, actorId]);
+    const grantResult = await pool.query(
+      "select * from public.set_discovery_company_worker_grant($1,$2,true,$3)",
+      [companyId, actorId, "integration test"]
+    );
+    assert.equal(grantResult.rows[0].enabled, true);
+    assert.ok(Date.parse(grantResult.rows[0].expires_at) > Date.now());
+    const grantAudit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='discovery_worker_grant_enabled'",
+      [companyId]
+    );
+    assert.equal(grantAudit.rows[0].count, 1, "grant and audit receipt must commit together");
     const profileSnapshot = await pool.query("select updated_at from public.discovery_profiles where id=$1", [profileId]);
     const sourceSnapshot = await pool.query("select updated_at from public.discovery_source_registry where id=$1", [sourceId]);
     const enqueueArgs = [
@@ -129,6 +143,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         repeat('a',64),'discovery-evidence:company/job/evidence.bin',
         'application/json',12,'Example registry','IN','{}'::jsonb,'{}'::jsonb)
     `, [evidenceId, companyId, activeJob.id, sourceId]);
+    await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
+    await pool.query("update public.discovery_evidence_items set captured_at=now()-interval '2 days' where id=$1", [evidenceId]);
+    const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
+    assert.equal(expiredEvidence.rows.length, 1, "per-source evidence retention is enforced by PostgreSQL");
     await pool.query(`
       insert into public.discovery_fetch_events(company_id,job_id,source_id,evidence_id,event_type,url,outcome)
       values($1,$2,$3,$4,'response_received','https://registry.example.gov.in/api/v1/entities/1','stored')
@@ -148,7 +166,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
 
-    await pool.query("update public.discovery_company_worker_controls set enabled=false where company_id=$1", [companyId]);
+    await pool.query("select * from public.set_discovery_company_worker_grant($1,$2,false,$3)", [companyId, actorId, "integration kill-switch test"]);
     const revokedHeartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(revokedHeartbeat.rows[0].ok, false, "revoked company grant must stop active workers");
     await assert.rejects(
