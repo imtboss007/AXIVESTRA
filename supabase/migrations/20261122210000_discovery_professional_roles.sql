@@ -282,8 +282,10 @@ declare
   v_candidate jsonb;
   v_count integer:=0;
 begin
-  if p_candidates is null or jsonb_typeof(p_candidates)<>'array' or jsonb_array_length(p_candidates)>500
-    or octet_length(p_candidates::text)>500000 then
+  if p_candidates is null or jsonb_typeof(p_candidates)<>'array' then
+    raise exception 'E07 candidate batch must be a JSON array' using errcode='22023';
+  end if;
+  if jsonb_array_length(p_candidates)>500 or octet_length(p_candidates::text)>500000 then
     raise exception 'E07 candidate batch is outside approved bounds' using errcode='22023';
   end if;
   select * into v_job from public.discovery_professional_role_jobs
