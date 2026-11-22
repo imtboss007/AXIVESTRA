@@ -8,6 +8,7 @@ const theme = fs.readFileSync(path.join(root, "src", "axivestra-theme.css"), "ut
 const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
 const orbitalHub = fs.readFileSync(path.join(root, "src", "AxivestraOrbitalHub.tsx"), "utf8");
 const analytics = fs.readFileSync(path.join(root, "src", "PortfolioAnalytics.tsx"), "utf8");
+const table = fs.readFileSync(path.join(root, "src", "components", "EnterpriseDataTable.tsx"), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
 assert.match(main, /import "\.\/styles\.css";[\s\S]*import "\.\/axivestra-theme\.css";/,
@@ -127,3 +128,17 @@ assert.match(theme, /\.ax-modern-shell \.ax-analytics-panel\s*\{[^}]*background:
   "Analytics surfaces must follow the Night Marine visual system.");
 assert.match(theme, /\.ax-modern-shell \.ax-chart-type button\[aria-pressed="true"\]/,
   "Selected chart controls must have a clear visual treatment tied to their accessible state.");
+
+
+assert.match(table, /aria-rowcount=\{rows\.length\+1\}/,
+  "Virtualized tables must expose their filtered row count to assistive technology.");
+assert.match(table, /aria-rowindex=\{v\.index\+2\}/,
+  "Virtualized rows must preserve their absolute position in the filtered result.");
+assert.match(table, /aria-sort=\{/,
+  "Column headers must expose the current sort direction.");
+assert.match(table, /Showing \{rows\.length\.toLocaleString\("en-IN"\)\} of \{data\.length\.toLocaleString\("en-IN"\)\} records/,
+  "Table result summaries must distinguish filtered records from the complete dataset.");
+assert.match(theme, /\.ax-modern-shell \.ax-enterprise-grid__viewport\s*\{[\s\S]*?overscroll-behavior:\s*contain/,
+  "Virtualized table scrolling must remain contained within its own viewport.");
+assert.match(theme, /\.ax-modern-shell \.ax-enterprise-grid__sort\s*\{[^}]*min-height:\s*44px/s,
+  "Table sort controls must provide touch-friendly targets.");
