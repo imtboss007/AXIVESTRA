@@ -145,8 +145,9 @@ Deno.serve(async request => {
         .eq("company_id", companyId).order("completed_at", { ascending: false }).limit(25);
       if (runsError) throw runsError;
       const runIds = (runs || []).map((run: { id: string }) => run.id);
-      if (!runIds.length) return jsonResponse(200, { ok: true, runs: [], facts: [], entities: [], reviews: [] });
-      const [{ data: facts, error: factsError }, { data: entities, error: entitiesError }, { data: reviews, error: reviewsError }] = await Promise.all([
+      if (!runIds.length) return jsonResponse(200, { ok: true, runs: [], facts: [], entities: [], reviews: [], evidence: [] });
+      const evidenceIds = [...new Set((runs || []).map((run: { evidence_id: string }) => run.evidence_id))];
+      const [{ data: facts, error: factsError }, { data: entities, error: entitiesError }, { data: reviews, error: reviewsError }, { data: evidence, error: evidenceError }] = await Promise.all([
         admin.from("discovery_extracted_facts")
           .select("id,extraction_run_id,evidence_id,extracted_entity_id,field_name,value_type,raw_value,normalized_value,source_span,confidence,validation_status,validation_message,extraction_method,created_at")
           .eq("company_id", companyId).in("extraction_run_id", runIds).order("created_at", { ascending: true }).limit(1000),
@@ -155,14 +156,18 @@ Deno.serve(async request => {
           .eq("company_id", companyId).in("extraction_run_id", runIds).order("created_at", { ascending: true }).limit(500),
         admin.from("discovery_extraction_review_events")
           .select("id,extraction_run_id,fact_id,extracted_entity_id,actor_user_id,decision,reason,corrected_value,occurred_at")
-          .eq("company_id", companyId).in("extraction_run_id", runIds).order("occurred_at", { ascending: false }).limit(1000)
+          .eq("company_id", companyId).in("extraction_run_id", runIds).order("occurred_at", { ascending: false }).limit(1000),
+        admin.from("discovery_evidence_items")
+          .select("id,canonical_url,captured_at,source_published_at,content_type,byte_length,content_hash,attribution,jurisdiction")
+          .eq("company_id", companyId).in("id", evidenceIds).limit(25)
       ]);
       if (factsError) throw factsError;
       if (entitiesError) throw entitiesError;
       if (reviewsError) throw reviewsError;
+      if (evidenceError) throw evidenceError;
       return jsonResponse(200, {
-        ok: true, runs: runs || [], facts: facts || [], entities: entities || [], reviews: reviews || [],
-        limits: { runs: 25, facts: 1000, entities: 500, reviews: 1000 }
+        ok: true, runs: runs || [], facts: facts || [], entities: entities || [], reviews: reviews || [], evidence: evidence || [],
+        limits: { runs: 25, facts: 1000, entities: 500, reviews: 1000, evidence: 25 }
       });
     }
 
