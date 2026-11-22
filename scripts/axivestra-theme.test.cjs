@@ -9,6 +9,7 @@ const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
 const orbitalHub = fs.readFileSync(path.join(root, "src", "AxivestraOrbitalHub.tsx"), "utf8");
 const analytics = fs.readFileSync(path.join(root, "src", "PortfolioAnalytics.tsx"), "utf8");
 const magicGrid = fs.readFileSync(path.join(root, "src", "components", "MagicAnimatedGridPattern.tsx"), "utf8");
+const motionNumber = fs.readFileSync(path.join(root, "src", "components", "MotionAnimatedNumber.tsx"), "utf8");
 const thirdPartyNotices = fs.readFileSync(path.join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
 const table = fs.readFileSync(path.join(root, "src", "components", "EnterpriseDataTable.tsx"), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
@@ -100,6 +101,19 @@ assert.match(theme, /@keyframes ax-magic-grid-square-pulse/, "The adapted grid m
 assert.match(theme, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?ax-magic-grid-pattern__square \{[\s\S]*?animation: none/, "The Magic UI grid animation must respect reduced-motion preferences.");
 assert.match(thirdPartyNotices, /Magic UI[\s\S]*?MIT License[\s\S]*?Copyright \(c\) Magic UI/, "The adapted component must preserve its upstream MIT attribution and licence notice.");
 assert.ok(!("motion" in packageJson.dependencies) && !("motion" in packageJson.devDependencies), "The CSS adaptation must not add the upstream Motion runtime dependency.");
+
+assert.match(app, /import MotionAnimatedNumber from "\.\/components\/MotionAnimatedNumber";/, "AXIVESTRA must import the adapted Motion Primitives count component.");
+assert.match(app, /typeof value === "number" \? <MotionAnimatedNumber value=\{value\}\/\> : value/, "Numeric stat cards must use the animated count component without touching preformatted strings.");
+assert.match(app, /<MotionAnimatedNumber value=\{highRiskCount\}\/\>/, "Risk-count metrics must use the animated count component.");
+assert.match(app, /<MotionAnimatedNumber value=\{overdueTaskCount\}\/\>/, "Overdue-task metrics must use the animated count component.");
+assert.match(app, /<MotionAnimatedNumber value=\{tasks\.filter\(item=>!item\.done\)\.length\}\/\>/, "Open-action totals must use the animated count component.");
+assert.match(motionNumber, /new Intl\.NumberFormat\("en-IN"/, "Animated count values must retain Indian digit grouping.");
+assert.match(motionNumber, /window\.matchMedia\?\.\("\(prefers-reduced-motion: reduce\)"\)/, "Animated counts must check reduced-motion preferences.");
+assert.match(motionNumber, /window\.requestAnimationFrame/, "The animation must use the browser frame scheduler rather than a new runtime library.");
+assert.match(motionNumber, /removeEventListener\?\.\("change", onMotionPreferenceChange\)/, "Reduced-motion preference listeners must be cleaned up.");
+assert.match(motionNumber, /aria-label=\{formatter\.format\(safeValue\)\}/, "The accessible name must expose the final count, not each intermediate frame.");
+assert.match(thirdPartyNotices, /Motion Primitives[\s\S]*?MIT License[\s\S]*?Copyright \(c\) 2024 ibelick/, "Motion Primitives adaptation must preserve upstream MIT attribution.");
+assert.ok(!("motion" in packageJson.dependencies) && !("motion" in packageJson.devDependencies), "The animated-number adaptation must not add the Motion runtime dependency.");
 
 console.log("AXIVESTRA enterprise design-system contract passed.");
 
