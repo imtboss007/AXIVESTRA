@@ -72,6 +72,9 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
+      - name: Install isolated Playwright Chromium runtime
+        run: npm --prefix services/discovery-worker run install:browser
+
       - name: Run discovery governance tests
         run: npm run test:discovery
 
