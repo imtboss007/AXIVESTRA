@@ -7,6 +7,7 @@ on:
       - feat/discovery-bounded-execution
       - feat/discovery-durable-queue
       - feat/discovery-job-enqueue
+      - feat/discovery-e04-complete
   pull_request:
     branches:
       - main
@@ -15,8 +16,10 @@ on:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
       - "services/discovery-engine/**"
+      - "services/discovery-worker/**"
       - "supabase/migrations/*discovery*"
       - "services/discovery-engine/tests/**"
+      - "services/discovery-worker/**"
       - "package.json"
       - ".github/workflows/discovery-governance-checks.yml"
 
@@ -31,7 +34,20 @@ jobs:
   verify:
     name: Discovery policy tests and app build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: axivestra_discovery_test
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d axivestra_discovery_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,8 +67,18 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
+      - name: Install governed fetch worker dependencies
+        run: npm --prefix services/discovery-worker install --no-package-lock --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
       - name: Run discovery governance tests
         run: npm run test:discovery
+
+      - name: Run worker and PostgreSQL integration tests
+        run: npm --prefix services/discovery-worker test
+        env:
+          DISCOVERY_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/axivestra_discovery_test
 
       - name: Run full regression suite
         run: npm test
