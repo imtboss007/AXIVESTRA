@@ -329,7 +329,7 @@ begin
     end if;
     v_type:=v_candidate->>'contact_type';
     v_field:=v_candidate->>'field_name';
-    if v_type not in ('email','phone')
+    if v_type is null or v_type not in ('email','phone')
       or v_field is null or not (v_field=any(v_job.allowed_fields_snapshot))
       or v_job.field_schema_snapshot->v_field->>'type' is distinct from v_type
       or v_candidate->>'validation_method'<>'syntax_only'
@@ -420,6 +420,19 @@ begin
   return true;
 end;
 $fail$;
+
+-- Keep validation history append-only; correction is a new event, never an edit.
+create or replace function public.prevent_discovery_contact_validation_event_mutation()
+returns trigger language plpgsql
+as $guard$
+begin
+  raise exception 'E08 contact validation events are append-only; record a new event instead.';
+end;
+$guard$;
+drop trigger if exists discovery_contact_validation_events_no_update on public.discovery_contact_validation_events;
+create trigger discovery_contact_validation_events_no_update
+  before update or delete on public.discovery_contact_validation_events
+  for each row execute function public.prevent_discovery_contact_validation_event_mutation();
 
 create or replace function public.record_discovery_contact_validation_event(
   p_contact_point_id uuid,p_method text,p_result text,p_confidence numeric,
