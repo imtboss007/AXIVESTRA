@@ -1247,3 +1247,109 @@ body { background: #0b1420; color: #e8f0f4; }
 .ax-modern-shell .ax-relationship-graph__node .text-button{flex:0 0 auto}
 .ax-modern-shell .ax-relationship-graph__limit{margin:8px 0;color:#9aafbd;font-size:11px}
 @media(max-width:640px){.ax-modern-shell .ax-relationship-view-toggle{justify-content:stretch}.ax-modern-shell .ax-relationship-view-toggle button{flex:1;justify-content:center}.ax-modern-shell .ax-relationship-graph-scroll{max-height:65vh}}
+
+
+/* Final surface harmonization — prevent light legacy surfaces inside the Night Marine shell. */
+.ax-modern-shell { color-scheme: dark; }
+.ax-modern-shell .topbar {
+  color: var(--axiv-ink);
+  border-bottom-color: var(--axiv-line);
+  background: rgba(9,23,37,.96);
+  box-shadow: 0 8px 24px rgba(0,0,0,.16);
+}
+.ax-modern-shell .breadcrumb { color: var(--axiv-muted); }
+.ax-modern-shell .breadcrumb strong { color: var(--axiv-ink); }
+.ax-modern-shell .search-box,
+.ax-modern-shell .search-box:focus-within {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line-strong);
+  background: #0f2030;
+  box-shadow: none;
+}
+.ax-modern-shell .search-box input { color: var(--axiv-ink); }
+.ax-modern-shell .search-box input::placeholder { color: #8299a8; }
+.ax-modern-shell .search-box kbd {
+  color: var(--axiv-muted);
+  border-color: var(--axiv-line);
+  background: #172d3e;
+}
+.ax-modern-shell .icon-button {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line);
+  background: #132638;
+}
+.ax-modern-shell .icon-button:hover {
+  color: #eaf5f3;
+  border-color: #4c817d;
+  background: #1b3a43;
+}
+.ax-modern-shell .institutional-banner {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: linear-gradient(115deg,#142b3d 0%,#102536 62%,#1d343b 100%);
+  box-shadow: var(--axiv-shadow);
+}
+.ax-modern-shell .institutional-label { color: #82b9b1; }
+.ax-modern-shell .institutional-copy,
+.ax-modern-shell .institutional-copy h1,
+.ax-modern-shell .institutional-copy h2,
+.ax-modern-shell .institutional-copy h3 { color: var(--axiv-ink); }
+.ax-modern-shell .institutional-copy p { color: var(--axiv-muted); }
+.ax-modern-shell .banner-aside {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line);
+  background: rgba(8,22,34,.52);
+}
+.ax-modern-shell .banner-aside strong { color: var(--axiv-ink); }
+.ax-modern-shell .banner-aside small { color: var(--axiv-muted); }
+.ax-modern-shell .module-card,
+.ax-modern-shell .record-card,
+.ax-modern-shell .ax-module-record-card,
+.ax-modern-shell .ax-followup-card,
+.ax-modern-shell .ax-intent-panel,
+.ax-modern-shell .ax-chart-inspector,
+.ax-modern-shell .ax-analytics-panel {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: var(--axiv-surface);
+  box-shadow: var(--axiv-shadow);
+}
+.ax-modern-shell .module-card h3,
+.ax-modern-shell .record-main h3,
+.ax-modern-shell .ax-analytics-heading h2 { color: var(--axiv-ink); }
+.ax-modern-shell .module-card p,
+.ax-modern-shell .record-main p,
+.ax-modern-shell .record-main small { color: var(--axiv-muted); }
+.ax-modern-shell .module-number { color: var(--axiv-muted); }
+.ax-modern-shell .secondary-button {
+  color: var(--axiv-body);
+  border-color: var(--axiv-line-strong);
+  background: #172d3e;
+}
+.ax-modern-shell .secondary-button:hover:not(:disabled) {
+  color: #eaf5f3;
+  border-color: #4c817d;
+  background: #1b3a43;
+}
+.ax-modern-shell .form-card input,
+.ax-modern-shell .form-card select,
+.ax-modern-shell .form-card textarea,
+.ax-modern-shell input:not([type="checkbox"]):not([type="radio"]),
+.ax-modern-shell select,
+.ax-modern-shell textarea {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line-strong);
+  background-color: #0f2030;
+}
+.ax-modern-shell input::placeholder,
+.ax-modern-shell textarea::placeholder { color: #8299a8; }
+.ax-modern-shell .modal {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: #14283a;
+}
+.ax-modern-shell .modal-heading button { color: var(--axiv-body); background: #20394b; }
+@media (max-width: 720px) {
+  .ax-modern-shell .topbar { background: rgba(9,23,37,.98); }
+  .ax-modern-shell .institutional-banner { background: #142b3d; }
+}
