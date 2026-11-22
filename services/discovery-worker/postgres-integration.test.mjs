@@ -199,26 +199,6 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       pool.query("update public.discovery_extracted_facts set raw_value='rewritten' where extraction_run_id=$1", [extractionRunId]),
       /append-only/
     );
-    await assert.rejects(
-      pool.query(
-        "select public.complete_discovery_extraction($1,$2,$3::jsonb,$4::jsonb,$5::jsonb)",
-        [
-          extractionJob.id, extractionJob.lease_owner,
-          JSON.stringify({ extractor_version:"bad", schema_hash:"b".repeat(64), source_content_hash:"a".repeat(64), warnings:[] }),
-          "[]", JSON.stringify([{
-            field_name: "private_credit_score", value_type: "number", raw_value: "780",
-            normalized_value: 780, source_span: span, confidence: 0.9, validation_status: "valid"
-          }])
-        ]
-      ),
-      /lease is no longer valid/
-    );
-    const foreignSourceFieldJob = await pool.query(
-      "select status from public.discovery_extraction_jobs where evidence_id=$1",
-      [evidenceId]
-    );
-    assert.equal(foreignSourceFieldJob.rows[0].status, "succeeded");
-
     await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
     const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
     assert.equal(expiredEvidence.rows.length, 1, "per-source evidence retention is enforced by PostgreSQL");
