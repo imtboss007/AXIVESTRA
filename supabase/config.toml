@@ -3,3 +3,6 @@ verify_jwt = true
 
 [functions.whatsapp-cloud-proxy]
 verify_jwt = true
+
+[functions.discovery-control]
+verify_jwt = true
