@@ -154,6 +154,7 @@ Deno.serve(async request => {
       if (!profile || !source || !link) return jsonResponse(404, { error: "The profile and its attached source must exist in this company." });
       if (profile.enabled !== true) return jsonResponse(409, { error: "This discovery profile is disabled." });
       if (source.status !== "approved") return jsonResponse(409, { error: "Only an approved discovery source can be queued." });
+      if (source.connector_key === "manual_research") return jsonResponse(403, { error: "Manual/user-provided research is not eligible for automated fetching; attach it as evidence manually." });
       assertSourceCanBeAttached(profile, source);
       if (candidateInput.length > Number(source.max_pages_per_job || 0)) {
         return jsonResponse(400, { error: "Candidate URL count exceeds this source's approved pages-per-job limit." });
