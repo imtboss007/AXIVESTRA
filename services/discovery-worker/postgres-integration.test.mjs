@@ -718,6 +718,20 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durableProfessionalReview.rows[0].count,1,"E07 professional review receipt must survive evidence purge");
     assert.equal(durableProfessionalReview.rows[0].linked_count,0,"E07 review receipt must detach from the purged candidate");
     assert.equal(durableProfessionalReview.rows[0].role_title,"Chief Financial Officer","E07 review snapshot must retain the reviewed role, without retaining the person's name");
+    const durableContactPoint = await pool.query(
+      "select count(*)::int as count,min(source_evidence_id::text) as evidence_id,min(masked_value) as masked_value from public.discovery_contact_points where company_id=$1 and status='active'",
+      [companyId]
+    );
+    assert.equal(durableContactPoint.rows[0].count,1,"owner-approved E08 contact point must survive raw evidence purge");
+    assert.equal(durableContactPoint.rows[0].evidence_id,evidenceId,"E08 contact point must retain only the historical evidence identifier");
+    assert.ok(durableContactPoint.rows[0].masked_value.includes("***"),"E08 contact point must remain masked at rest");
+    const durableContactEvents = await pool.query(
+      "select count(*)::int as count,bool_or(result='catch_all') as has_catch_all,bool_or(result='bounced') as has_bounce from public.discovery_contact_validation_events where company_id=$1 and contact_point_id=$2",
+      [companyId,approvedContact.rows[0].id]
+    );
+    assert.equal(durableContactEvents.rows[0].count,3,"E08 syntax, catch-all and bounce validation events must survive candidate/evidence purge");
+    assert.equal(durableContactEvents.rows[0].has_catch_all,true);
+    assert.equal(durableContactEvents.rows[0].has_bounce,true);
 
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
