@@ -85,8 +85,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId]
     );
     assert.equal(grantAudit.rows[0].count, 1, "grant and audit receipt must commit together");
-    const profileSnapshot = await pool.query("select updated_at from public.discovery_profiles where id=$1", [profileId]);
-    const sourceSnapshot = await pool.query("select updated_at from public.discovery_source_registry where id=$1", [sourceId]);
+    const profileSnapshot = await pool.query("select updated_at::text as updated_at from public.discovery_profiles where id=$1", [profileId]);
+    const sourceSnapshot = await pool.query("select updated_at::text as updated_at from public.discovery_source_registry where id=$1", [sourceId]);
     const enqueueArgs = [
       companyId, profileId, sourceId, actorId,
       JSON.stringify({ purpose: "company identity verification", criteria: { test: true }, candidateUrls: ["https://registry.example.gov.in/api/v1/entities/rpc"] }),
