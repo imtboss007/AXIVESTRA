@@ -589,7 +589,7 @@ begin
   if (p_fact_id is null) = (p_entity_id is null) then
     raise exception 'Review exactly one extracted fact or entity mention' using errcode = '22023';
   end if;
-  if p_decision not in ('accepted','rejected','corrected','escalated') then
+  if p_decision is null or p_decision not in ('accepted','rejected','corrected','escalated') then
     raise exception 'Unsupported extraction review decision' using errcode = '22023';
   end if;
   if p_reason is null or length(trim(p_reason)) < 1 or length(p_reason) > 1000 then
