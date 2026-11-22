@@ -60,4 +60,7 @@ assert.ok(panelSource.includes("buildRelationshipIntelligence"), "visible panel 
 assert.ok(!appSource.includes("task.property === record.title"), "orbital detail links tasks only by stable record ID");
 assert.ok(!appSource.includes("const legacy = contacts.find(contact => contact.name.trim().toLowerCase()"), "contact relationships are not inferred from display-name equality");
 
+assert.ok(panelSource.includes("const allFilteredRecords = new Map"), "Graph totals must include the full filtered contact set.");
+assert.ok(panelSource.includes("totalRecordCount: allFilteredRecords.size"), "The graph must separate total linked records from rendered nodes.");
+assert.ok(panelSource.includes("visible explicit saved links") && panelSource.includes("linked records {graph.recordNodes.length}/{graph.totalRecordCount}"), "The graph summary must distinguish the visible subset from full filtered totals.");
 process.stdout.write("AXIVESTRA ID-based relationship intelligence tests passed.\n");
