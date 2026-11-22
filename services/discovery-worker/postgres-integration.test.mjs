@@ -1178,6 +1178,60 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durableEnrichmentReviews.rows[0].has_observation_review,true);
     assert.equal(durableEnrichmentReviews.rows[0].has_conflict_review,true);
 
+    // E11 persists an explainable score snapshot; only a company owner/admin may review it.
+    const matchScoreArgs = [
+      companyId,profileId,canonical.rows[0].id,
+      "a".repeat(64),"b".repeat(64)
+    ];
+    const matchScore = await pool.query(`
+      insert into public.discovery_match_scores(
+        company_id,profile_id,canonical_entity_id,workspace_key,discovery_mode,
+        criteria_hash,candidate_hash,rule_version,match_score,confidence,coverage,score_state,
+        score_components,rationale,evidence_refs,criteria_snapshot,candidate_snapshot
+      ) values (
+        $1,$2,$3,'startup','LENDER',$4,$5,'deterministic-rules-v1',
+        82.5,78.0,90.0,'review_required',
+        '[{"dimension":"ticket","weight":20,"score":100,"factor":"positive"}]'::jsonb,
+        '{"positive":[{"dimension":"ticket","reason":"Within configured range."}],"negative":[],"unknown":[]}'::jsonb,
+        '{"evidenceIds":[],"sourceIds":[]}'::jsonb,'{"schemaVersion":1}'::jsonb,
+        '{"dimensions":{"ticket":{"amount":12000000,"currency":"INR"}}}'::jsonb
+      ) returning id
+    `,matchScoreArgs);
+    const e11Review = await pool.query(
+      "select * from public.record_discovery_match_review($1,$2,$3,'accepted',$4)",
+      [companyId,actorId,matchScore.rows[0].id,"Integration review: fit rationale checked."]
+    );
+    assert.equal(e11Review.rows[0].decision,"accepted");
+    const persistedMatchReview = await pool.query(
+      "select review_state,reviewed_at from public.discovery_match_scores where company_id=$1 and id=$2",
+      [companyId,matchScore.rows[0].id]
+    );
+    assert.equal(persistedMatchReview.rows[0].review_state,"accepted");
+    assert.ok(persistedMatchReview.rows[0].reviewed_at);
+    const e11Audit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and entity_id=$2 and action='match_score_review_recorded'",
+      [companyId,matchScore.rows[0].id]
+    );
+    assert.equal(e11Audit.rows[0].count,1,"E11 owner decision must create an audit event");
+
+    const pendingMatchScore = await pool.query(`
+      insert into public.discovery_match_scores(
+        company_id,profile_id,canonical_entity_id,workspace_key,discovery_mode,
+        criteria_hash,candidate_hash,rule_version,match_score,confidence,coverage,score_state,
+        score_components,rationale,criteria_snapshot,candidate_snapshot
+      ) values (
+        $1,$2,$3,'startup','LENDER',$4,$5,'deterministic-rules-v1',
+        60.0,55.0,70.0,'review_required','[]'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb
+      ) returning id
+    `,matchScoreArgs);
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_match_review($1,$2,$3,'accepted',$4)",
+        [companyId,viewerId,pendingMatchScore.rows[0].id,"Viewer must not approve scores."]
+      ),
+      /Only a company owner or admin/
+    );
+
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
 
