@@ -39,6 +39,9 @@ export function normalizeFieldSchema(source) {
   const allowed = new Set(Array.isArray(source?.allowed_fields) ? source.allowed_fields : []);
   const incoming = source?.field_schema && typeof source.field_schema === "object" && !Array.isArray(source.field_schema)
     ? source.field_schema : {};
+  for (const field of Object.keys(incoming)) {
+    if (!allowed.has(field)) throw new Error("Extraction schema contains a field outside the source field allow-list: " + field + ".");
+  }
   const defaults = fieldDefaults([...allowed]);
   const result = {};
   for (const field of allowed) {
