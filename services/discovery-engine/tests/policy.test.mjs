@@ -121,3 +121,21 @@ test("connector evidence fetch validates host and path before adapter execution"
   assert.equal(await registry.fetchEvidence(source, { url: "https://registry.example.gov.in/api/v1/entities/42" }), "https://registry.example.gov.in/api/v1/entities/42");
   assert.equal(called, true);
 });
+
+test("manual research connector accepts explicit user-supplied evidence only", async () => {
+  const registry = new ConnectorRegistry();
+  let received = false;
+  registry.register({
+    key: "manual_research",
+    async recordManual({ evidence }) { received = true; return evidence; }
+  });
+  const source = {
+    ...approvedSource(),
+    connector_key: "manual_research",
+    source_type: "manual_research"
+  };
+  const evidence = { sourceUrl: "https://registry.example.gov.in/public-record", note: "User reviewed source" };
+  assert.deepEqual(await registry.recordManual(source, evidence), evidence);
+  assert.equal(received, true);
+  await assert.rejects(() => registry.recordManual(source, "not-an-object"), /must be an object/);
+});

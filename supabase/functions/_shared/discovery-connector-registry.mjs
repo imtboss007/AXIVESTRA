@@ -29,7 +29,11 @@ export class ConnectorRegistry {
       throw new Error("Connector key is not supported.");
     }
     if (this.#connectors.has(connector.key)) throw new Error("A connector is already registered for " + connector.key + ".");
-    if (typeof connector.search !== "function" || typeof connector.fetchEvidence !== "function") {
+    if (connector.key === "manual_research") {
+      if (typeof connector.recordManual !== "function") {
+        throw new Error("A manual research connector must implement recordManual.");
+      }
+    } else if (typeof connector.search !== "function" || typeof connector.fetchEvidence !== "function") {
       throw new Error("A connector must implement search and fetchEvidence.");
     }
     this.#connectors.set(connector.key, Object.freeze(connector));
@@ -58,11 +62,21 @@ export class ConnectorRegistry {
     return connector.fetchEvidence({ source, candidate: { ...candidate, url: url.toString() }, context });
   }
 
+  async recordManual(source, evidence, context = {}) {
+    assertUsableSource(source, "manual_entry");
+    if (!evidence || typeof evidence !== "object" || Array.isArray(evidence) || JSON.stringify(evidence).length > 20000) {
+      throw new Error("Manual evidence must be an object no larger than 20 KB.");
+    }
+    const connector = this.#get(source.connector_key);
+    return connector.recordManual({ source, evidence, context });
+  }
+
   #get(key) {
     const connector = this.#connectors.get(key);
     if (!connector) throw new Error("No implementation is installed for connector: " + key + ".");
     return connector;
   }
+
 }
 
 function assertUsableSource(source, capability) {

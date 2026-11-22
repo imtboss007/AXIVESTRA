@@ -155,27 +155,37 @@ Deno.serve(async request => {
     if (action === "profiles.upsert") {
       const workspaceKey = String(payload.workspaceKey || "");
       const discoveryMode = String(payload.discoveryMode || "").toUpperCase();
-      const { count, error: countError } = await admin.from("discovery_profile_sources")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("profile_id", payload.profileId || "00000000-0000-4000-8000-000000000000");
-      if (countError) throw countError;
-      const profile = normalizeProfile(payload, count || 0);
-      const existingQuery = admin.from("discovery_profiles").select("id")
-        .eq("company_id", companyId).eq("workspace_key", workspaceKey).eq("discovery_mode", discoveryMode).maybeSingle();
-      const { data: existingProfile, error: existingProfileError } = await existingQuery;
+      const { data: existingProfile, error: existingProfileError } = await admin.from("discovery_profiles")
+        .select("id,enabled").eq("company_id", companyId)
+        .eq("workspace_key", workspaceKey).eq("discovery_mode", discoveryMode).maybeSingle();
       if (existingProfileError) throw existingProfileError;
+      let sourceCount = 0;
+      if (existingProfile?.id) {
+        const { count, error: countError } = await admin.from("discovery_profile_sources")
+          .select("*", { count: "exact", head: true })
+          .eq("company_id", companyId).eq("profile_id", existingProfile.id);
+        if (countError) throw countError;
+        sourceCount = count || 0;
+      }
+      const profile = normalizeProfile(payload, sourceCount);
       const saved = await admin.from("discovery_profiles").upsert({
         ...profile, company_id: companyId,
         ...(existingProfile?.id ? {} : { created_by: caller.id }),
         updated_by: caller.id, updated_at: new Date().toISOString()
       }, { onConflict: "company_id,workspace_key,discovery_mode" }).select("*").single();
       if (saved.error) throw saved.error;
+      const auditAction = !existingProfile
+        ? "profile_created"
+        : saved.data.enabled
+          ? "profile_enabled"
+          : existingProfile.enabled
+            ? "profile_disabled"
+            : "profile_updated";
       await writeAudit(admin, {
         company_id: companyId, actor_user_id: caller.id,
-        action: saved.data.enabled ? (existingProfile ? "profile_enabled" : "profile_created") : "profile_updated",
+        action: auditAction,
         entity_type: "profile", entity_id: saved.data.id,
-        details: { workspaceKey, discoveryMode, enabled: saved.data.enabled }
+        details: { workspaceKey, discoveryMode, enabled: saved.data.enabled, approvedSourceCount: sourceCount }
       });
       return jsonResponse(200, { ok: true, profile: saved.data });
     }
@@ -210,8 +220,10 @@ Deno.serve(async request => {
         .select("*", { count: "exact", head: true }).eq("company_id", companyId).eq("profile_id", payload.profileId);
       if (countError) throw countError;
       if ((count || 0) === 0) {
-        await admin.from("discovery_profiles").update({ enabled: false, updated_by: caller.id, updated_at: new Date().toISOString() })
+        const { error: disableError } = await admin.from("discovery_profiles")
+          .update({ enabled: false, updated_by: caller.id, updated_at: new Date().toISOString() })
           .eq("company_id", companyId).eq("id", payload.profileId);
+        if (disableError) throw disableError;
       }
       await writeAudit(admin, {
         company_id: companyId, actor_user_id: caller.id, action: "profile_source_detached",
