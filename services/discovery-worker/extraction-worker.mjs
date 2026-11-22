@@ -29,7 +29,7 @@ function evidenceObjectPath(reference) {
     throw new Error("Evidence object reference is outside the private discovery evidence bucket.");
   }
   const path = reference.slice(prefix.length);
-  if (!/^[0-9a-f-]{36}\/[0-9a-f-]{36}-[a-f0-9]{64}\.bin$/.test(path)) {
+  if (!/^[0-9a-f-]{36}\\/[0-9a-f-]{36}\\/[0-9a-f-]{36}-[a-f0-9]{64}\\.bin$/.test(path)) {
     throw new Error("Evidence object path does not match the expected company/job/content-hash structure.");
   }
   return path;
