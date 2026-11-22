@@ -29,5 +29,5 @@ test("queue history is company scoped and bounded", () => {
 });
 
 test("enqueue explicitly does not perform source network access", () => {
-  assert.match(handler, /This action does not contact the source/);
+  assert.match(handler, /Enqueue does not contact the source/);
 });
