@@ -8,10 +8,13 @@ on:
       - feat/discovery-durable-queue
       - feat/discovery-job-enqueue
       - feat/discovery-e04-complete
+      - feat/discovery-e05-complete
+      - feat/discovery-e05-consolidated
   pull_request:
     branches:
       - main
       - feat/discovery-source-governance
+      - feat/discovery-e04-complete
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
@@ -20,6 +23,8 @@ on:
       - "supabase/migrations/*discovery*"
       - "services/discovery-engine/tests/**"
       - "services/discovery-worker/**"
+      - "docs/AXIVESTRA-DISCOVERY-E05-COMPLETE.md"
+      - "docs/AXIVESTRA-REPOSITORY-ACCELERATION-MAP.md"
       - "package.json"
       - ".github/workflows/discovery-governance-checks.yml"
 
