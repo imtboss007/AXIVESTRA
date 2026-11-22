@@ -70,6 +70,19 @@ test("source registration rejects wildcard and traversal path policies", () => {
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, allowedPaths: ["/api/%2e%2e/private"] }), /traversal/);
 });
 
+test("browser rendering is opt-in and only allowed for permitted public websites", () => {
+  const pending = normalizeSourceRegistration({ ...baseSource, sourceType: "official_api", renderMode: "browser" });
+  assert.equal(pending.render_mode, "http");
+  assert.throws(() => normalizeSourceRegistration({ ...baseSource, renderMode: "browser" }), /only for an explicitly permitted public website/);
+  const publicPage = normalizeSourceRegistration({
+    ...baseSource,
+    sourceType: "permitted_public_page",
+    canonicalUrl: "https://registry.example.gov.in/public",
+    renderMode: "browser"
+  });
+  assert.equal(publicPage.render_mode, "browser");
+});
+
 test("source approval requires a reviewed licence reference and legal basis", () => {
   const pending = normalizeSourceRegistration(baseSource);
   assert.throws(() => normalizeSourceReview({ status: "approved", licenseRef: "unreviewed", legalBasis: "x" }, pending, "reviewer"), /verified licence/);
