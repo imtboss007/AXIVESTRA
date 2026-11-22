@@ -462,6 +462,30 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(bucket.rows[0].public, false);
     assert.equal(Number(bucket.rows[0].file_size_limit), 5_000_000);
 
+    // E06 canonical identity and owner review receipts must outlive raw E05 evidence retention.
+    await pool.query("delete from public.discovery_evidence_items where id=$1", [evidenceId]);
+    const durableEntity = await pool.query(
+      "select id,legal_name,source_evidence_id from public.discovery_canonical_entities where company_id=$1",
+      [companyId]
+    );
+    assert.equal(durableEntity.rows.length,1,"canonical identity must survive source-evidence purge");
+    assert.equal(durableEntity.rows[0].source_evidence_id,evidenceId,"historical evidence UUID must remain traceable");
+    const durableIdentifier = await pool.query(
+      "select count(*)::int as count from public.discovery_entity_identifiers where company_id=$1 and canonical_entity_id=$2",
+      [companyId,durableEntity.rows[0].id]
+    );
+    assert.equal(durableIdentifier.rows[0].count,1,"reviewed registry identifier must survive evidence purge");
+    const durableAssignment = await pool.query(
+      "select count(*)::int as count from public.discovery_entity_assignments where company_id=$1 and canonical_entity_id=$2",
+      [companyId,durableEntity.rows[0].id]
+    );
+    assert.equal(durableAssignment.rows[0].count,1,"owner-approved assignment must survive evidence purge");
+    const durableReview = await pool.query(
+      "select count(*)::int as count from public.discovery_entity_review_events where company_id=$1 and decision='created_new'",
+      [companyId]
+    );
+    assert.equal(durableReview.rows[0].count,1,"owner review receipt must survive candidate and evidence retention cleanup");
+
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
 
