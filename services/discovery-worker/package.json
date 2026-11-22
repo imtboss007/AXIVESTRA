@@ -5,11 +5,15 @@
   "description": "Server-side governed crawler/fetch worker for AXIVESTRA E04.",
   "scripts": {
     "start": "node worker.mjs",
-    "test": "node worker-policy.test.mjs && node postgres-integration.test.mjs"
+    "test": "node worker-policy.test.mjs && node postgres-integration.test.mjs",
+    "install:browser": "playwright install chromium"
   },
-  "devDependencies": { "pg": "8.16.3" },
+  "devDependencies": {
+    "pg": "8.16.3"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
-    "crawlee": "3.18.2"
+    "crawlee": "3.18.2",
+    "playwright": "1.56.1"
   }
 }
