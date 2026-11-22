@@ -14,6 +14,7 @@ import PortfolioAnalytics from "./PortfolioAnalytics";
 import IntentCanvas from "./IntentCanvas";
 import IntelligenceHubExplorer from "./IntelligenceHubExplorer";
 import RelationshipIntelligencePanel from "./RelationshipIntelligencePanel";
+import MagicAnimatedGridPattern from "./components/MagicAnimatedGridPattern";
 import ModuleWorkbench from "./ModuleWorkbench";
 import UniversalInterface, { type UniversalEntity, type QuickAddAction } from "./UniversalInterface";
 import FollowUpRegistry from "./FollowUpRegistry";
@@ -2375,6 +2376,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
           </section>}
           {active === "Workspace Explorer" && <>
             <section className="institutional-banner ax-workspace-explorer-intro">
+              <MagicAnimatedGridPattern />
               <div className="institutional-copy">
                 <span className="institutional-label"><span className="live-dot"/> AXIVESTRA · WORKSPACE EXPLORER</span>
                 <h2>Navigate the operating system behind your asset intelligence.</h2>
