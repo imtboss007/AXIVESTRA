@@ -317,10 +317,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
       ) values
         ($1,$3,$4,$5,'https://registry.example.gov.in/api/v1/entities/3',now(),
-          repeat('e',64),'discovery-evidence:'||$3||'/'||$4||'/'||$1||'-'||repeat('e',64)||'.bin',
+          repeat('e',64),'discovery-evidence:'||$3::text||'/'||$4::text||'/'||$1::text||'-'||repeat('e',64)||'.bin',
           'application/json',20,'Example registry','IN','{"retention_days":30}'::jsonb,'{}'::jsonb),
         ($2,$3,$6,$5,'https://registry.example.gov.in/api/v1/entities/4',now(),
-          repeat('f',64),'discovery-evidence:'||$3||'/'||$6||'/'||$2||'-'||repeat('f',64)||'.bin',
+          repeat('f',64),'discovery-evidence:'||$3::text||'/'||$6::text||'/'||$2::text||'-'||repeat('f',64)||'.bin',
           'application/json',20,'Example registry','IN','{"retention_days":30}'::jsonb,'{}'::jsonb)
     `, [
       parallelEvidenceIds[0],parallelEvidenceIds[1],companyId,
