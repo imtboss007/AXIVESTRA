@@ -37,7 +37,7 @@ test("DNS answers fail closed when any answer is non-public", () => {
 });
 
 test("robots parser follows RFC 9309 product-token groups, specificity, wildcards and fallback", () => {
-  const rules = parseRobotsRules(\`
+  const rules = parseRobotsRules(`
 User-agent: *
 Disallow: /global
 User-agent: AXIVESTRA-DiscoveryBot
@@ -47,7 +47,7 @@ User-agent: AXIVESTRA-DiscoveryBot
 Disallow: /api/internal
 Allow: /api/internal/public
 Disallow: /files/*.private
-\`);
+`);
   assert.equal(rules.allows("https://registry.example.gov.in/global"), true, "wildcard group is fallback, not merged with specific group");
   assert.equal(rules.allows("https://registry.example.gov.in/api/v1/entities/1"), true);
   assert.equal(rules.allows("https://registry.example.gov.in/api/internal/record"), false);
