@@ -1600,3 +1600,104 @@ body { background: #0b1420; color: #e8f0f4; }
     text-align: left;
   }
 }
+
+
+/* Enterprise data tables — dense records with keyboard and touch-safe navigation. */
+.ax-modern-shell .ax-enterprise-grid {
+  gap: 13px;
+  min-width: 0;
+}
+.ax-modern-shell .ax-enterprise-grid__toolbar {
+  align-items: center;
+  gap: 12px;
+}
+.ax-modern-shell .ax-enterprise-grid__toolbar label {
+  flex: 1 1 280px;
+  max-width: 520px;
+  gap: 7px;
+  color: var(--axiv-body);
+}
+.ax-modern-shell .ax-enterprise-grid__toolbar label > span {
+  color: #a8c2c9;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ax-modern-shell .ax-enterprise-grid__toolbar input {
+  min-height: 43px;
+  border-color: #365165;
+  border-radius: 10px;
+  background: #0e2030;
+  color: var(--axiv-ink);
+}
+.ax-modern-shell .ax-enterprise-grid__toolbar input:focus-visible {
+  outline: 2px solid #82b9b1;
+  outline-offset: 2px;
+}
+.ax-modern-shell .ax-enterprise-grid__count {
+  color: #9aafbd;
+  font-variant-numeric: tabular-nums;
+}
+.ax-modern-shell .ax-enterprise-grid__viewport {
+  max-height: min(68vh,680px);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  border-color: #294254;
+  border-radius: 13px;
+  background: #0e2030;
+}
+.ax-modern-shell .ax-enterprise-grid__table {
+  min-width: 100%;
+  table-layout: fixed;
+  color: var(--axiv-body);
+}
+.ax-modern-shell .ax-enterprise-grid__table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-color: #365165;
+  background: #1a3447;
+}
+.ax-modern-shell .ax-enterprise-grid__sort {
+  min-height: 44px;
+  padding: 10px 12px;
+  color: #e0ecef;
+  white-space: normal;
+  line-height: 1.35;
+}
+.ax-modern-shell .ax-enterprise-grid__sort:not(:disabled):hover {
+  color: #fff;
+  background: #21424e;
+}
+.ax-modern-shell .ax-enterprise-grid__sort:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.ax-modern-shell .ax-enterprise-grid__table td {
+  min-width: 0;
+  line-height: 1.45;
+  border-color: #294254;
+  color: #c3d1da;
+}
+.ax-modern-shell .ax-enterprise-grid__table tbody tr:focus-within td {
+  background: #1b3b48;
+}
+.ax-modern-shell .ax-enterprise-grid__table tbody tr:last-child td {
+  border-bottom-color: #365165;
+}
+@media (max-width: 720px) {
+  .ax-modern-shell .ax-enterprise-grid__toolbar {
+    align-items: stretch;
+  }
+  .ax-modern-shell .ax-enterprise-grid__toolbar label {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .ax-modern-shell .ax-enterprise-grid__count {
+    align-self: flex-start;
+  }
+  .ax-modern-shell .ax-enterprise-grid__viewport {
+    max-height: 62vh;
+    border-radius: 11px;
+  }
+}
