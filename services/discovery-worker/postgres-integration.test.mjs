@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 
 const databaseUrl = process.env.DISCOVERY_TEST_DATABASE_URL;
 
@@ -26,9 +25,9 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       returns boolean language sql stable as $$ select true $$;
     `);
 
-    const sourceMigration = await readFile(resolve("supabase/migrations/20261122150000_discovery_source_governance.sql"), "utf8");
-    const queueMigration = await readFile(resolve("supabase/migrations/20261122170000_discovery_durable_queue.sql"), "utf8");
-    const fetchMigration = await readFile(resolve("supabase/migrations/20261122180000_discovery_fetch_evidence.sql"), "utf8");
+    const sourceMigration = await readFile(new URL("../../supabase/migrations/20261122150000_discovery_source_governance.sql", import.meta.url), "utf8");
+    const queueMigration = await readFile(new URL("../../supabase/migrations/20261122170000_discovery_durable_queue.sql", import.meta.url), "utf8");
+    const fetchMigration = await readFile(new URL("../../supabase/migrations/20261122180000_discovery_fetch_evidence.sql", import.meta.url), "utf8");
     await pool.query(sourceMigration);
     await pool.query(queueMigration);
     await pool.query(fetchMigration);
