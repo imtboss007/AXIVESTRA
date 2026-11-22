@@ -2,6 +2,25 @@
 -- No LLM provider, external search or source network access is used by this stage.
 begin;
 
+-- Extend the shared company audit ledger for explicit extraction-review receipts.
+alter table public.discovery_audit_events
+  drop constraint if exists discovery_audit_events_action_check;
+alter table public.discovery_audit_events
+  add constraint discovery_audit_events_action_check check (action in (
+    'source_registered','source_approved','source_paused','source_rejected',
+    'profile_created','profile_updated','profile_enabled','profile_disabled',
+    'profile_source_attached','profile_source_detached',
+    'discovery_job_queued','discovery_worker_grant_enabled','discovery_worker_grant_disabled',
+    'extraction_review_recorded'
+  ));
+alter table public.discovery_audit_events
+  drop constraint if exists discovery_audit_events_entity_type_check;
+alter table public.discovery_audit_events
+  add constraint discovery_audit_events_entity_type_check check (entity_type in (
+    'source','profile','profile_source','discovery_job','discovery_worker_control','extraction_review_event'
+  ));
+
+
 alter table public.discovery_source_registry
   add column if not exists field_schema jsonb not null default '{}'::jsonb
   check (jsonb_typeof(field_schema) = 'object');
@@ -369,6 +388,17 @@ begin
     or v_evidence.content_hash is distinct from p_run->>'source_content_hash' then
     raise exception 'Extraction evidence hash or source does not match the immutable snapshot' using errcode = '42501';
   end if;
+  if not exists (
+    select 1
+    from public.discovery_jobs dj
+    join public.discovery_profiles p
+      on p.company_id = dj.company_id and p.id = dj.profile_id and p.enabled = true
+    join public.discovery_profile_sources ps
+      on ps.company_id = dj.company_id and ps.profile_id = dj.profile_id and ps.source_id = v_job.source_id
+    where dj.company_id = v_job.company_id and dj.id = v_evidence.job_id and dj.status = 'succeeded'
+  ) then
+    raise exception 'Parent discovery job, profile or source attachment is no longer eligible for extraction' using errcode = '42501';
+  end if;
 
   insert into public.discovery_extraction_runs(
     company_id, extraction_job_id, evidence_id, source_id,
@@ -505,6 +535,10 @@ create trigger discovery_extracted_entities_no_update before update on public.di
   for each row execute function public.prevent_discovery_extraction_update();
 drop trigger if exists discovery_extracted_facts_no_update on public.discovery_extracted_facts;
 create trigger discovery_extracted_facts_no_update before update on public.discovery_extracted_facts
+  for each row execute function public.prevent_discovery_extraction_update();
+
+drop trigger if exists discovery_extraction_review_events_no_update on public.discovery_extraction_review_events;
+create trigger discovery_extraction_review_events_no_update before update on public.discovery_extraction_review_events
   for each row execute function public.prevent_discovery_extraction_update();
 
 revoke all on function public.claim_discovery_extraction_job(text,integer) from public, anon, authenticated;
