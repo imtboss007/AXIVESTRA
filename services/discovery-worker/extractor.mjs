@@ -124,17 +124,20 @@ function parseJsonEvidence(text, observations) {
   walkJson(value, "$", observations);
 }
 
-function parseHtmlEvidence(text, observations, schema) {
+function parseHtmlEvidence(text, observations, schema, htmlParserBackend) {
   // Use Cheerio's htmlparser2 backend for a faster, lower-allocation parse.
   // Source offsets are enabled so every table fact can point back to its exact cell.
-  const $ = cheerio.load(text, {
-    xml: {
-      xmlMode: false,
-      decodeEntities: true,
-      withStartIndices: true,
-      withEndIndices: true
-    }
-  });
+  const backend = htmlParserBackend === "parse5" ? "parse5" : "htmlparser2";
+  const $ = backend === "parse5"
+    ? cheerio.load(text, { sourceCodeLocationInfo: true })
+    : cheerio.load(text, {
+        xml: {
+          xmlMode: false,
+          decodeEntities: true,
+          withStartIndices: true,
+          withEndIndices: true
+        }
+      });
 
   $('script[type="application/ld+json"]').each((index, element) => {
     const raw = $(element).text();
@@ -171,8 +174,11 @@ function parseHtmlEvidence(text, observations, schema) {
     const sameTagIndex = rowCells.slice(0, columnIndex + 1).filter(candidate =>
       String(candidate.name || candidate.tagName || "td").toLowerCase() === tagName
     ).length;
-    const startOffset = Number.isInteger(cell.startIndex) ? cell.startIndex : null;
-    const endOffset = Number.isInteger(cell.endIndex) ? cell.endIndex + 1 : null;
+    const sourceLocation = cell.sourceCodeLocation;
+    const startOffset = Number.isInteger(cell.startIndex) ? cell.startIndex
+      : Number.isInteger(sourceLocation?.startOffset) ? sourceLocation.startOffset : null;
+    const endOffset = Number.isInteger(cell.endIndex) ? cell.endIndex + 1
+      : Number.isInteger(sourceLocation?.endOffset) ? sourceLocation.endOffset : null;
     return {
       kind: "html-table-cell",
       locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + rowNumber + ") " +
@@ -512,7 +518,8 @@ export function extractStructuredFacts({
   bytes,
   contentType,
   source,
-  contentHash
+  contentHash,
+  htmlParserBackend = "htmlparser2"
 }) {
   if (!Buffer.isBuffer(bytes)) bytes = Buffer.from(bytes || []);
   if (bytes.byteLength > MAX_INPUT_BYTES) throw new Error("Evidence exceeds E05's 5 MB processing limit.");
@@ -527,7 +534,7 @@ export function extractStructuredFacts({
   const mime = String(contentType || "").split(";")[0].trim().toLowerCase();
 
   if (["application/json","application/ld+json"].includes(mime)) parseJsonEvidence(text, observations);
-  else if (mime === "text/html") parseHtmlEvidence(text, observations, schema);
+  else if (mime === "text/html") parseHtmlEvidence(text, observations, schema, htmlParserBackend);
   else if (["text/csv","application/csv"].includes(mime)) parserWarning = parseCsvEvidence(text, observations);
   else if (["application/xml","text/xml"].includes(mime)) parseXmlEvidence(text, observations);
   else if (mime === "text/plain") parseLabeledText(text, observations, "text-line");

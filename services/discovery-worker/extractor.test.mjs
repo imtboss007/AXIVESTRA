@@ -16,8 +16,9 @@ const allowedSource = {
 };
 
 const hash = "a".repeat(64);
-const parse = (text, mime) => extractStructuredFacts({
-  bytes: Buffer.from(text, "utf8"), contentType: mime, source: allowedSource, contentHash: hash
+const parse = (text, mime, htmlParserBackend) => extractStructuredFacts({
+  bytes: Buffer.from(text, "utf8"), contentType: mime, source: allowedSource, contentHash: hash,
+  ...(htmlParserBackend ? { htmlParserBackend } : {})
 });
 
 test("E05 is deterministic and versioned", () => {
@@ -206,6 +207,22 @@ test("HTML key/value tables retain a locator for each separate value cell", () =
   assert.deepEqual(matches.map(fact => fact.raw_value), ["Acme Holdings Pvt Ltd", "Acme Group"]);
   assert.deepEqual(matches.map(fact => fact.source_span.column), [2, 3]);
   assert.ok(matches.every(fact => Number.isInteger(fact.source_span.startOffset)));
+});
+
+test("HTML parse5 fallback retains schema-matched td headers and raw cell offsets", () => {
+  const html = "<table><tbody><tr><td>legal_name</td><td>CIN</td><td>email</td></tr>" +
+    "<tr><td>Acme Holdings Pvt Ltd</td><td>U12345KA2020PLC123456</td><td>info@example.com</td></tr></tbody></table>";
+  const result = parse(html, "text/html", "parse5");
+  const facts = Object.fromEntries(result.facts.map(fact => [fact.field_name, fact]));
+  assert.equal(facts.legal_name.normalized_value, "Acme Holdings Pvt Ltd");
+  assert.equal(facts.registration_id.normalized_value, "U12345KA2020PLC123456");
+  assert.equal(facts.public_email.normalized_value, "info@example.com");
+  assert.ok(Number.isInteger(facts.public_email.source_span.startOffset));
+  assert.ok(Number.isInteger(facts.public_email.source_span.endOffset));
+  assert.ok(html.slice(
+    facts.public_email.source_span.startOffset,
+    facts.public_email.source_span.endOffset
+  ).includes("info@example.com"));
 });
 
 test("XML leaf values and text key-value spans map to allowed schemas", () => {

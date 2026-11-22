@@ -66,8 +66,10 @@ const csvText = [
 
 const cases = [
   ["JSON", "application/json", Buffer.from(jsonText)],
-  ["HTML key/value", "text/html", Buffer.from(htmlText)],
-  ["HTML multi-column", "text/html", Buffer.from(htmlMultiColumnText)],
+  ["HTML key/value · parse5", "text/html", Buffer.from(htmlText), "parse5"],
+  ["HTML key/value · htmlparser2", "text/html", Buffer.from(htmlText), "htmlparser2"],
+  ["HTML multi-column · parse5", "text/html", Buffer.from(htmlMultiColumnText), "parse5"],
+  ["HTML multi-column · htmlparser2", "text/html", Buffer.from(htmlMultiColumnText), "htmlparser2"],
   ["XML", "application/xml", Buffer.from(xmlText)],
   ["Text", "text/plain", Buffer.from(textText)],
   ["CSV", "text/csv", Buffer.from(csvText)]
@@ -78,9 +80,11 @@ function percentile(values, fraction) {
   return sorted[Math.min(sorted.length-1,Math.max(0,Math.ceil(fraction*sorted.length)-1))] || 0;
 }
 
-for (const [name, contentType, bytes] of cases) {
+for (const [name, contentType, bytes, htmlParserBackend] of cases) {
+  const input = { bytes, contentType, source, contentHash: hash,
+    ...(htmlParserBackend ? { htmlParserBackend } : {}) };
   for (let warm = 0; warm < 10; warm += 1) {
-    await extractStructuredFacts({ bytes, contentType, source, contentHash: hash });
+    await extractStructuredFacts(input);
   }
   const heapBefore = process.memoryUsage().heapUsed;
   const durations = [];
@@ -88,7 +92,7 @@ for (const [name, contentType, bytes] of cases) {
   const start = performance.now();
   for (let index=0; index<iterations; index+=1) {
     const tick = performance.now();
-    const result = await extractStructuredFacts({ bytes, contentType, source, contentHash: hash });
+    const result = await extractStructuredFacts(input);
     durations.push(performance.now()-tick);
     totalFacts += result.facts.length;
   }
