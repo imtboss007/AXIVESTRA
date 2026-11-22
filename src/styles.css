@@ -4609,8 +4609,8 @@ h2,h3{color:#e5f2fc}
 }
 
 
-/* Do not expose a pause control when the responsive or accessibility mode has no orbit motion. */
-@media (max-width: 720px), (prefers-reduced-motion: reduce) {
+/* Hide the motion control only when the OS requests reduced motion; mobile orbital mode still animates. */
+@media (prefers-reduced-motion: reduce) {
   .ax-modern-shell .ax-orbit-motion-toggle { display: none; }
 }
 
