@@ -85,6 +85,8 @@ assert.ok(analytics.includes("const periodInflow = cashflowRows.reduce"), "Cashf
 assert.ok(analytics.includes("Net recorded cashflow · selected {period}-month window"), "Cashflow summary must disclose its selected window.");
 assert.ok(analytics.includes("Unclassified transaction types"), "Cashflow must disclose transactions outside the inflow/outflow map.");
 assert.ok(analytics.includes("const todayKey ="), "Overdue tasks must compare against the local calendar date.");
+assert.ok(analytics.includes("visibleItems.map((item, index) =>"), "Analytics legend must render every visible category rather than truncating after eight.");
+assert.ok(analytics.includes('role="group" aria-label={focus === "allocation" ? "All recorded workspace categories" : "All recorded pipeline statuses"}'), "Analytics category controls must expose a meaningful group label.");
 console.log("AXIVESTRA enterprise design-system contract passed.");
 
 
