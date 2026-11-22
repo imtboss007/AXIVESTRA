@@ -314,11 +314,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
 
     // Legal-entity relationships are recorded only through the owner/admin evidence review RPC.
     const relatedEntity = await pool.query(
-      \`insert into public.discovery_canonical_entities(
-        company_id,entity_kind,legal_name,normalized_name,jurisdiction,entity_type,
-        status,source_evidence_id,created_by
-      ) values($1,'organization','Acme Finance Services Ltd','acme finance services',
-        'IN','company','active',$2,$3) returning id\`,
+      "insert into public.discovery_canonical_entities(company_id,entity_kind,legal_name,normalized_name,jurisdiction,entity_type,status,source_evidence_id,created_by) values($1,'organization','Acme Finance Services Ltd','acme finance services','IN','company','active',$2,$3) returning id",
       [companyId,evidenceId,actorId]
     );
     const relatedEntityId = relatedEntity.rows[0].id;
