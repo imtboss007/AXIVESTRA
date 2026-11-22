@@ -199,13 +199,70 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       pool.query("update public.discovery_extracted_facts set raw_value='rewritten' where extraction_run_id=$1", [extractionRunId]),
       /append-only/
     );
+    // A syntactically valid worker payload must still be rejected when it
+    // attempts to emit a field outside the reviewed source field allow-list.
+    const invalidEvidenceId = "ffffffff-ffff-4fff-8fff-fffffffffff0";
+    const invalidEvidenceJobId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee4";
+    await pool.query(`
+      insert into public.discovery_jobs(
+        id,company_id,profile_id,source_id,requested_by,status,payload,idempotency_key,started_at,finished_at
+      ) values($1,$2,$3,$4,$5,'succeeded',
+        '{"purpose":"company identity verification","criteria":{},"candidateUrls":["https://registry.example.gov.in/api/v1/entities/2"]}'::jsonb,
+        'integration-evidence-job-0004',now(),now())
+    `, [invalidEvidenceJobId,companyId,profileId,sourceId,actorId]);
+    await pool.query(`
+      insert into public.discovery_evidence_items(
+        id,company_id,job_id,source_id,canonical_url,captured_at,content_hash,raw_blob_ref,
+        content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
+      ) values($1,$2,$3,$4,'https://registry.example.gov.in/api/v1/entities/2',now(),
+        repeat('d',64),'discovery-evidence:company/job/invalid-evidence.bin',
+        'application/json',16,'Example registry','IN','{"retention_days":30}'::jsonb,'{}'::jsonb)
+    `, [invalidEvidenceId,companyId,invalidEvidenceJobId,sourceId]);
+    const invalidClaim = await pool.query(
+      "select * from public.claim_discovery_extraction_job($1,90)",
+      ["extraction-worker-invalid-test"]
+    );
+    assert.equal(invalidClaim.rows.length, 1);
+    await assert.rejects(
+      pool.query(
+        "select public.complete_discovery_extraction($1,$2,$3::jsonb,$4::jsonb,$5::jsonb)",
+        [
+          invalidClaim.rows[0].id,
+          invalidClaim.rows[0].lease_owner,
+          JSON.stringify({
+            extractor_version:"deterministic-v1.0.0", schema_hash:"b".repeat(64),
+            source_content_hash:"d".repeat(64), invalid_fact_count:0, warnings:[]
+          }),
+          "[]",
+          JSON.stringify([{
+            field_name:"unapproved_private_field", value_type:"string",
+            raw_value:"must not persist", normalized_value:"must not persist",
+            source_span:span, confidence:0.99, validation_status:"valid"
+          }])
+        ]
+      ),
+      /outside the approved source field allow-list/
+    );
+    const failedInvalidClaim = await pool.query(
+      "select public.fail_discovery_extraction_job($1,$2,$3,$4) as ok",
+      [invalidClaim.rows[0].id,invalidClaim.rows[0].lease_owner,"EXPECTED_POLICY_REJECTION","Integration policy test"]
+    );
+    assert.equal(failedInvalidClaim.rows[0].ok,true);
+
     await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
     const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
     assert.equal(expiredEvidence.rows.length, 1, "per-source evidence retention is enforced by PostgreSQL");
     await pool.query(`
       insert into public.discovery_fetch_events(company_id,job_id,source_id,evidence_id,event_type,url,outcome)
-      values($1,$2,$3,$4,'response_received','https://registry.example.gov.in/api/v1/entities/1','stored')
+      values
+        ($1,$2,$3,$4,'response_received','https://registry.example.gov.in/api/v1/entities/1','stored'),
+        ($1,$2,$3,$4,'retention_purged','https://registry.example.gov.in/api/v1/entities/1','expired evidence removed')
     `, [companyId, activeJob.id, sourceId, evidenceId]);
+    const purgeReceipt = await pool.query(
+      "select count(*)::int as count from public.discovery_fetch_events where evidence_id=$1 and event_type='retention_purged'",
+      [evidenceId]
+    );
+    assert.equal(purgeReceipt.rows[0].count,1,"retention sweep terminal event must be accepted by the fetch ledger");
     await assert.rejects(
       pool.query("update public.discovery_evidence_items set attribution='changed' where id=$1", [evidenceId]),
       /immutable/
