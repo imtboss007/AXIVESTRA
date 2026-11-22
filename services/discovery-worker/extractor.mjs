@@ -22,7 +22,10 @@ function fieldDefaults(allowedFields) {
   for (const field of allowedFields || []) {
     const key = String(field);
     schema[key] = {
-      type: ["email", "phone", "url", "date", "number", "boolean", "percentage", "currency"].includes(key) ? key : "string",
+      type: ["email", "phone", "url", "date", "number", "boolean", "percentage", "currency"].includes(key)
+        ? key
+        : ["turnover","annual_turnover","amount","ticket_size","revenue","assets_under_management"].includes(key)
+          ? "currency" : "string",
       aliases: [key],
       required: false,
       ...( /^(legal_name|company_name|organization_name|entity_name|institution_name)$/.test(key)
