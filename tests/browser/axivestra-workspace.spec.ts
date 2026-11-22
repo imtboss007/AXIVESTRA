@@ -529,10 +529,10 @@ test("desktop and mobile: every module formats crores and opens table details, h
   await expect(page.getByText("11:15").first()).toBeVisible();
   await expect(page.getByText("QA Primary Group").first()).toBeVisible();
   await expect(page.getByText("QA Follow-up Group").first()).toBeVisible();
-  await expect(page.getByRole("checkbox",{name:"QA Follow-up Contact · Broker"})).toBeVisible();
-  await expect(page.getByRole("checkbox",{name:"QA Primary Contact · Owner"})).toBeVisible();
-  await expect(page.getByRole("checkbox",{name:"QA Primary Group"})).toBeVisible();
-  await expect(page.getByRole("checkbox",{name:"QA Follow-up Group"})).toBeVisible();
+  await expect(page.getByRole("checkbox",{name:"QA Follow-up Contact · Broker"}).first()).toBeVisible();
+  await expect(page.getByRole("checkbox",{name:"QA Primary Contact · Owner"}).first()).toBeVisible();
+  await expect(page.getByRole("checkbox",{name:"QA Primary Group"}).first()).toBeVisible();
+  await expect(page.getByRole("checkbox",{name:"QA Follow-up Group"}).first()).toBeVisible();
   await page.getByRole("checkbox",{name:"Property Sale",exact:true}).check();
   await expect(page.locator(".ax-followup-export__head span")).toContainText("2 entries");
   await expect(page.getByText("QA appointment · Property Sale",{exact:true}).first()).toBeVisible();
