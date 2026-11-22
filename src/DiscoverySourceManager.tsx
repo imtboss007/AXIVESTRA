@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { supabase } from "./lib/supabase";
 import DiscoveryJobQueue from "./DiscoveryJobQueue";
+import DiscoveryExtractionResults from "./DiscoveryExtractionResults";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 
 type SourceStatus = "pending" | "approved" | "paused" | "rejected";
@@ -471,6 +472,7 @@ export default function DiscoverySourceManager({
         })}</div>}
     </section>
     <DiscoveryJobQueue companyId={companyId} companyRole={companyRole} sources={sources} profiles={profiles} links={links}/>
+    <DiscoveryExtractionResults companyId={companyId} companyRole={companyRole} sources={sources}/>
     <div className="discovery-footer-note">Source governance, candidate URL queueing and fetch controls are company-scoped. E04 fetches only explicit allow-listed URLs; it does not search the internet, expand links, harvest private individuals, conduct outreach or make automated lending/property decisions.</div>
   </section>;
 }
