@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/axivestra-enterprise-experience
+      - feature/axivestra-visual-integration
   pull_request:
     branches:
       - main
