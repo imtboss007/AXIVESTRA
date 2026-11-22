@@ -57,7 +57,7 @@ Disallow: /files/*.private
   assert.equal(rules.allows("https://registry.example.gov.in/files/a.private"), false, "asterisk is a wildcard");
   assert.equal(rules.allows("https://registry.example.gov.in/robots.txt"), true, "robots.txt is implicitly allowed");
 
-  const fallback = parseRobotsRules("User-agent: *\\nDisallow: /private");
+  const fallback = parseRobotsRules("User-agent: *\nDisallow: /private");
   assert.equal(fallback.allows("https://registry.example.gov.in/private/record"), false);
 });
 
