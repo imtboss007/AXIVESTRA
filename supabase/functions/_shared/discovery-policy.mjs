@@ -87,6 +87,43 @@ function pathList(value) {
   });
 }
 
+const DISCOVERY_FIELD_TYPES = Object.freeze([
+  "string","number","boolean","date","email","phone","url","identifier",
+  "currency","percentage","object","array"
+]);
+
+function normalizeFieldSchema(input, allowedFields) {
+  const raw = input?.fieldSchema ?? input?.field_schema ?? {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("Field schema must be a JSON object keyed by allowed field names.");
+  }
+  if (JSON.stringify(raw).length > 8192) throw new Error("Field schema must not exceed 8 KB.");
+  const allowed = new Set(allowedFields);
+  for (const key of Object.keys(raw)) {
+    if (!allowed.has(key)) throw new Error("Field schema contains a field outside the source allow-list: " + key + ".");
+  }
+  const schema = {};
+  for (const field of allowedFields) {
+    const value = raw[field] && typeof raw[field] === "object" && !Array.isArray(raw[field]) ? raw[field] : {};
+    const type = value.type || (
+      ["email","phone","url","date","number","boolean","percentage","currency"].includes(field) ? field : "string"
+    );
+    if (!DISCOVERY_FIELD_TYPES.includes(type)) throw new Error("Unsupported extraction field type for " + field + ".");
+    const suppliedAliases = Array.isArray(value.aliases) ? value.aliases : [];
+    if (suppliedAliases.length > 40) throw new Error("A field may have at most 40 extraction aliases.");
+    const aliases = [...new Set([field, ...suppliedAliases].map(item => requiredText(item, "Field alias", 120)))];
+    const entityKind = value.entityKind || (
+      /^(legal_name|company_name|organization_name|entity_name|institution_name)$/.test(field)
+        ? "organization" : null
+    );
+    if (entityKind && !["organization","person","location"].includes(entityKind)) {
+      throw new Error("Entity kind must be organization, person or location.");
+    }
+    schema[field] = { type, aliases, required: value.required === true, ...(entityKind ? { entityKind } : {}) };
+  }
+  return schema;
+}
+
 export function normalizeSourceRegistration(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("A source registration object is required.");
   const sourceType = requiredText(input.sourceType, "Source type", 48);
@@ -114,6 +151,7 @@ export function normalizeSourceRegistration(input) {
   const allowedPaths = pathList(input.allowedPaths);
   const allowedPurposes = stringList(input.allowedPurposes, "Allowed purposes");
   const allowedFields = stringList(input.allowedFields, "Allowed fields");
+  const fieldSchema = normalizeFieldSchema(input, allowedFields);
   return {
     name: requiredText(input.name, "Source name", 160),
     canonical_url: canonical.toString().replace(/\/$/, ""),
@@ -126,6 +164,7 @@ export function normalizeSourceRegistration(input) {
     license_ref: requiredText(input.licenseRef || "unreviewed", "Licence reference", 500),
     allowed_purposes: allowedPurposes,
     allowed_fields: allowedFields,
+    field_schema: fieldSchema,
     allowed_paths: allowedPaths,
     access_method: accessMethod,
     rate_limit_per_minute: rateLimitPerMinute,
@@ -158,6 +197,7 @@ export function normalizeSourceReview(input, existing, reviewerId) {
   const allowedPaths = pathList(input.allowedPaths ?? existing.allowed_paths);
   const allowedPurposes = stringList(input.allowedPurposes ?? existing.allowed_purposes, "Allowed purposes");
   const allowedFields = stringList(input.allowedFields ?? existing.allowed_fields, "Allowed fields");
+  const fieldSchema = normalizeFieldSchema({ fieldSchema: input.fieldSchema ?? existing.field_schema }, allowedFields);
   const legalBasis = requiredText(input.legalBasis, "Legal basis / permitted-use rationale", 1000);
   const attribution = requiredText(input.attribution || existing.attribution, "Attribution instruction", 500);
   const rateLimitPerMinute = Number(input.rateLimitPerMinute ?? existing.rate_limit_per_minute);
@@ -171,6 +211,7 @@ export function normalizeSourceReview(input, existing, reviewerId) {
   update.allowed_paths = allowedPaths;
   update.allowed_purposes = allowedPurposes;
   update.allowed_fields = allowedFields;
+  update.field_schema = fieldSchema;
   update.legal_basis = legalBasis;
   update.attribution = attribution;
   update.rate_limit_per_minute = rateLimitPerMinute;
