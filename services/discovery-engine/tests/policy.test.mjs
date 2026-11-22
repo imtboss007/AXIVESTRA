@@ -112,7 +112,7 @@ test("connector registry refuses unapproved sources and missing adapters", async
   const registry = new ConnectorRegistry();
   const pending = { ...approvedSource(), status: "pending" };
   await assert.rejects(() => registry.search(pending, { text: "company", limit: 5 }, {
-    purpose, executionSession: session(pending)
+    purpose, executionSession: session(approvedSource())
   }), /Only an approved source/);
   await assert.rejects(() => registry.search(approvedSource(), { text: "company", limit: 5 }, {
     purpose, executionSession: session(approvedSource())
@@ -217,10 +217,10 @@ test("a paused or rejected source is not eligible for source use", async () => {
     async fetchEvidence() { return {}; }
   });
   await assert.rejects(() => registry.search(paused, { text: "company", limit: 5 }, {
-    purpose, executionSession: session(paused)
+    purpose, executionSession: session(approved)
   }), /Only an approved source/);
   await assert.rejects(() => registry.search(rejected, { text: "company", limit: 5 }, {
-    purpose, executionSession: session(rejected)
+    purpose, executionSession: session(approved)
   }), /Only an approved source/);
 });
 
@@ -311,7 +311,7 @@ test("connector search refuses adapter results above the requested result limit"
     async fetchEvidence() { return {}; }
   });
   const source = approvedSource();
-  await assert.rejects(() => registry.search(source, { text: "company", limit: 2 }, {
+  await assert.rejects(() => registry.search(source, { text: "company", limit: 2, endpointUrl: endpoint }, {
     purpose, executionSession: session(source)
   }), /more results than the approved search limit/);
 });
