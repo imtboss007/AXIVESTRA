@@ -137,14 +137,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const evidenceId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
     await pool.query(`
       insert into public.discovery_evidence_items(
-        id,company_id,job_id,source_id,canonical_url,content_hash,raw_blob_ref,
+        id,company_id,job_id,source_id,canonical_url,captured_at,content_hash,raw_blob_ref,
         content_type,byte_length,attribution,jurisdiction,licence_snapshot,response_metadata
-      ) values($1,$2,$3,$4,'https://registry.example.gov.in/api/v1/entities/1',
+      ) values($1,$2,$3,$4,'https://registry.example.gov.in/api/v1/entities/1',now()-interval '2 days',
         repeat('a',64),'discovery-evidence:company/job/evidence.bin',
         'application/json',12,'Example registry','IN','{}'::jsonb,'{}'::jsonb)
     `, [evidenceId, companyId, activeJob.id, sourceId]);
     await pool.query("update public.discovery_source_registry set retention_days=1 where id=$1", [sourceId]);
-    await pool.query("update public.discovery_evidence_items set captured_at=now()-interval '2 days' where id=$1", [evidenceId]);
     const expiredEvidence = await pool.query("select id from public.list_expired_discovery_evidence(50) where id=$1", [evidenceId]);
     assert.equal(expiredEvidence.rows.length, 1, "per-source evidence retention is enforced by PostgreSQL");
     await pool.query(`
