@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { supabase } from "./lib/supabase";
+import DiscoveryJobQueue from "./DiscoveryJobQueue";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 
 type SourceStatus = "pending" | "approved" | "paused" | "rejected";
@@ -267,7 +268,7 @@ export default function DiscoverySourceManager({
         enabled,
         criteria: profile.criteria || {}
       });
-      setNotice(enabled ? "Profile enabled. Actual discovery remains unavailable until a connector is implemented." : "Profile disabled.");
+      setNotice(enabled ? "Profile enabled. Fetching remains paused until an owner/admin issues a temporary company grant and the separate worker process is configured." : "Profile disabled.");
       await refresh();
     } catch (reason) {
       setError(errorText(reason));
@@ -460,6 +461,7 @@ export default function DiscoverySourceManager({
           </article>;
         })}</div>}
     </section>
-    <div className="discovery-footer-note">Source review controls eligibility only. No search, page fetching, contact harvesting, lead qualification, outreach or automated decisions are run by this screen.</div>
+    <DiscoveryJobQueue companyId={companyId} companyRole={companyRole} sources={sources} profiles={profiles} links={links}/>
+    <div className="discovery-footer-note">Source governance, candidate URL queueing and fetch controls are company-scoped. E04 fetches only explicit allow-listed URLs; it does not search the internet, expand links, harvest private individuals, conduct outreach or make automated lending/property decisions.</div>
   </section>;
 }
