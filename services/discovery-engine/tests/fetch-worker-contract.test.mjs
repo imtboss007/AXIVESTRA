@@ -53,6 +53,18 @@ test("enqueue is available to company members but only allow-listed bounded cand
   assert.match(control, /candidateUrls/);
 });
 
+test("Playwright rendering remains source-scoped and routes every network request through policy gates", () => {
+  assert.match(worker, /source\.render_mode !== "browser"/);
+  assert.match(worker, /await page\.route\("\*\*\/\*\*"/);
+  assert.match(worker, /request\.method\(\) !== "GET"/);
+  assert.match(worker, /request\.isNavigationRequest\(\) && requestUrl !== url/);
+  assert.match(worker, /assertAllowedSourceUrl\(source, requestUrl\)/);
+  assert.match(worker, /robots\.allows\(target\.toString\(\)\)/);
+  assert.match(worker, /controlledGet\(admin, job, source, workerId, target\.toString\(\)/);
+  assert.match(worker, /socket\.close\(\)/);
+  assert.match(worker, /evidenceKind: "rendered_dom"/);
+});
+
 test("company fetch grant expires automatically and can be revoked", () => {
   assert.match(control, /Date\.now\(\) \+ 60 \* 60 \* 1000/);
   assert.match(control, /action === "workers\.control"/);
