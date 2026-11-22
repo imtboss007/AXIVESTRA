@@ -56,11 +56,18 @@ test("E07 links an explicit public role to the one company assigned in the sourc
 test("E07 does not associate a person with a company assignment from a different row",()=>{
   const result=buildPublicPersonRoleCandidates({
     personMentions:[person],extractedFacts:[roleFact],
-    companyAssignments:[{
-      extracted_entity_id:"company-mention-2",canonical_entity_id:"company-1",
-      jurisdiction:"IN",
-      source_span:{kind:"html-table-cell",locator:"table:nth-of-type(1) tr:nth-of-type(3) th:nth-of-type(1)",row:3,column:1}
-    }],
+    companyAssignments:[
+      {
+        extracted_entity_id:"company-mention-2",canonical_entity_id:"company-1",
+        jurisdiction:"IN",
+        source_span:{kind:"html-table-cell",locator:"table:nth-of-type(1) tr:nth-of-type(3) th:nth-of-type(1)",row:3,column:1}
+      },
+      {
+        extracted_entity_id:"company-mention-3",canonical_entity_id:"company-2",
+        jurisdiction:"IN",
+        source_span:{kind:"html-table-cell",locator:"table:nth-of-type(1) tr:nth-of-type(2) th:nth-of-type(1)",row:2,column:1}
+      }
+    ],
     targetCanonicalEntityId:"company-1"
   });
   assert.deepEqual(result,[]);
