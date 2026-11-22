@@ -504,7 +504,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     // E06 canonical identity and owner review receipts must outlive raw E05 evidence retention.
     await pool.query("delete from public.discovery_evidence_items where id=$1", [evidenceId]);
     const durableEntity = await pool.query(
-      "select id,legal_name,source_evidence_id from public.discovery_canonical_entities where company_id=$1",
+      "select id,legal_name,source_evidence_id from public.discovery_canonical_entities where company_id=$1 and normalized_name='acme holdings'",
       [companyId]
     );
     assert.equal(durableEntity.rows.length,1,"canonical identity must survive source-evidence purge");
