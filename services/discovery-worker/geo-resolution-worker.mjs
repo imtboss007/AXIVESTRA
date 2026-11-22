@@ -111,7 +111,8 @@ export async function runGeoResolutionWorkerOnce(admin,workerId,photonClient=nul
     if(error) throw new Error("E09 candidate commit failed: "+error.message);
     if(leaseLost) throw new Error("E09 lease was lost before completion.");
     console.info("AXIVESTRA E09 place candidates recorded:",JSON.stringify({
-      jobId:job.id,candidates:input.candidates.length,providerCalls:input.photonUsed?1:0,
+      jobId:job.id,candidates:input.candidates.length,
+      photonCandidates:input.candidates.reduce((total,candidate)=>total+(candidate.provider_candidates?.length||0),0),
       committedCandidates:data
     }));
   } catch(error) {
