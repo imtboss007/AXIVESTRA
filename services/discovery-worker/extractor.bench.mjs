@@ -41,7 +41,7 @@ const cases = [
   ["JSON", "application/json", Buffer.from(jsonText)],
   ["HTML", "text/html", Buffer.from(htmlText)],
   ["XML", "application/xml", Buffer.from(xmlText)],
-  ["Text", "text/plain", Buffer.from(textText)]
+  ["Text", "text/plain", Buffer.from(textText)],\n  ["CSV", "text/csv", Buffer.from(csvText)]
 ];
 
 function percentile(values, fraction) {
