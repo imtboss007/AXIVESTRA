@@ -51,6 +51,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(enrichmentMigration);
     const matchingMigration = await readFile(new URL("../../supabase/migrations/20261122250000_discovery_matching.sql", import.meta.url), "utf8");
     await pool.query(matchingMigration);
+    const deduplicationMigration = await readFile(new URL("../../supabase/migrations/20261122260000_discovery_deduplication.sql", import.meta.url), "utf8");
+    await pool.query(deduplicationMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -1167,6 +1169,47 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(durableEnrichmentReviews.rows[0].has_observation_review,true);
     assert.equal(durableEnrichmentReviews.rows[0].has_conflict_review,true);
 
+    // E12 creates idempotent exact-match candidates and records human review without merging.
+    const duplicateCanonicalId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    await pool.query(
+      "insert into public.discovery_canonical_entities(company_id,entity_kind,legal_name,normalized_name,jurisdiction,entity_type,status,source_evidence_id,created_by) values($1,'organization','Acme Holdings Ltd','acme holdings','IN','company','active',$2,$3)",
+      [companyId,evidenceId,actorId]
+    ).then(async () => {});
+    const duplicateGenerated = await pool.query(
+      "select public.generate_discovery_deduplication_candidates($1) as count",
+      [companyId]
+    );
+    assert.equal(Number(duplicateGenerated.rows[0].count),1,"E12 should create one exact legal-name duplicate candidate for the integration fixture");
+    const duplicateCandidate = await pool.query(
+      "select id,left_record_id,right_record_id,review_state from public.discovery_deduplication_candidates where company_id=$1 and candidate_kind='organization' and match_rule='exact_legal_name'",
+      [companyId]
+    );
+    assert.equal(duplicateCandidate.rows.length,1);
+    assert.equal(duplicateCandidate.rows[0].review_state,"pending_review");
+    const duplicateReview = await pool.query(
+      "select * from public.record_discovery_deduplication_review($1,$2,$3,'confirmed_duplicate',$4)",
+      [companyId,actorId,duplicateCandidate.rows[0].id,"Integration fixture confirms an exact same-jurisdiction legal-name duplicate."]
+    );
+    assert.equal(duplicateReview.rows[0].decision,"confirmed_duplicate");
+    const duplicateStillActive = await pool.query(
+      "select count(*)::int as count from public.discovery_canonical_entities where company_id=$1 and id in ($2,$3) and status='active'",
+      [companyId,duplicateCandidate.rows[0].left_record_id,duplicateCandidate.rows[0].right_record_id]
+    );
+    assert.equal(duplicateStillActive.rows[0].count,2,"E12 review must not merge, deactivate or delete either canonical entity");
+    const duplicateAudit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='deduplication_review_recorded' and entity_id=$2",
+      [companyId,duplicateCandidate.rows[0].id]
+    );
+    assert.equal(duplicateAudit.rows[0].count,1,"E12 review must produce an audit event");
+    await assert.rejects(
+      pool.query("update public.discovery_deduplication_review_events set reason='rewritten' where id=$1", [duplicateReview.rows[0].id]),
+      /immutable/
+    );
+    const graphEdges = await pool.query(
+      "select count(*)::int as count from public.discovery_entity_graph_edges where company_id=$1",
+      [companyId]
+    );
+    assert.equal(graphEdges.rows[0].count,1,"E12 graph view must expose the explicit owner-accepted E06 relationship");
     const heartbeat = await pool.query("select public.heartbeat_discovery_job($1,$2,90) as ok", [activeJob.id, activeJob.lease_owner]);
     assert.equal(heartbeat.rows[0].ok, true);
 
