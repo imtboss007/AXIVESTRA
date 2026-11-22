@@ -562,6 +562,103 @@ begin
 end;
 $fail$;
 
+-- Review decision and audit receipt must commit atomically. This RPC is
+-- service-role only; company owner/admin authority is independently rechecked.
+create or replace function public.record_discovery_extraction_review(
+  p_company_id uuid,
+  p_actor_user_id uuid,
+  p_run_id uuid,
+  p_fact_id uuid,
+  p_entity_id uuid,
+  p_decision text,
+  p_reason text,
+  p_corrected_value jsonb default null
+) returns public.discovery_extraction_review_events
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $review$
+declare
+  v_role text;
+  v_run public.discovery_extraction_runs%rowtype;
+  v_review public.discovery_extraction_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_run_id is null then
+    raise exception 'Company, actor and extraction run are required' using errcode = '22023';
+  end if;
+  if (p_fact_id is null) = (p_entity_id is null) then
+    raise exception 'Review exactly one extracted fact or entity mention' using errcode = '22023';
+  end if;
+  if p_decision not in ('accepted','rejected','corrected','escalated') then
+    raise exception 'Unsupported extraction review decision' using errcode = '22023';
+  end if;
+  if p_reason is null or length(trim(p_reason)) < 1 or length(p_reason) > 1000 then
+    raise exception 'Review reason is required and must not exceed 1000 characters' using errcode = '22023';
+  end if;
+  if (p_decision = 'corrected') <> (p_corrected_value is not null) then
+    raise exception 'A corrected value is required only for a corrected decision' using errcode = '22023';
+  end if;
+  if p_corrected_value is not null and octet_length(p_corrected_value::text) > 4096 then
+    raise exception 'Corrected value must not exceed 4 KB' using errcode = '22023';
+  end if;
+
+  select role into v_role
+    from public.company_memberships
+    where company_id = p_company_id and user_id = p_actor_user_id
+    for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review extracted facts' using errcode = '42501';
+  end if;
+
+  select * into v_run
+    from public.discovery_extraction_runs
+    where company_id = p_company_id and id = p_run_id
+    for share;
+  if not found then
+    raise exception 'Extraction run was not found in this company' using errcode = 'P0002';
+  end if;
+
+  if p_fact_id is not null and not exists (
+    select 1 from public.discovery_extracted_facts
+    where company_id = p_company_id and extraction_run_id = v_run.id and id = p_fact_id
+  ) then
+    raise exception 'Fact was not found in this extraction run' using errcode = 'P0002';
+  end if;
+  if p_entity_id is not null and not exists (
+    select 1 from public.discovery_extracted_entities
+    where company_id = p_company_id and extraction_run_id = v_run.id and id = p_entity_id
+  ) then
+    raise exception 'Entity mention was not found in this extraction run' using errcode = 'P0002';
+  end if;
+
+  insert into public.discovery_extraction_review_events(
+    company_id, extraction_run_id, fact_id, extracted_entity_id,
+    actor_user_id, decision, reason, corrected_value
+  ) values (
+    p_company_id, v_run.id, p_fact_id, p_entity_id,
+    p_actor_user_id, p_decision, trim(p_reason), p_corrected_value
+  ) returning * into v_review;
+
+  insert into public.discovery_audit_events(
+    company_id, actor_user_id, action, entity_type, entity_id, details
+  ) values (
+    p_company_id, p_actor_user_id, 'extraction_review_recorded',
+    'extraction_review_event', v_review.id,
+    jsonb_build_object(
+      'extractionRunId', v_run.id,
+      'factId', p_fact_id,
+      'entityId', p_entity_id,
+      'decision', p_decision
+    )
+  );
+
+  return v_review;
+end;
+$review$;
+
+revoke all on function public.record_discovery_extraction_review(uuid,uuid,uuid,uuid,uuid,text,text,jsonb) from public, anon, authenticated;
+grant execute on function public.record_discovery_extraction_review(uuid,uuid,uuid,uuid,uuid,text,text,jsonb) to service_role;
+
 -- Extraction results are immutable snapshots. Corrections are separate review events.
 create or replace function public.prevent_discovery_extraction_update()
 returns trigger language plpgsql as $guard$
