@@ -34,7 +34,7 @@ A company member may queue jobs and view the company's queue. Only its owner/adm
 ## Repository choice from the supplied candidate inventory
 
 - **Crawlee** is the single selected TypeScript scheduling/crawling framework (pinned to 3.18.2, Apache-2.0). It is not a data source and does not require Apify hosted service.
-- **Playwright** remains in the existing test toolchain. Browser-rendered fetching is not activated in this E04 runtime: a browser renderer must route every navigation and subresource through the same origin/path, DNS, robots, quota and audit gates. No browser stealth or challenge bypass is permitted. The current E04 fetch worker uses controlled HTTPS retrieval for official APIs and permitted static/public pages.
+- **Playwright** is an optional source-scoped adapter, pinned to 1.56.1. It is available only when a permitted public website is explicitly registered with `render_mode=browser`; all other source types are forced to static HTTP mode. The renderer never navigates to a remote page directly: the main response is fetched by the controlled HTTPS client, then every subresource is intercepted and routed through the same exact origin/path validation, DNS pinning, robots policy, shared quota and audit events. Only GET requests are allowed; secondary navigation, popups, WebSockets and service workers are blocked. The original raw page remains immutable, and the rendered DOM is stored separately with a parent evidence reference. Browser execution is disabled unless the worker process and temporary company grant are both enabled.
 - Scrapy, Crawl4AI, Scrapling and other crawler engines are not stacked. A different engine would require a measured gap and a separate licence/security review.
 - No lead-source/provider adapter is registered by default. The existing connector registry remains empty until each source/provider is separately reviewed and explicitly configured.
 
@@ -42,7 +42,7 @@ A company member may queue jobs and view the company's queue. Only its owner/adm
 
 - `services/discovery-worker/worker.mjs` — Crawlee worker, leased job execution, HTTPS retrieval, private evidence persistence and cache.
 - `services/discovery-worker/worker-policy.mjs` — DNS/IP gate, robots policy, URL redaction and exact candidate validation.
-- `services/discovery-worker/package.json` — pinned Crawlee runtime and isolated worker dependencies.
+- `services/discovery-worker/package.json` — pinned Crawlee + Playwright runtime and isolated worker dependencies; run `npm run install:browser` once on the worker host to provision Chromium.
 - `supabase/migrations/20261122180000_discovery_fetch_evidence.sql` — fetch events, evidence metadata, private bucket, cache, expiring company grant and service-role-only worker RPCs.
 - `supabase/functions/discovery-control/index.ts` — queue APIs, candidate validation, one-hour owner/admin grant and queue history.
 - `src/DiscoveryJobQueue.tsx` and `src/DiscoverySourceManager.tsx` — AXIVESTRA queue/authority UI, connected to the existing source-manager style system.
@@ -52,7 +52,7 @@ A company member may queue jobs and view the company's queue. Only its owner/adm
 
 The discovery workflow now runs:
 - Source policy, bounded execution, durable queue and enqueue tests.
-- Fetch worker policy tests.
+- Fetch worker policy tests and a local-only Playwright Chromium smoke test.
 - PostgreSQL 16 migration and concurrency integration tests: simultaneous job claims, shared quota contention, live heartbeat, revocation and blocked claim/reservation.
 - Full application regression, Deno Edge Function type-check and AXIVESTRA web build.
 
@@ -62,4 +62,4 @@ The PostgreSQL test uses a disposable GitHub Actions database, not the user's Su
 
 No migration has been applied to the production Supabase project. No worker process is running. No source has been activated, no external website has been contacted by this implementation work, and no deployment, merge or release has been performed.
 
-Before any live source is enabled: review that source's exact terms/licence, allowed purpose/fields, jurisdiction, robots policy, published quotas, retention, attribution and data protection. Apply reviewed migrations through the normal release process, deploy the worker in a controlled server environment, keep the process flag disabled until the owner/admin grant is issued, and monitor its fetch-event/evidence ledger. The worker supports static/API fetches only; browser rendering requires a separately controlled adapter.
+Before any live source is enabled: review that source's exact terms/licence, allowed purpose/fields, jurisdiction, robots policy, published quotas, retention, attribution and data protection. Apply reviewed migrations through the normal release process, deploy the worker in a controlled server environment, keep the process flag disabled until the owner/admin grant is issued, and monitor its fetch-event/evidence ledger. The worker supports static/API fetching plus the optional, explicitly approved, same-origin Playwright renderer. On the worker host, install the matching Chromium binary before enabling any source configured for browser rendering.
