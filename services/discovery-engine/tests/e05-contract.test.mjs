@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const migration = await readFile(new URL("../../../supabase/migrations/20261122190000_discovery_extraction.sql", import.meta.url), "utf8");
 const worker = await readFile(new URL("../../discovery-worker/extraction-worker.mjs", import.meta.url), "utf8");
+const fetchWorker = await readFile(new URL("../../discovery-worker/worker.mjs", import.meta.url), "utf8");
 const extractor = await readFile(new URL("../../discovery-worker/extractor.mjs", import.meta.url), "utf8");
 const control = await readFile(new URL("../../../supabase/functions/discovery-control/index.ts", import.meta.url), "utf8");
 const reviewUi = await readFile(new URL("../../../src/DiscoveryExtractionResults.tsx", import.meta.url), "utf8");
