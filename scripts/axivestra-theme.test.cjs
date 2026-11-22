@@ -8,6 +8,8 @@ const theme = fs.readFileSync(path.join(root, "src", "axivestra-theme.css"), "ut
 const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
 const orbitalHub = fs.readFileSync(path.join(root, "src", "AxivestraOrbitalHub.tsx"), "utf8");
 const analytics = fs.readFileSync(path.join(root, "src", "PortfolioAnalytics.tsx"), "utf8");
+const magicGrid = fs.readFileSync(path.join(root, "src", "components", "MagicAnimatedGridPattern.tsx"), "utf8");
+const thirdPartyNotices = fs.readFileSync(path.join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
 const table = fs.readFileSync(path.join(root, "src", "components", "EnterpriseDataTable.tsx"), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
@@ -90,6 +92,15 @@ assert.ok(analytics.includes('role="group" aria-label={focus === "allocation" ? 
 assert.match(app, /<div key=\{active\} className="content ax-workspace-transition">/, "Switching workspaces must restart the content entry transition.");
 assert.match(theme, /@keyframes ax-workspace-enter/, "Workspace changes must use a restrained content transition.");
 assert.match(theme, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.content\.ax-workspace-transition \{ animation: none; \}/, "Workspace transitions must be disabled for reduced-motion users.");
+assert.match(app, /import MagicAnimatedGridPattern from "\.\/components\/MagicAnimatedGridPattern";/, "Workspace Explorer must import the adapted Magic UI grid component.");
+assert.match(app, /<MagicAnimatedGridPattern \/>/, "Workspace Explorer must render the animated grid visual in its hero banner.");
+assert.match(magicGrid, /aria-hidden="true"/, "Decorative grid geometry must be hidden from assistive technology.");
+assert.match(magicGrid, /useId\(\)/, "The SVG grid pattern must use a unique per-instance definition ID.");
+assert.match(theme, /@keyframes ax-magic-grid-square-pulse/, "The adapted grid must animate square highlights using local CSS.");
+assert.match(theme, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?ax-magic-grid-pattern__square \{[\s\S]*?animation: none/, "The Magic UI grid animation must respect reduced-motion preferences.");
+assert.match(thirdPartyNotices, /Magic UI[\s\S]*?MIT License[\s\S]*?Copyright \(c\) Magic UI/, "The adapted component must preserve its upstream MIT attribution and licence notice.");
+assert.ok(!("motion" in packageJson.dependencies) && !("motion" in packageJson.devDependencies), "The CSS adaptation must not add the upstream Motion runtime dependency.");
+
 console.log("AXIVESTRA enterprise design-system contract passed.");
 
 
