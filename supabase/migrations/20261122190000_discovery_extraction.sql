@@ -6,6 +6,32 @@ alter table public.discovery_source_registry
   add column if not exists field_schema jsonb not null default '{}'::jsonb
   check (jsonb_typeof(field_schema) = 'object');
 
+-- Existing sources receive a conservative exact-key schema. Owners may
+-- refine data types and aliases through the source registry before next approval.
+update public.discovery_source_registry s
+set field_schema = (
+  select coalesce(jsonb_object_agg(field_name,
+    jsonb_build_object(
+      'type', case
+        when field_name in ('email','public_email','contact_email') then 'email'
+        when field_name in ('phone','telephone','public_phone','contact_phone') then 'phone'
+        when field_name in ('website','url','source_url') then 'url'
+        when field_name in ('date','founded_date','registration_date','updated_date') then 'date'
+        when field_name in ('amount','ticket_size','revenue','assets_under_management') then 'number'
+        else 'string'
+      end,
+      'aliases', jsonb_build_array(field_name),
+      'required', false,
+      'entityKind', case
+        when field_name in ('legal_name','company_name','organization_name','entity_name','institution_name') then 'organization'
+        else null
+      end
+    )
+  ), '{}'::jsonb)
+  from unnest(s.allowed_fields) as field_name
+)
+where s.field_schema = '{}'::jsonb;
+
 create unique index if not exists discovery_evidence_company_id_unique
   on public.discovery_evidence_items(company_id, id);
 
