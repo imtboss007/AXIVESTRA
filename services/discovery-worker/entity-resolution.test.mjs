@@ -103,14 +103,16 @@ test("E06 exact name and alias matches always remain review candidates", () => {
 test("E06 fuzzy similarity creates a review candidate but never authorises auto-linking", () => {
   const score = trigramDiceSimilarity("Acme Holding", "Acme Holdings Private Limited");
   assert.ok(score >= 0 && score <= 1);
+  const typoMention = { ...mention, raw_name: "Acme Holdings Group", normalized_name: "Acme Holdings Group" };
   const result = buildEntityResolutionCandidates({
-    extractedEntities: [mention], extractedFacts: [], jurisdiction: "IN",
+    extractedEntities: [typoMention], extractedFacts: [], jurisdiction: "IN",
     existingEntities: [{
       id: "canonical-3", entity_kind: "organization", status: "active",
-      jurisdiction: "IN", legal_name: "Acme Holdings Private Limited", normalized_name: "acme holdings"
+      jurisdiction: "IN", legal_name: "Acme Holding Group", normalized_name: "acme holding group"
     }]
   })[0];
-  assert.equal(result.match_type, "exact_legal_name");
+  assert.equal(result.match_type, "name_similarity");
+  assert.equal(result.matched_entity_id, "canonical-3");
   assert.equal(result.rationale.human_review_required, true);
   assert.equal(result.rationale.auto_link_permitted, false);
 });
