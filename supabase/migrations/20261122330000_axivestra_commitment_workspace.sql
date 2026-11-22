@@ -23,6 +23,7 @@ create table if not exists public.company_action_commitments (
   party_record_type text not null default 'contact' check (party_record_type='contact'),
   party_record_key text,
   relationship_id uuid,
+  source_task_record_type text not null default 'task' check (source_task_record_type='task'),
   source_task_record_key text,
   change_reason_code text not null default 'created' check (change_reason_code in (
     'created','progress','blocked','completed','cancelled','reopened',
@@ -42,7 +43,7 @@ create table if not exists public.company_action_commitments (
     references public.company_records(company_id,record_type,record_key) on delete restrict,
   foreign key(company_id,relationship_id)
     references public.company_deal_parties(company_id,id) on delete restrict,
-  foreign key(company_id,source_task_record_key)
+  foreign key(company_id,source_task_record_type,source_task_record_key)
     references public.company_records(company_id,record_type,record_key) on delete restrict,
   check (source_task_record_key is null or source_task_record_key<>''),
   check ((status in ('completed','cancelled') and closed_at is not null)
