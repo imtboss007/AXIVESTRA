@@ -342,14 +342,1051 @@ begin
       select 1 from public.discovery_extracted_entities x
       where x.company_id=v_job.company_id and x.extraction_run_id=v_job.extraction_run_id
         and x.id=v_person_id and x.entity_kind='person'
+        and coalesce(x.raw_name,x.normalized_name)=v_candidate->>'person_name'
+        and x.source_span=v_candidate->'person_source_span'
     ) then
-      raise exception 'E07 candidate must reference a person mention from this E05 run' using errcode='42501';
+      raise exception 'E07 candidate must preserve the exact source-backed person mention name and locator' using errcode='42501';
+    end if;
+    if not exists (
+      select 1 from public.discovery_extracted_facts f
+      where f.company_id=v_job.company_id and f.extraction_run_id=v_job.extraction_run_id
+        and f.validation_status='valid'
+        and f.field_name=any(array[
+          'role','role_title','professional_role','designation','designation_in_company',
+          'position','position_title','office','job_title','board_position',
+          'director_designation','officer_title','public_office'
+        ])
+        and coalesce(f.normalized_value #>> '{}',f.raw_value)=v_candidate->>'role_title'
+        and f.source_span=v_candidate->'role_source_span'
+    ) then
+      raise exception 'E07 role title must match an approved source-backed role field and locator' using errcode='42501';
     end if;
     if not exists (
       select 1 from public.discovery_entity_assignments a
       where a.company_id=v_job.company_id and a.extraction_run_id=v_job.extraction_run_id
         and a.canonical_entity_id=v_canonical_id
     ) then raise exception 'E07 person role must link to an owner-approved company assignment' using errcode='42501'; end if;
+    if v_candidate->>'association_method'='unique_company_run'
+      and (select count(distinct a.canonical_entity_id) from public.discovery_entity_assignments a
+        where a.company_id=v_job.company_id and a.extraction_run_id=v_job.extraction_run_id)<>1 then
+      raise exception 'E07 unique-company association is not valid for a multi-company extraction run' using errcode='42501';
+    end if;
+    if v_candidate->>'association_method'='same_source_row' and not exists (
+      select 1
+      from public.discovery_entity_assignments a
+      join public.discovery_extracted_entities company_mention
+        on company_mention.company_id=a.company_id
+        and company_mention.extraction_run_id=a.extraction_run_id
+        and company_mention.id=a.extracted_entity_id
+      where a.company_id=v_job.company_id
+        and a.extraction_run_id=v_job.extraction_run_id
+        and a.canonical_entity_id=v_canonical_id
+        and (
+          (
+            v_candidate->'person_source_span'->>'kind'='html-table-cell'
+            and v_candidate->'role_source_span'->>'kind'='html-table-cell'
+            and company_mention.source_span->>'kind'='html-table-cell'
+            and regexp_replace(v_candidate->'person_source_span'->>'locator','\\s+(th|td):nth-of-type.*
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'')=
+              regexp_replace(v_candidate->'role_source_span'->>'locator','\\s+(th|td):nth-of-type.*
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'')
+            and regexp_replace(v_candidate->'person_source_span'->>'locator','\\s+(th|td):nth-of-type.*
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'')=
+              regexp_replace(company_mention.source_span->>'locator','\\s+(th|td):nth-of-type.*
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'')
+          )
+          or (
+            v_candidate->'person_source_span'->>'kind'='csv-cell'
+            and v_candidate->'role_source_span'->>'kind'='csv-cell'
+            and company_mention.source_span->>'kind'='csv-cell'
+            and v_candidate->'person_source_span'->>'row'=v_candidate->'role_source_span'->>'row'
+            and v_candidate->'person_source_span'->>'row'=company_mention.source_span->>'row'
+          )
+          or (
+            v_candidate->'person_source_span'->>'kind'='json-pointer'
+            and v_candidate->'role_source_span'->>'kind'='json-pointer'
+            and company_mention.source_span->>'kind'='json-pointer'
+            and regexp_replace(v_candidate->'person_source_span'->>'locator','^(\\$/(?:[^/]+/)*[0-9]+)(?:/.*)?
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'\\1')=
+              regexp_replace(v_candidate->'role_source_span'->>'locator','^(\\$/(?:[^/]+/)*[0-9]+)(?:/.*)?
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'\\1')
+            and regexp_replace(v_candidate->'person_source_span'->>'locator','^(\\$/(?:[^/]+/)*[0-9]+)(?:/.*)?
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'\\1')=
+              regexp_replace(company_mention.source_span->>'locator','^(\\$/(?:[^/]+/)*[0-9]+)(?:/.*)?
+      company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
+      source_evidence_id,person_name,role_title,jurisdiction,association_method,
+      person_source_span,role_source_span,confidence,rationale
+    ) values (
+      v_job.company_id,v_job.id,v_job.extraction_run_id,v_person_id,v_canonical_id,
+      v_job.evidence_id,left(trim(v_candidate->>'person_name'),250),
+      left(trim(v_candidate->>'role_title'),200),
+      nullif(left(trim(coalesce(v_candidate->>'jurisdiction','')),80),''),
+      v_candidate->>'association_method',
+      v_candidate->'person_source_span',v_candidate->'role_source_span',
+      greatest(0,least(1,(v_candidate->>'confidence')::numeric)),
+      coalesce(v_candidate->'rationale','{}'::jsonb)
+    ) on conflict(company_id,extraction_run_id,extracted_person_id,canonical_entity_id,role_title)
+      do nothing;
+    v_count:=v_count+1;
+  end loop;
+
+  update public.discovery_public_person_role_jobs
+    set status='succeeded',finished_at=clock_timestamp(),lease_owner=null,
+      lease_expires_at=null,heartbeat_at=null,updated_at=clock_timestamp()
+    where id=v_job.id;
+  return v_count;
+end;
+$complete$;
+
+create or replace function public.fail_discovery_public_person_role_job(
+  p_job_id uuid,p_worker_id text,p_error_code text,p_error_message text
+) returns boolean
+language plpgsql security definer
+set search_path=public,pg_temp
+as $fail$
+declare v_job public.discovery_public_person_role_jobs%rowtype;
+begin
+  select * into v_job from public.discovery_public_person_role_jobs
+    where id=p_job_id and status='running' and lease_owner=p_worker_id
+      and lease_expires_at>clock_timestamp() for update;
+  if not found then return false; end if;
+  update public.discovery_public_person_role_jobs
+    set status=case when attempts>=max_attempts then 'failed' else 'queued' end,
+      available_at=clock_timestamp()+make_interval(secs=>least(30*greatest(attempts,1),300)),
+      lease_owner=null,lease_expires_at=null,heartbeat_at=null,
+      finished_at=case when attempts>=max_attempts then clock_timestamp() else null end,
+      last_error_code=left(coalesce(p_error_code,'E07_FAILED'),100),
+      last_error_message=left(coalesce(p_error_message,'E07 failed.'),1000),
+      updated_at=clock_timestamp()
+    where id=v_job.id;
+  return true;
+end;
+$fail$;
+
+create or replace function public.record_discovery_public_person_role_review(
+  p_company_id uuid,p_actor_user_id uuid,p_candidate_id uuid,p_decision text,p_reason text
+) returns public.discovery_public_person_role_review_events
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_role text;
+  v_candidate public.discovery_public_person_role_candidates%rowtype;
+  v_event public.discovery_public_person_role_review_events%rowtype;
+begin
+  if p_company_id is null or p_actor_user_id is null or p_candidate_id is null then
+    raise exception 'Company, reviewer and candidate are required' using errcode='22023';
+  end if;
+  if p_decision is null or p_decision not in ('accepted','rejected','escalated') then
+    raise exception 'Unsupported public person role review decision' using errcode='22023';
+  end if;
+  if p_reason is null or length(trim(p_reason))<1 or length(p_reason)>1000 then
+    raise exception 'E07 review reason is required and must not exceed 1000 characters' using errcode='22023';
+  end if;
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=p_actor_user_id for share;
+  if v_role is null or v_role not in ('owner','admin') then
+    raise exception 'Only a company owner or admin can review public person roles' using errcode='42501';
+  end if;
+  select * into v_candidate from public.discovery_public_person_role_candidates
+    where company_id=p_company_id and id=p_candidate_id and review_state='pending_review'
+    for update;
+  if not found then raise exception 'Pending public person role candidate was not found in this company' using errcode='P0002'; end if;
+  if not exists (
+    select 1 from public.discovery_evidence_items
+    where company_id=p_company_id and id=v_candidate.source_evidence_id
+  ) then raise exception 'Source evidence has expired; this public person role can no longer be reviewed' using errcode='P0002'; end if;
+
+  insert into public.discovery_public_person_role_review_events(
+    company_id,candidate_id,actor_user_id,decision,reason
+  ) values(p_company_id,p_candidate_id,p_actor_user_id,p_decision,trim(p_reason))
+  returning * into v_event;
+
+  update public.discovery_public_person_role_candidates
+    set review_state=p_decision,reviewed_at=clock_timestamp()
+    where company_id=p_company_id and id=p_candidate_id;
+
+  insert into public.discovery_audit_events(
+    company_id,actor_user_id,action,entity_type,entity_id,details
+  ) values(
+    p_company_id,p_actor_user_id,'public_person_role_review_recorded',
+    'public_person_role_candidate',p_candidate_id,
+    jsonb_build_object('decision',p_decision,'canonicalEntityId',v_candidate.canonical_entity_id,
+      'extractedPersonId',v_candidate.extracted_person_id)
+  );
+  return v_event;
+end;
+$review$;
+
+revoke all on function public.claim_discovery_public_person_role_job(text,integer) from public,anon,authenticated;
+revoke all on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.complete_discovery_public_person_roles(uuid,text,jsonb) from public,anon,authenticated;
+revoke all on function public.fail_discovery_public_person_role_job(uuid,text,text,text) from public,anon,authenticated;
+revoke all on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) from public,anon,authenticated;
+grant execute on function public.claim_discovery_public_person_role_job(text,integer) to service_role;
+grant execute on function public.heartbeat_discovery_public_person_role_job(uuid,text,integer) to service_role;
+grant execute on function public.complete_discovery_public_person_roles(uuid,text,jsonb) to service_role;
+grant execute on function public.fail_discovery_public_person_role_job(uuid,text,text,text) to service_role;
+grant execute on function public.record_discovery_public_person_role_review(uuid,uuid,uuid,text,text) to service_role;
+
+comment on table public.discovery_public_person_role_candidates is
+  'Source-backed public professional role candidates linked to one owner-approved company. No personal contact details or global canonical person profiles are stored. Candidate and review rows expire with raw source evidence under the approved retention period.';
+comment on table public.discovery_public_person_role_review_events is
+  'Append-only owner/admin decisions for E07 public role candidates; rows cascade when source evidence expires.';
+commit;
+,'\\1')
+          )
+        )
+    ) then
+      raise exception 'E07 same-row association must be supported by a shared source-record locator' using errcode='42501';
+    end if;
 
     insert into public.discovery_public_person_role_candidates(
       company_id,job_id,extraction_run_id,extracted_person_id,canonical_entity_id,
