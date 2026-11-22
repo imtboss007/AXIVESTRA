@@ -39,7 +39,7 @@ export function isPublicAddress(address) {
   // benchmarking and special-use subranges as well.
   if (value < 0x2000 || value > 0x3fff) return false;
   const normalized = parsed.normalized;
-  if (normalized.startsWith("2001:db8:") || normalized.startsWith("2001:0:") || normalized.startsWith("2001:0000:") || normalized.startsWith("2002:")) return false;
+  if (normalized.startsWith("2001:db8:") || normalized.startsWith("2001:0:") || normalized.startsWith("2001:0000:") || normalized.startsWith("2001:2:") || normalized.startsWith("2001:10:") || normalized.startsWith("2002:") || normalized.startsWith("3fff:") || normalized.startsWith("5f00:")) return false;
   return true;
 }
 
