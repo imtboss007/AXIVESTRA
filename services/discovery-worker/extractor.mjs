@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import * as cheerio from "cheerio";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
-export const EXTRACTOR_VERSION = "deterministic-v1.0.0";
+export const EXTRACTOR_VERSION = "deterministic-v1.1.0";
 const MAX_INPUT_BYTES = 5_000_000;
 const MAX_TEXT_CHARS = 2_000_000;
 const MAX_OBSERVATIONS = 20_000;
@@ -124,8 +124,18 @@ function parseJsonEvidence(text, observations) {
   walkJson(value, "$", observations);
 }
 
-function parseHtmlEvidence(text, observations) {
-  const $ = cheerio.load(text, { decodeEntities: true });
+function parseHtmlEvidence(text, observations, schema) {
+  // Use Cheerio's htmlparser2 backend for a faster, lower-allocation parse.
+  // Source offsets are enabled so every table fact can point back to its exact cell.
+  const $ = cheerio.load(text, {
+    xml: {
+      xmlMode: false,
+      decodeEntities: true,
+      withStartIndices: true,
+      withEndIndices: true
+    }
+  });
+
   $('script[type="application/ld+json"]').each((index, element) => {
     const raw = $(element).text();
     if (!raw.trim() || raw.length > 500_000) return;
@@ -146,50 +156,88 @@ function parseHtmlEvidence(text, observations) {
     const key = $(element).attr("name") || $(element).attr("property") || "";
     const content = $(element).attr("content") || "";
     if (content) pushObservation(observations, key, content, {
-      kind: "html-meta", locator: "meta[" + ( $(element).attr("name") ? "name" : "property") + "='" + key + "']"
+      kind: "html-meta", locator: "meta[" + ($(element).attr("name") ? "name" : "property") + "='" + key + "']"
     }, 0.94);
   });
 
+  const schemaAliases = new Set(
+    Object.entries(schema || {}).flatMap(([field, config]) =>
+      [field, ...(Array.isArray(config.aliases) ? config.aliases : [])].map(normalizeKey)
+    ).filter(Boolean)
+  );
+
+  const cellSpan = (cell, tableIndex, rowNumber, columnIndex, rowCells, header) => {
+    const tagName = String(cell.name || cell.tagName || "td").toLowerCase();
+    const sameTagIndex = rowCells.slice(0, columnIndex + 1).filter(candidate =>
+      String(candidate.name || candidate.tagName || "td").toLowerCase() === tagName
+    ).length;
+    const startOffset = Number.isInteger(cell.startIndex) ? cell.startIndex : null;
+    const endOffset = Number.isInteger(cell.endIndex) ? cell.endIndex + 1 : null;
+    return {
+      kind: "html-table-cell",
+      locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + rowNumber + ") " +
+        tagName + ":nth-of-type(" + sameTagIndex + ")",
+      row: rowNumber,
+      column: columnIndex + 1,
+      cellTag: tagName,
+      ...(header ? { header } : {}),
+      ...(startOffset !== null ? { startOffset } : {}),
+      ...(endOffset !== null ? { endOffset } : {})
+    };
+  };
+
   $("table").each((tableIndex, table) => {
-    const rows = $(table).find("tr").toArray();
+    // Exclude nested-table rows: each row belongs to its nearest table only.
+    const rows = $(table).find("tr").filter((_, row) => $(row).closest("table")[0] === table).toArray();
     if (!rows.length) return;
-    const firstCells = $(rows[0]).find("th,td").toArray();
+    const firstCells = $(rows[0]).children("th,td").toArray();
+    const firstHeaderValues = firstCells.map(cell => $(cell).text().trim()).filter(Boolean);
+    const schemaHeaderCount = firstHeaderValues.reduce((count, value) =>
+      count + (schemaAliases.has(normalizeKey(value)) ? 1 : 0), 0
+    );
+    // Registry sites frequently style header rows with <td> inside <tbody>.
+    // Require at least two schema-recognised labels and a majority match to
+    // avoid reclassifying ordinary key/value rows as column headers.
+    const schemaHeaderRow = firstCells.length > 1 &&
+      schemaHeaderCount >= 2 &&
+      schemaHeaderCount >= Math.ceil(firstHeaderValues.length * 0.5);
     const firstRowIsHeader = firstCells.length > 1 && (
       $(rows[0]).closest("thead").length > 0 ||
-      firstCells.every(cell => String(cell.tagName || "").toLowerCase() === "th")
+      firstCells.every(cell => String(cell.name || cell.tagName || "").toLowerCase() === "th") ||
+      schemaHeaderRow
     );
 
     if (firstRowIsHeader) {
       const headers = firstCells.map(cell => $(cell).text().trim());
       rows.slice(1).forEach((row, rowOffset) => {
-        const cells = $(row).find("th,td").toArray();
+        const rowNumber = rowOffset + 2;
+        const cells = $(row).children("th,td").toArray();
         cells.forEach((cell, columnIndex) => {
           const header = headers[columnIndex];
           const value = $(cell).text().trim();
           if (!header || !value) return;
-          pushObservation(observations, header, value, {
-            kind: "html-table-cell",
-            locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + (rowOffset + 2) + ") td:nth-of-type(" + (columnIndex + 1) + ")",
-            row: rowOffset + 2,
-            column: columnIndex + 1
-          }, 0.92);
+          pushObservation(observations, header, value,
+            cellSpan(cell, tableIndex, rowNumber, columnIndex, cells, header), 0.92);
         });
       });
       return;
     }
 
-    // Key/value table: a row header in the first cell and its value(s) after it.
+    // Key/value table: preserve each value cell independently rather than
+    // collapsing several cells into one untraceable joined string.
     rows.forEach((row, rowIndex) => {
-      const cells = $(row).find("th,td").toArray();
+      const rowNumber = rowIndex + 1;
+      const cells = $(row).children("th,td").toArray();
       if (cells.length < 2) return;
       const key = $(cells[0]).text().trim();
-      const value = cells.slice(1).map(cell => $(cell).text().trim()).filter(Boolean).join(" | ");
-      if (key && value) pushObservation(observations, key, value, {
-        kind: "html-table-cell",
-        locator: "table:nth-of-type(" + (tableIndex + 1) + ") tr:nth-of-type(" + (rowIndex + 1) + ")",
-        row: rowIndex + 1,
-        column: 1
-      }, 0.9);
+      if (!key) return;
+      cells.slice(1).forEach((cell, valueOffset) => {
+        const value = $(cell).text().trim();
+        if (!value) return;
+        const columnIndex = valueOffset + 1;
+        pushObservation(observations, key, value,
+          cellSpan(cell, tableIndex, rowNumber, columnIndex, cells, key), 0.9);
+      });
     });
   });
 
@@ -213,7 +261,6 @@ function parseHtmlEvidence(text, observations) {
 
   parseLabeledText($("body").text().slice(0, MAX_TEXT_CHARS), observations, "html-labeled-text");
 }
-
 function parseCsvRows(text) {
   const input = String(text || "").replace(/^\uFEFF/, "");
   const rows = [];
@@ -480,7 +527,7 @@ export function extractStructuredFacts({
   const mime = String(contentType || "").split(";")[0].trim().toLowerCase();
 
   if (["application/json","application/ld+json"].includes(mime)) parseJsonEvidence(text, observations);
-  else if (mime === "text/html") parseHtmlEvidence(text, observations);
+  else if (mime === "text/html") parseHtmlEvidence(text, observations, schema);
   else if (["text/csv","application/csv"].includes(mime)) parserWarning = parseCsvEvidence(text, observations);
   else if (["application/xml","text/xml"].includes(mime)) parseXmlEvidence(text, observations);
   else if (mime === "text/plain") parseLabeledText(text, observations, "text-line");

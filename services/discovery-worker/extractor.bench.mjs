@@ -35,6 +35,20 @@ const htmlRows = jsonRecords.map(item =>
   "<tr><th>turnover</th><td>" + item.turnover + "</td></tr>"
 ).join("");
 const htmlText = "<!doctype html><html><head><title>Synthetic registry</title></head><body><table>" + htmlRows + "</table></body></html>";
+const escapeHtml = value => String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const multiColumnHeaders = ["legal_name","registration_id","public_email","website","turnover"];
+const multiColumnHeaderRow = "<tr>" + multiColumnHeaders.map(header => "<td>" + header + "</td>").join("") + "</tr>";
+const multiColumnRows = jsonRecords.map(item =>
+  "<tr>" + [
+    item.legal_name,
+    item.registration_id,
+    item.public_email,
+    item.website,
+    item.turnover
+  ].map(value => "<td>" + escapeHtml(value) + "</td>").join("") + "</tr>"
+).join("");
+const htmlMultiColumnText = "<!doctype html><html><head><title>Synthetic company registry</title></head><body><table><tbody>" +
+  multiColumnHeaderRow + multiColumnRows + "</tbody></table></body></html>";
 const xmlText = "<registry>" + jsonRecords.map(item =>
   "<record>" + Object.entries(item).map(([key,value]) => "<" + key + ">" + value + "</" + key + ">").join("") + "</record>"
 ).join("") + "</registry>";
@@ -52,7 +66,8 @@ const csvText = [
 
 const cases = [
   ["JSON", "application/json", Buffer.from(jsonText)],
-  ["HTML", "text/html", Buffer.from(htmlText)],
+  ["HTML key/value", "text/html", Buffer.from(htmlText)],
+  ["HTML multi-column", "text/html", Buffer.from(htmlMultiColumnText)],
   ["XML", "application/xml", Buffer.from(xmlText)],
   ["Text", "text/plain", Buffer.from(textText)],
   ["CSV", "text/csv", Buffer.from(csvText)]

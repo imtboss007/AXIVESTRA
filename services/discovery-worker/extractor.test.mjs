@@ -21,7 +21,7 @@ const parse = (text, mime) => extractStructuredFacts({
 });
 
 test("E05 is deterministic and versioned", () => {
-  assert.equal(EXTRACTOR_VERSION, "deterministic-v1.0.0");
+  assert.equal(EXTRACTOR_VERSION, "deterministic-v1.1.0");
   const result = parse(JSON.stringify({ legalName: "Acme Holdings Pvt Ltd" }), "application/json");
   assert.equal(result.entities.length, 1);
   assert.equal(result.entities[0].entity_kind, "organization");
@@ -172,6 +172,40 @@ test("HTML multi-column tables bind header names to each source cell with row/co
   assert.equal(facts.public_email.source_span.row, 2);
   assert.equal(facts.public_email.source_span.column, 3);
   assert.match(facts.public_email.source_span.locator, /tr:nth-of-type\(2\)/);
+});
+
+
+test("HTML detects schema-backed td-only header rows and preserves exact cell source offsets", () => {
+  const html = `<!doctype html><html><body><table><tbody>
+    <tr><td>legal_name</td><td>CIN</td><td>email</td><td>turnover</td></tr>
+    <tr><td>Acme Holdings Pvt Ltd</td><td>U12345KA2020PLC123456</td><td>info@example.com</td><td>INR 12,50,000</td></tr>
+  </tbody></table></body></html>`;
+  const result = parse(html, "text/html");
+  const facts = Object.fromEntries(result.facts.map(fact => [fact.field_name, fact]));
+  assert.equal(facts.legal_name.normalized_value, "Acme Holdings Pvt Ltd");
+  assert.equal(facts.registration_id.normalized_value, "U12345KA2020PLC123456");
+  assert.equal(facts.public_email.normalized_value, "info@example.com");
+  assert.deepEqual(facts.turnover.normalized_value, { amount: 1250000, currency: "INR" });
+
+  const span = facts.public_email.source_span;
+  assert.equal(span.kind, "html-table-cell");
+  assert.equal(span.row, 2);
+  assert.equal(span.column, 3);
+  assert.equal(span.cellTag, "td");
+  assert.ok(Number.isInteger(span.startOffset));
+  assert.ok(Number.isInteger(span.endOffset));
+  assert.ok(span.endOffset > span.startOffset);
+  assert.ok(html.slice(span.startOffset, span.endOffset).includes("info@example.com"));
+});
+
+test("HTML key/value tables retain a locator for each separate value cell", () => {
+  const html = "<table><tr><th>legal_name</th><td>Acme Holdings Pvt Ltd</td><td>Acme Group</td></tr></table>";
+  const result = parse(html, "text/html");
+  const matches = result.facts.filter(fact => fact.field_name === "legal_name");
+  assert.equal(matches.length, 2);
+  assert.deepEqual(matches.map(fact => fact.raw_value), ["Acme Holdings Pvt Ltd", "Acme Group"]);
+  assert.deepEqual(matches.map(fact => fact.source_span.column), [2, 3]);
+  assert.ok(matches.every(fact => Number.isInteger(fact.source_span.startOffset)));
 });
 
 test("XML leaf values and text key-value spans map to allowed schemas", () => {

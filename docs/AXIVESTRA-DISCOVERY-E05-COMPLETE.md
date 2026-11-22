@@ -11,7 +11,7 @@ E05 does not search the internet, fetch URLs, crawl links, contact people, resol
 ## Deterministic parser stack
 
 - JSON and JSON-LD: bounded recursive field traversal with JSON Pointer locators.
-- HTML: Cheerio parser; JSON-LD is parsed as JSON data, not executed; metadata, title, tables, definition lists and literal key/value text are read. Scripts, styles, frames and SVG are excluded from general text parsing.
+- HTML: Cheerio configured to use its faster htmlparser2 backend for this bounded server-side extraction path; JSON-LD is parsed as JSON data, not executed; metadata, title, tables, definition lists and literal key/value text are read. Scripts, styles, frames and SVG are excluded from general text parsing. Header inference supports <thead>/<th> and schema-matched <td> header rows inside <tbody>. Table facts retain row/column locators and raw HTML start/end offsets for the exact source cell.
 - XML: leaf-element values with element locators.
 - Text: exact labelled key/value lines with line and character offsets.
 - PDF: PDF.js text layer only, capped at 300 pages. OCR is deliberately not enabled; scanned/image-only PDFs produce a warning and no guessed values.
@@ -35,7 +35,7 @@ Each extraction run is bound to one company, E04 evidence row, source ID, source
 - raw observed value and separately normalised JSON value;
 - validation status and validation message;
 - heuristic parser confidence/score;
-- a source locator (JSON Pointer, HTML selector/meta/table, XML element, text line+offset, or PDF page/item), plus a bounded quoted span and quote hash.
+- a source locator (JSON Pointer, HTML selector/meta/table plus raw cell start/end offsets, XML element, text line+offset, or PDF page/item), plus a bounded quoted span and quote hash.
 
 An extracted organization/person/location is only an unresolved source mention. It is not a canonical entity. Conflicting evidence remains separately attributed to its original evidence snapshot; E05 does not overwrite prior values.
 
@@ -69,7 +69,7 @@ Company members may view company-scoped extraction outputs; only company owner/a
 ## Validation
 
 CI includes:
-- deterministic parser tests for JSON/HTML/JSON-LD/XML/CSV/text/PDF text layers and typed values;\n- a synthetic-data parser benchmark reporting operations/second, facts/second, bytes/second, mean/p95 latency and heap delta for JSON, HTML, XML, CSV and text (run manually with `npm --prefix services/discovery-worker run bench:extractor`);
+- deterministic parser tests for JSON/HTML/JSON-LD/XML/CSV/text/PDF text layers and typed values;\n- a synthetic-data parser benchmark reporting operations/second, facts/second, bytes/second, mean/p95 latency and heap delta for JSON, HTML key/value, HTML multi-column, XML, CSV and text (run manually with `npm --prefix services/discovery-worker run bench:extractor`);
 - alias, allowed-field, missing-required-field, injection-like text and no-consent-inference tests;
 - E05 SQL contract tests;
 - PostgreSQL 16 integration tests that apply E02/E04/E05 migrations, claim extraction jobs and verify company-scoped provenance/facts, field allow-lists, immutable output and evidence-retention cascade;
