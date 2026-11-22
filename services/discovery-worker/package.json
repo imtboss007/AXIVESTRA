@@ -2,10 +2,10 @@
   "name": "@axivestra/discovery-fetch-worker",
   "private": true,
   "type": "module",
-  "description": "Server-side governed crawler/fetch worker for AXIVESTRA E04.",
+  "description": "AXIVESTRA governed fetch and deterministic extraction worker.",
   "scripts": {
     "start": "node worker.mjs",
-    "test": "node worker-policy.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs",
+    "test": "node worker-policy.test.mjs && node extractor.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs",
     "install:browser": "playwright install chromium"
   },
   "devDependencies": {
@@ -14,6 +14,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
     "crawlee": "3.18.2",
-    "playwright": "1.56.1"
+    "playwright": "1.56.1",
+    "cheerio": "1.2.0",
+    "pdfjs-dist": "6.5.438"
   }
 }
