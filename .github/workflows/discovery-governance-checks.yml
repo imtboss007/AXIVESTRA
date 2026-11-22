@@ -4,14 +4,16 @@ on:
   push:
     branches:
       - feat/discovery-source-governance
+      - feat/discovery-bounded-execution
   pull_request:
     branches:
       - main
+      - feat/discovery-source-governance
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
-      - "supabase/migrations/*discovery*"
       - "services/discovery-engine/**"
+      - "supabase/migrations/*discovery*"
       - "package.json"
       - ".github/workflows/discovery-governance-checks.yml"
 
