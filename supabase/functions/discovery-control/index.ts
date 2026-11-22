@@ -3,7 +3,8 @@ import {
   normalizeSourceRegistration,
   normalizeSourceReview,
   normalizeProfile,
-  assertSourceCanBeAttached
+  assertSourceCanBeAttached,
+  assertAllowedSourceUrl
 } from "../_shared/discovery-policy.mjs";
 
 const corsHeaders = {
@@ -115,6 +116,14 @@ Deno.serve(async request => {
       return jsonResponse(200, { ok: true, profiles: profiles || [], sourceLinks: links || [] });
     }
 
+    if (action === "workers.status") {
+      const { data, error } = await admin.from("discovery_company_worker_controls")
+        .select("enabled,expires_at,updated_at,reason").eq("company_id", companyId).maybeSingle();
+      if (error) throw error;
+      const active = Boolean(data?.enabled && data.expires_at && Date.parse(data.expires_at) > Date.now());
+      return jsonResponse(200, { ok: true, worker: { enabled: active, expiresAt: active ? data.expires_at : null, updatedAt: data?.updated_at || null, reason: data?.reason || "" } });
+    }
+
     if (action === "jobs.list") {
       const { data, error } = await admin.from("discovery_jobs")
         .select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at,started_at,finished_at,last_error_code,last_error_message")
@@ -128,6 +137,13 @@ Deno.serve(async request => {
       const idempotencyKey = typeof payload.idempotencyKey === "string" ? payload.idempotencyKey.trim() : "";
       if (idempotencyKey.length < 8 || idempotencyKey.length > 160) return jsonResponse(400, { error: "Provide an idempotency key between 8 and 160 characters." });
       const criteria = payload.criteria && typeof payload.criteria === "object" && !Array.isArray(payload.criteria) ? payload.criteria as Record<string, unknown> : {};
+      const candidateInput = Array.isArray(payload.candidateUrls) ? payload.candidateUrls : [];
+      if (!candidateInput.length || candidateInput.length > 100 || candidateInput.some(url => typeof url !== "string" || url.length > 2048)) {
+        return jsonResponse(400, { error: "Provide 1 to 100 candidate URLs, each no longer than 2048 characters." });
+      }
+      if (new TextEncoder().encode(JSON.stringify({ criteria, candidateUrls: candidateInput })).length > 48_000) {
+        return jsonResponse(413, { error: "The discovery job payload must not exceed 48 KB." });
+      }
       if (new TextEncoder().encode(JSON.stringify(criteria)).length > 8192) return jsonResponse(413, { error: "Discovery criteria must not exceed 8 KB." });
       const [{ data: profile, error: profileError }, { data: source, error: sourceError }, { data: link, error: linkError }] = await Promise.all([
         admin.from("discovery_profiles").select("*").eq("company_id", companyId).eq("id", payload.profileId).maybeSingle(),
@@ -139,22 +155,51 @@ Deno.serve(async request => {
       if (profile.enabled !== true) return jsonResponse(409, { error: "This discovery profile is disabled." });
       if (source.status !== "approved") return jsonResponse(409, { error: "Only an approved discovery source can be queued." });
       assertSourceCanBeAttached(profile, source);
+      if (candidateInput.length > Number(source.max_pages_per_job || 0)) {
+        return jsonResponse(400, { error: "Candidate URL count exceeds this source's approved pages-per-job limit." });
+      }
+      const candidateUrls = [...new Set(candidateInput.map(value => assertAllowedSourceUrl(source, value).toString()))];
+      if (candidateUrls.length !== candidateInput.length) return jsonResponse(400, { error: "Duplicate candidate URLs are not allowed in one job." });
       const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : profile.purpose;
       if (!purpose || purpose !== profile.purpose) return jsonResponse(400, { error: "The job purpose must exactly match the profile's approved purpose." });
       if (!(Array.isArray(source.allowed_purposes) ? source.allowed_purposes : []).includes(purpose)) return jsonResponse(403, { error: "The purpose is not in this source's approved purpose allow-list." });
-      const { data: inserted, error: insertError } = await admin.from("discovery_jobs").insert({ company_id: companyId, profile_id: profile.id, source_id: source.id, requested_by: caller.id, status: "queued", payload: { purpose, criteria }, idempotency_key: idempotencyKey }).select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at").single();
+      const { data: inserted, error: insertError } = await admin.from("discovery_jobs").insert({ company_id: companyId, profile_id: profile.id, source_id: source.id, requested_by: caller.id, status: "queued", payload: { purpose, criteria, candidateUrls }, idempotency_key: idempotencyKey }).select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at").single();
       if (insertError) {
         if (insertError.code === "23505") {
-          const { data: existing, error: existingError } = await admin.from("discovery_jobs").select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at").eq("company_id", companyId).eq("idempotency_key", idempotencyKey).maybeSingle();
+          const { data: existing, error: existingError } = await admin.from("discovery_jobs").select("id,profile_id,source_id,payload,status,attempts,max_attempts,available_at,created_at").eq("company_id", companyId).eq("idempotency_key", idempotencyKey).maybeSingle();
           if (existingError) throw existingError;
-          if (existing) return jsonResponse(200, { ok: true, duplicate: true, job: existing });
+          if (existing) {
+            const sameRequest = existing.profile_id === profile.id && existing.source_id === source.id
+              && JSON.stringify(existing.payload?.candidateUrls || []) === JSON.stringify(candidateUrls);
+            if (!sameRequest) return jsonResponse(409, { error: "This idempotency key is already used by a different discovery request." });
+            return jsonResponse(200, { ok: true, duplicate: true, job: existing });
+          }
         }
         throw insertError;
       }
       await writeAudit(admin, { company_id: companyId, actor_user_id: caller.id, action: "discovery_job_queued", entity_type: "discovery_job", entity_id: inserted.id, details: { profileId: profile.id, sourceId: source.id, purpose } });
       return jsonResponse(201, { ok: true, duplicate: false, job: inserted, message: "Discovery job queued. This action does not contact the source." });
     }
-    if (!canManage) return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources and profiles." });
+    if (!canManage && action !== "jobs.enqueue") return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources, profiles or worker permissions." });
+
+    if (action === "workers.control") {
+      const enabled = payload.enabled === true;
+      const reason = typeof payload.reason === "string" ? payload.reason.trim().slice(0, 500) : "";
+      const expiresAt = enabled ? new Date(Date.now() + 60 * 60 * 1000).toISOString() : new Date().toISOString();
+      const { data, error } = await admin.from("discovery_company_worker_controls").upsert({
+        company_id: companyId, enabled, updated_by: caller.id,
+        reason: reason || (enabled ? "Owner/admin granted a one-hour fetch window." : "Paused by company owner/admin."),
+        expires_at: expiresAt, updated_at: new Date().toISOString()
+      }, { onConflict: "company_id" }).select("enabled,expires_at,updated_at,reason").single();
+      if (error) throw error;
+      await writeAudit(admin, {
+        company_id: companyId, actor_user_id: caller.id,
+        action: enabled ? "discovery_worker_grant_enabled" : "discovery_worker_grant_disabled",
+        entity_type: "discovery_worker_control", entity_id: companyId,
+        details: { enabled, expiresAt: data.expires_at, reason: data.reason }
+      });
+      return jsonResponse(200, { ok: true, worker: { enabled: data.enabled, expiresAt: data.expires_at, updatedAt: data.updated_at, reason: data.reason } });
+    }
 
     if (action === "sources.register") {
       const source = normalizeSourceRegistration(payload);
