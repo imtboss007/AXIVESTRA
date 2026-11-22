@@ -2,18 +2,6 @@
 -- Private storage only. No source is activated and no worker is deployed by this migration.
 begin;
 
--- Optional Playwright rendering is source-specific and defaults to static HTTP.
-alter table public.discovery_source_registry
-  add column if not exists render_mode text not null default 'http'
-  check (render_mode in ('http','browser'));
-alter table public.discovery_evidence_items
-  add column if not exists evidence_kind text not null default 'raw_response'
-  check (evidence_kind in ('raw_response','rendered_dom'));
-alter table public.discovery_evidence_items
-  add column if not exists parent_evidence_id uuid references public.discovery_evidence_items(id) on delete set null;
-
-
-
 -- E04 extends the original governance audit vocabulary for job queue and
 -- temporary worker authority receipts. Preserve the same company-scoped ledger.
 alter table public.discovery_audit_events
@@ -64,6 +52,16 @@ create index if not exists discovery_evidence_job_idx
   on public.discovery_evidence_items(company_id, job_id, captured_at desc);
 create index if not exists discovery_evidence_source_url_idx
   on public.discovery_evidence_items(source_id, canonical_url, captured_at desc);
+
+-- Optional Playwright rendering is source-specific and defaults to static HTTP.
+alter table public.discovery_source_registry
+  add column if not exists render_mode text not null default 'http'
+  check (render_mode in ('http','browser'));
+alter table public.discovery_evidence_items
+  add column if not exists evidence_kind text not null default 'raw_response'
+  check (evidence_kind in ('raw_response','rendered_dom'));
+alter table public.discovery_evidence_items
+  add column if not exists parent_evidence_id uuid references public.discovery_evidence_items(id) on delete set null;
 
 create table if not exists public.discovery_fetch_events (
   id uuid primary key default gen_random_uuid(),
