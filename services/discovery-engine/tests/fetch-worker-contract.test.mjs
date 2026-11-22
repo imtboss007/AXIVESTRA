@@ -40,6 +40,13 @@ test("evidence storage is private, size-bounded and company-scoped", () => {
   assert.match(migration, /revoke all on public\.discovery_evidence_items from anon, authenticated/);
 });
 
+test("enqueue transaction writes one audit receipt atomically", () => {
+  assert.match(migration, /create or replace function public\.enqueue_discovery_job/);
+  assert.match(migration, /insert into public\.discovery_audit_events/);
+  assert.match(control, /admin\.rpc\("enqueue_discovery_job"/);
+  assert.doesNotMatch(control, /admin\.from\("discovery_jobs"\)\.insert/);
+});
+
 test("idempotency compares the complete enqueue payload to prevent accidental reuse", () => {
   assert.match(control, /existing\.payload\?\.purpose === purpose/);
   assert.match(control, /existing\.payload\?\.criteria \|\| \{\}/);
