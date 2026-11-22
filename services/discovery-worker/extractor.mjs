@@ -225,6 +225,13 @@ async function parsePdfEvidence(buffer, observations) {
   }
 }
 
+function parseLocaleIndependentNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  const text = textOf(value);
+  const match = text.match(/^-?(?:(?:\\d+)|(?:\\d{1,3}(?:,\\d{3})+)|(?:\\d{1,2}(?:,\\d{2})+,\\d{3}))(?:\\.\\d+)?$/);
+  return match ? Number(text.replace(/,/g, "")) : NaN;
+}
+
 function normalizeTypedValue(value, type) {
   const raw = value;
   if (type === "object" || type === "array") {
