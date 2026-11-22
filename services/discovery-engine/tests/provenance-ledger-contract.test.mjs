@@ -30,6 +30,8 @@ test("E13 records field-level source lineage and immutable source snapshots", ()
   ]) assert.match(migration, new RegExp(field));
   assert.match(migration, /evidenceContentHash/);
   assert.match(migration, /sourceLicenseRef/);
+  assert.match(migration, /left\(coalesce\(v_attribution/);
+  assert.match(migration, /octet_length\(v_license::text\)>4000/);
 });
 
 test("E13 does not duplicate or leak raw source, contact or extracted values", () => {

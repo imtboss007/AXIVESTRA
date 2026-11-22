@@ -189,10 +189,13 @@ begin
   v_source_name:=coalesce(p_source_snapshot->>'sourceName',v_source_name);
   v_source_domain:=coalesce(p_source_snapshot->>'sourceDomain',v_source_domain);
   v_source_jurisdiction:=coalesce(p_source_snapshot->>'sourceJurisdiction',v_source_jurisdiction);
-  v_source_attribution:=coalesce(v_attribution,p_source_snapshot->>'evidenceAttribution',
-    p_source_snapshot->>'sourceAttribution',v_source_attribution);
-  v_license_ref:=coalesce(p_source_snapshot->>'sourceLicenseRef',v_license_ref);
+  v_source_attribution:=left(coalesce(v_attribution,p_source_snapshot->>'evidenceAttribution',
+    p_source_snapshot->>'sourceAttribution',v_source_attribution),500);
+  v_license_ref:=left(coalesce(p_source_snapshot->>'sourceLicenseRef',v_license_ref),300);
   v_license:=coalesce(nullif(v_license,'{}'::jsonb),p_source_snapshot->'licenseSnapshot','{}'::jsonb);
+  if jsonb_typeof(v_license)<>'object' or octet_length(v_license::text)>4000 then
+    v_license:='{}'::jsonb;
+  end if;
 
   for v_key in select jsonb_object_keys(p_source_span)
   loop
@@ -277,7 +280,7 @@ begin
     v_subject_kind:='evidence'; v_subject_id:=v_id;
     v_event_type:='evidence_captured'; v_field:='raw_evidence';
     v_source:=nullif(p_row->>'source_id','')::uuid; v_evidence:=v_id;
-    v_metadata:=jsonb_build_object('contentType',p_row->>'content_type',
+    v_metadata:=jsonb_build_object('contentType',left(p_row->>'content_type',120),
       'byteLength',p_row->>'byte_length','evidenceKind',p_row->>'evidence_kind');
   when 'discovery_extracted_entities' then
     v_subject_kind:='extracted_entity'; v_subject_id:=v_id;
@@ -525,7 +528,7 @@ begin
     v_event_type:='evidence_retention_purged'; v_field:='raw_evidence';
     v_source:=nullif(p_row->>'source_id','')::uuid;
     v_evidence:=v_subject_id;
-    v_metadata:=jsonb_build_object('outcome',p_row->>'outcome','occurredAt',p_row->>'occurred_at');
+    v_metadata:=jsonb_build_object('outcome',left(p_row->>'outcome',500),'occurredAt',p_row->>'occurred_at');
   else
     return;
   end case;
