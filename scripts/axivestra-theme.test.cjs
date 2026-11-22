@@ -7,6 +7,7 @@ const main = fs.readFileSync(path.join(root, "src", "main.tsx"), "utf8");
 const theme = fs.readFileSync(path.join(root, "src", "axivestra-theme.css"), "utf8");
 const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
 const orbitalHub = fs.readFileSync(path.join(root, "src", "AxivestraOrbitalHub.tsx"), "utf8");
+const analytics = fs.readFileSync(path.join(root, "src", "PortfolioAnalytics.tsx"), "utf8");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
 assert.match(main, /import "\.\/styles\.css";[\s\S]*import "\.\/axivestra-theme\.css";/,
@@ -114,3 +115,15 @@ assert.match(theme, /\.ax-modern-shell \.ax-orbit-hub \.ax-orbit-node-inspect\s*
   "Workspace inspection controls must use larger touch targets.");
 assert.match(theme, /\.ax-modern-shell \.ax-orbit-hub \.ax-orbit-motion-toggle:disabled/,
   "Reduced-motion and grid-view controls must communicate their disabled state.");
+
+
+assert.match(analytics, /valueFormatter:formatTooltipValue/,
+  "Portfolio tooltips must format values in Indian currency or count notation.");
+assert.match(analytics, /parseIndianAmount\(row\.value\) === null/,
+  "Portfolio coverage must correctly recognize Indian shorthand values.");
+assert.match(analytics, /cashflowRows\.every\(row => row\.count === 0\)/,
+  "Cashflow empty state must use the selected date range.");
+assert.match(theme, /\.ax-modern-shell \.ax-analytics-panel\s*\{[^}]*background:\s*linear-gradient\(145deg,#132638 0%,#0d1f2e 100%\)/s,
+  "Analytics surfaces must follow the Night Marine visual system.");
+assert.match(theme, /\.ax-modern-shell \.ax-chart-type button\[aria-pressed="true"\]/,
+  "Selected chart controls must have a clear visual treatment tied to their accessible state.");
