@@ -886,8 +886,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(revenueObservation.normalized_value.amount,120000000);
     assert.equal(revenueObservation.normalized_value.currency,"INR");
     assert.equal(revenueObservation.currency_code,"INR");
-    assert.ok(revenueObservation.source_published_at);
-    assert.ok(revenueObservation.evidence_captured_at);
+    assert.equal(revenueObservation.source_published_at,null,"E10 must not invent a source publication timestamp when the source did not provide one");
+    assert.ok(revenueObservation.evidence_captured_at,"E10 must preserve the evidence capture timestamp");
     assert.ok(enrichmentObservations.every(x=>x.review_state==="pending_review"));
     await assert.rejects(
       pool.query(
@@ -1036,6 +1036,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     );
     assert.equal(revenueConflict.rows.length,1);
     assert.equal(revenueConflict.rows[0].status,"open");
+    const conflictSources=await pool.query(
+      "select min(source_published_at) as first_published_at,max(source_published_at) as second_published_at,count(*)::int as count from public.discovery_enrichment_observations where company_id=$1 and canonical_entity_id=$2 and attribute_key='annual_revenue'",
+      [companyId,canonical.rows[0].id]
+    );
+    assert.equal(conflictSources.rows[0].count,2);
+    assert.ok(conflictSources.rows[0].second_published_at,"E10 must retain a supplied publication timestamp from the independent source");
     const conflictValues=await pool.query(
       "select count(*)::int as count,count(distinct normalized_value->>'amount')::int as distinct_values from public.discovery_enrichment_observations where company_id=$1 and canonical_entity_id=$2 and attribute_key='annual_revenue'",
       [companyId,canonical.rows[0].id]
