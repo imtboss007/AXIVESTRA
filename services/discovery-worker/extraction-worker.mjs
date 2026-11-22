@@ -44,7 +44,7 @@ export function evidenceObjectPath(reference) {
   }
   const path = reference.slice(prefix.length);
   if (!/^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}-[a-f0-9]{64}\.bin$/.test(path)) {
-    throw new Error("Evidence object path does not match the expected company/job/content-hash structure.");
+    throw new Error("Evidence object path does not match the expected company/job/evidence content-addressed structure.");
   }
   return path;
 }
