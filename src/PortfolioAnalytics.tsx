@@ -22,7 +22,7 @@ const INFLOW = new Set(["Sale", "Advance", "Loan Disbursal", "Receipt"]);
 const OUTFLOW = new Set(["Purchase", "Loan Repayment", "Interest", "Instalment", "Brokerage", "Expense", "Settlement"]);
 const compact = (value: number) => formatIndianCompactAmount(value) || "—";
 
-type CItem={name:string;value:number;color:string;count?:number};type MFlow={key:string;name:string;fullName:string;inflow:number;outflow:number;net:number;count:number};
+type CItem={name:string;value:number;color:string;count?:number};type MFlow={key:string;name:string;fullName:string;inflow:number;outflow:number;net:number;count:number;unclassified:number};
 function buildPortfolioChartOption(focus:"allocation"|"pipeline"|"cashflow",type:"donut"|"bar"|"line",metric:"value"|"count",items:CItem[],months:MFlow[],selected:string,labels:boolean):EChartsOption{
  const axis={color:"#9aafbd",fontSize:11},grid="#294254",money=(v:number)=>formatIndianCompactAmount(v)||"0";
  const formatTooltipValue=(value:unknown)=>{
@@ -80,7 +80,8 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
       const rows = financials.filter(row => String(row.date || "").slice(0, 7) === key);
       const inflow = rows.filter(row => INFLOW.has(row.type)).reduce((sum, row) => sum + (parseIndianAmount(row.amount) || 0), 0);
       const outflow = rows.filter(row => OUTFLOW.has(row.type)).reduce((sum, row) => sum + (parseIndianAmount(row.amount) || 0), 0);
-      return { key, name: month.toLocaleDateString("en-IN", { month: "short" }), fullName: month.toLocaleDateString("en-IN", { month: "long", year: "numeric" }), inflow, outflow, net: inflow - outflow, count: rows.length };
+      const unclassified = rows.filter(row => !INFLOW.has(row.type) && !OUTFLOW.has(row.type)).length;
+      return { key, name: month.toLocaleDateString("en-IN", { month: "short" }), fullName: month.toLocaleDateString("en-IN", { month: "long", year: "numeric" }), inflow, outflow, net: inflow - outflow, count: rows.length, unclassified };
     });
   }, [financials, period]);
 
@@ -88,10 +89,14 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
   const openRecords = properties.filter(row => !["completed", "closed"].includes(String(row.status || "").trim().toLocaleLowerCase())).length;
   const closedRecords = properties.length - openRecords;
   const recordsWithoutValue = properties.filter(row => parseIndianAmount(row.value) === null).length;
-  const totalInflow = financials.filter(item => INFLOW.has(item.type)).reduce((sum, item) => sum + (parseIndianAmount(item.amount) || 0), 0);
-  const totalOutflow = financials.filter(item => OUTFLOW.has(item.type)).reduce((sum, item) => sum + (parseIndianAmount(item.amount) || 0), 0);
+  const periodInflow = cashflowRows.reduce((sum, row) => sum + row.inflow, 0);
+  const periodOutflow = cashflowRows.reduce((sum, row) => sum + row.outflow, 0);
+  const periodTransactions = cashflowRows.reduce((sum, row) => sum + row.count, 0);
+  const periodUnclassified = cashflowRows.reduce((sum, row) => sum + row.unclassified, 0);
   const openTasks = tasks.filter(task => !task.done).length;
-  const overdueTasks = tasks.filter(task => !task.done && task.date < new Date().toISOString().slice(0, 10)).length;
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const overdueTasks = tasks.filter(task => !task.done && task.date < todayKey).length;
   const chartItems = focus === "allocation" ? moduleRows.map(row => ({ name: row.name, value: metric === "value" ? row.value : row.count, count: row.count, color: row.color })) : stageRows;
   const visibleItems = chartItems.filter(item => item.value > 0);
   const title = focus === "allocation" ? metric === "value" ? "Recorded value / exposure by workspace" : "Records by workspace" : focus === "pipeline" ? "Portfolio status mix" : "Cashflow movement";
@@ -144,10 +149,12 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
       <aside className="ax-chart-inspector">
         <div className="ax-inspector-head"><span>LIVE SUMMARY</span><CircleDollarSign size={18}/></div>
         {focus === "cashflow" ? <>
-          <strong className="ax-inspector-total">{compact(totalInflow - totalOutflow)}</strong><small>Net recorded cashflow · all time</small>
-          <div className="ax-inspector-pair"><span><i className="inflow-dot"/> Total inflows</span><strong>{compact(totalInflow)}</strong></div>
-          <div className="ax-inspector-pair"><span><i className="outflow-dot"/> Total outflows</span><strong>{compact(totalOutflow)}</strong></div>
-          <div className="ax-inspector-pair"><span>Transactions</span><strong>{financials.length}</strong></div>
+          <strong className="ax-inspector-total">{compact(periodInflow - periodOutflow)}</strong><small>Net recorded cashflow · selected {period}-month window</small>
+          <div className="ax-inspector-pair"><span><i className="inflow-dot"/> Period inflows</span><strong>{compact(periodInflow)}</strong></div>
+          <div className="ax-inspector-pair"><span><i className="outflow-dot"/> Period outflows</span><strong>{compact(periodOutflow)}</strong></div>
+          <div className="ax-inspector-pair"><span>Transactions in period</span><strong>{periodTransactions}</strong></div>
+          <div className="ax-inspector-pair"><span>Unclassified transaction types</span><strong>{periodUnclassified}</strong></div>
+          {periodUnclassified > 0 && <p className="ax-inspector-note">{periodUnclassified} transaction(s) use a type not mapped to inflow or outflow and are excluded from those totals.</p>}
         </> : focus === "pipeline" ? <>
           <strong className="ax-inspector-total">{properties.length}</strong><small>Saved property / deal records</small>
           <div className="ax-inspector-pair"><span>Open records</span><strong>{openRecords}</strong></div>
