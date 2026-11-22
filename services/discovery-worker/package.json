@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node worker.mjs",
     "test": "node worker-policy.test.mjs && node extractor.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs",
-    "install:browser": "playwright install chromium"
+    "install:browser": "playwright install chromium",
+    "start:extraction": "node extraction-worker.mjs"
   },
   "devDependencies": {
     "pg": "8.16.3"
