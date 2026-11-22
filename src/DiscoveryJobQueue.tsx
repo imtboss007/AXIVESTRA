@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { supabase } from "./lib/supabase";
 import { Activity, Clock3, LoaderCircle, PlayCircle, RefreshCw, ShieldAlert, ShieldCheck, Square, Waypoints } from "lucide-react";
+import { BorderBeam } from "./components/BorderBeam";
 
 type Source = { id: string; name: string; status: string; max_pages_per_job: number; rate_limit_per_minute: number };
 type Profile = { id: string; workspace_key: string; discovery_mode: "LENDER" | "CUSTOMER"; purpose: string; enabled: boolean };
@@ -201,6 +202,7 @@ export default function DiscoveryJobQueue({
       </div>
 
       <div className="discovery-queue-card discovery-worker-card">
+        {worker.enabled && <BorderBeam size={90} duration={8} borderWidth={1} colorFrom="#35bfd0" colorTo="#7be2ba"/>}
         <div className="discovery-queue-card-head"><div><span className="section-kicker">AUTHORITY BOUNDARY</span><h3>Company fetch grant</h3></div><ShieldCheck size={19}/></div>
         <div className={"discovery-worker-status " + (worker.enabled ? "is-enabled" : "is-paused")}>
           <span className="discovery-worker-dot"/><strong>{worker.enabled ? "Enabled until " + readableTime(worker.expiresAt) : "Paused / expired"}</strong>
