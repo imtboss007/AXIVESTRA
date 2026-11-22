@@ -1701,3 +1701,146 @@ body { background: #0b1420; color: #e8f0f4; }
     border-radius: 11px;
   }
 }
+
+
+/* Follow-up forms — readable validation, source context and touch-safe selection. */
+.ax-modern-shell .ax-followup-form {
+  color: var(--axiv-ink);
+  border-color: var(--axiv-line);
+  background: linear-gradient(150deg,#142b3d,#102334);
+}
+.ax-modern-shell .ax-followup-form > label,
+.ax-modern-shell .ax-followup-form .form-two > label {
+  min-width: 0;
+  color: #c3d1da;
+  line-height: 1.45;
+}
+.ax-modern-shell .ax-followup-form input,
+.ax-modern-shell .ax-followup-form select,
+.ax-modern-shell .ax-followup-form textarea {
+  min-height: 43px;
+  border-color: #365165;
+  border-radius: 9px;
+  background: #0e2030;
+  color: #e8f0f4;
+}
+.ax-modern-shell .ax-followup-form textarea { min-height: 94px; resize: vertical; }
+.ax-modern-shell .ax-followup-form input::placeholder,
+.ax-modern-shell .ax-followup-form textarea::placeholder { color: #8299a8; }
+.ax-modern-shell .ax-followup-form input:focus-visible,
+.ax-modern-shell .ax-followup-form select:focus-visible,
+.ax-modern-shell .ax-followup-form textarea:focus-visible {
+  outline: 2px solid #82b9b1;
+  outline-offset: 2px;
+  border-color: #82b9b1;
+}
+.ax-modern-shell .ax-followup-form .form-two {
+  gap: 12px;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-source-context {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #365165;
+  border-radius: 10px;
+  color: var(--axiv-body);
+  background: #102638;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-source-context strong {
+  color: #9bd3c8;
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-source-context span {
+  color: #e8f0f4;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-source-context small {
+  color: #9aafbd;
+  font-size: 11px;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-picker {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #365165;
+  border-radius: 11px;
+  background: #102638;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-picker legend {
+  padding-inline: 6px;
+  color: #b9e1d8;
+  font-size: 12px;
+  font-weight: 800;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-picker > p {
+  margin: 0 0 10px;
+  color: #9aafbd;
+  font-size: 11px;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-options {
+  max-height: 220px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-options label {
+  min-height: 46px;
+  padding: 9px 10px;
+  border-color: #365165;
+  border-radius: 9px;
+  color: #dce7ed;
+  background: #142d3e;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-options label.selected {
+  border-color: #57978e;
+  background: #193e43;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-options label:focus-within {
+  outline: 2px solid #82b9b1;
+  outline-offset: 2px;
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-options input {
+  width: 17px;
+  height: 17px;
+  min-height: 17px;
+  flex: 0 0 17px;
+  accent-color: var(--axiv-primary);
+}
+.ax-modern-shell .ax-followup-form .ax-followup-contact-options strong { color: #e8f0f4; }
+.ax-modern-shell .ax-followup-form .ax-followup-contact-options small { color: #9aafbd; }
+.ax-modern-shell .ax-followup-form .ax-field-error {
+  display: block;
+  margin-top: 5px;
+  color: #ffc0b7;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.ax-modern-shell .ax-followup-form [aria-invalid="true"] {
+  border-color: #c87975 !important;
+  box-shadow: 0 0 0 2px rgba(200,121,117,.12);
+}
+.ax-modern-shell .ax-followup-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.ax-modern-shell .ax-followup-form .form-actions button {
+  min-height: 43px;
+}
+@media (max-width: 640px) {
+  .ax-modern-shell .ax-followup-form .form-two {
+    grid-template-columns: minmax(0,1fr);
+  }
+  .ax-modern-shell .ax-followup-form .ax-followup-contact-options {
+    grid-template-columns: minmax(0,1fr);
+  }
+  .ax-modern-shell .ax-followup-form .form-actions {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  }
+  .ax-modern-shell .ax-followup-form .form-actions button { width: 100%; }
+}
