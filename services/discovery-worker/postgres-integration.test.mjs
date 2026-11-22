@@ -352,6 +352,92 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     );
     assert.equal(relationshipAudit.rows[0].count,1,"relationship decision must have an audit receipt");
 
+    // E07 is queued only after the E06 company assignment exists.
+    const personMention = await pool.query(
+      "insert into public.discovery_extracted_entities(company_id,extraction_run_id,evidence_id,mention_key,entity_kind,raw_name,normalized_name,source_span,confidence) values($1,$2,$3,'person:asha-rao','person','Asha Rao','Asha Rao',$4::jsonb,0.96) returning id",
+      [companyId,extractionRunId,evidenceId,JSON.stringify({kind:"html-text",start:20,end:28})]
+    );
+    const personMentionId = personMention.rows[0].id;
+    await pool.query(
+      "insert into public.discovery_extracted_facts(company_id,extraction_run_id,evidence_id,extracted_entity_id,field_name,value_type,raw_value,normalized_value,source_span,confidence,validation_status) values ($1,$2,$3,$4,'job_title','string','Chief Financial Officer',to_jsonb('Chief Financial Officer'::text),'{\"kind\":\"html-text\",\"start\":30,\"end\":53}'::jsonb,0.94,'valid'),($1,$2,$3,$4,'employer_entity_id','identifier',$5,to_jsonb($5::text),'{\"kind\":\"json-pointer\",\"locator\":\"$/officers/0/company\"}'::jsonb,0.91,'valid')",
+      [companyId,extractionRunId,evidenceId,personMentionId,extractedEntity.rows[0].id]
+    );
+    const roleClaim = await pool.query(
+      "select * from public.claim_discovery_professional_role_job($1,90)",
+      ["professional-role-worker-test"]
+    );
+    assert.equal(roleClaim.rows.length,1,"E06 reviewed company assignment must enqueue E07 role work");
+    const roleJob = roleClaim.rows[0];
+    const rolePayload = [{
+      extracted_person_id: personMentionId,
+      person_name: "Asha Rao",
+      normalized_person_name: "asha rao",
+      canonical_entity_id: canonical.rows[0].id,
+      role_title: "Chief Financial Officer",
+      department: null,
+      valid_from: null,
+      valid_to: null,
+      jurisdiction: "IN",
+      evidence_id: evidenceId,
+      source_span: {
+        person: {kind:"html-text",start:20,end:28},
+        role: {kind:"html-text",start:30,end:53},
+        relationship: {kind:"json-pointer",locator:"$/officers/0/company"}
+      },
+      confidence: 0.91,
+      relationship_method: "reviewed_entity_assignment",
+      candidate_state: "pending_review",
+      missing_requirements: [],
+      rationale: {role_source_backed:true,employer_link_source_backed:true,requires_human_review:true,auto_publish_permitted:false}
+    }];
+    const roleComplete = await pool.query(
+      "select public.complete_discovery_professional_role_job($1,$2,$3::jsonb) as count",
+      [roleJob.id,roleJob.lease_owner,JSON.stringify(rolePayload)]
+    );
+    assert.equal(roleComplete.rows[0].count,1);
+    const roleCandidate = await pool.query(
+      "select id,review_state,candidate_state,canonical_entity_id,role_title from public.discovery_professional_role_candidates where company_id=$1 and extraction_run_id=$2",
+      [companyId,extractionRunId]
+    );
+    assert.equal(roleCandidate.rows.length,1);
+    assert.equal(roleCandidate.rows[0].review_state,"pending_review");
+    assert.equal(roleCandidate.rows[0].candidate_state,"pending_review");
+    assert.equal(roleCandidate.rows[0].canonical_entity_id,canonical.rows[0].id);
+    assert.equal(roleCandidate.rows[0].role_title,"Chief Financial Officer");
+    const retentionDate = new Date(Date.now()+180*86400000).toISOString().slice(0,10);
+    await assert.rejects(
+      pool.query(
+        "select * from public.record_discovery_professional_role_review($1,$2,$3,$4,$5,$6,$7,null)",
+        [companyId,viewerId,roleCandidate.rows[0].id,"created_new","Viewer cannot create professional identity","public executive role verification",retentionDate]
+      ),
+      /Only a company owner or admin can review professional roles/
+    );
+    const roleReview = await pool.query(
+      "select * from public.record_discovery_professional_role_review($1,$2,$3,$4,$5,$6,$7,null)",
+      [companyId,actorId,roleCandidate.rows[0].id,"created_new","Owner verified the public company disclosure","public executive role verification",retentionDate]
+    );
+    assert.equal(roleReview.rows[0].decision,"created_new");
+    const professionalPerson = await pool.query(
+      "select full_name,retention_until,status from public.discovery_professional_people where company_id=$1",
+      [companyId]
+    );
+    assert.equal(professionalPerson.rows.length,1);
+    assert.equal(professionalPerson.rows[0].full_name,"Asha Rao");
+    assert.equal(professionalPerson.rows[0].status,"active");
+    assert.ok(new Date(professionalPerson.rows[0].retention_until)>new Date());
+    const roleAssignment = await pool.query(
+      "select role_title,canonical_entity_id from public.discovery_professional_role_assignments where company_id=$1",
+      [companyId]
+    );
+    assert.equal(roleAssignment.rows.length,1);
+    assert.equal(roleAssignment.rows[0].role_title,"Chief Financial Officer");
+    assert.equal(roleAssignment.rows[0].canonical_entity_id,canonical.rows[0].id);
+    const roleAudit = await pool.query(
+      "select count(*)::int as count from public.discovery_audit_events where company_id=$1 and action='professional_role_review_recorded'",
+      [companyId]
+    );
+    assert.equal(roleAudit.rows[0].count,1,"professional role approval and audit receipt must commit together");
+
 
     await assert.rejects(
       pool.query(
