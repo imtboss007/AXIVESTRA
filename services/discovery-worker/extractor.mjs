@@ -196,12 +196,13 @@ function parseXmlEvidence(text, observations) {
 }
 
 async function parsePdfEvidence(buffer, observations) {
-  const document = await getDocument({
+  const loadingTask = getDocument({
     data: new Uint8Array(buffer),
     isEvalSupported: false,
     useSystemFonts: true,
     stopAtErrors: true
-  }).promise;
+  });
+  const document = await loadingTask.promise;
   try {
     const totalPages = Math.min(document.numPages, 300);
     for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
@@ -227,7 +228,7 @@ async function parsePdfEvidence(buffer, observations) {
     }
     return {};
   } finally {
-    await document.destroy();
+    await loadingTask.destroy();
   }
 }
 
