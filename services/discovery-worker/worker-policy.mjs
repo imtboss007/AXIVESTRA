@@ -88,23 +88,32 @@ export function parseRobotsRules(content, userAgent = "AXIVESTRA-DiscoveryBot") 
   if (current?.agents.length) groups.push(current);
 
   const agent = userAgent.toLowerCase();
-  const matching = groups.filter(group => group.agents.some(name => name === "*" || agent.includes(name)));
-  // RFC 9309: when multiple groups match, combine their rules.
-  const rules = matching.flatMap(group => group.rules);
+  const specificGroups = groups.filter(group =>
+    group.agents.some(name => name !== "*" && name.length > 0 && agent.includes(name))
+  );
+  // Product-token groups take precedence; the wildcard group is fallback only.
+  // Multiple matching product-token groups are merged, as required by RFC 9309.
+  const selectedGroups = specificGroups.length
+    ? specificGroups
+    : groups.filter(group => group.agents.includes("*"));
+  const rules = selectedGroups.flatMap(group => group.rules);
 
   return Object.freeze({
     allows(urlValue) {
-      const path = new URL(urlValue).pathname + new URL(urlValue).search;
+      const target = new URL(urlValue);
+      if (target.pathname === "/robots.txt") return true;
+      const path = target.pathname + target.search;
       let best = null;
       for (const rule of rules) {
-        const pattern = rule.path
-          .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
-          .replace(/\\\*/g, ".*")
-          .replace(/\\\$/g, "$");
+        const hasEndAnchor = rule.path.endsWith("$");
+        const rawPattern = hasEndAnchor ? rule.path.slice(0, -1) : rule.path;
+        const pattern = rawPattern.split("*")
+          .map(part => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+          .join(".*");
         let matched = false;
-        try { matched = new RegExp("^" + pattern).test(path); } catch { matched = false; }
+        try { matched = new RegExp("^" + pattern + (hasEndAnchor ? "$" : "")).test(path); } catch { matched = false; }
         if (!matched) continue;
-        const specificity = rule.path.replace(/[\\*$]/g, "").length;
+        const specificity = rawPattern.replace(/\*/g, "").length;
         if (!best || specificity > best.specificity || (specificity === best.specificity && rule.allow)) {
           best = { specificity, allow: rule.allow };
         }
