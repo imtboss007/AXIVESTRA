@@ -69,7 +69,7 @@ test("E09 may call Photon only when both switches and source purpose are explici
    run,evidence,source:geocodingSource,entities,facts
  }),job,photon);
  assert.equal(called,true);
- assert.equal(result.photonUsed,false);
+ assert.equal(result.photonUsed,true);
  assert.equal(result.candidates[0].provider,"photon_self_hosted");
  assert.equal(result.candidates[0].candidate_state,"geocoder_no_match");
 });
