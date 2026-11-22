@@ -17,6 +17,7 @@ type Props = {
 type PersonSummary = ReturnType<typeof buildRelationshipIntelligence>["contacts"][number];
 
 function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[]; onOpenWorkspace: Props["onOpenWorkspace"] }) {
+  const [focus, setFocus] = useState<{ kind: "contact" | "record"; key: string } | null>(null);
   const graph = useMemo(() => {
     const visiblePeople = people.slice(0, 24);
     const allFilteredRecords = new Map<string, PersonSummary["records"][number]>();
@@ -27,7 +28,7 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
     const recordIndex = new Map(recordNodes.map((record, index) => [record.key, index]));
     const edges = visiblePeople.flatMap((person, personIndex) => person.records.flatMap(record => {
       const target = recordIndex.get(record.key);
-      return target === undefined ? [] : [{ personIndex, recordIndex: target, relations: record.relations.join(", ") }];
+      return target === undefined ? [] : [{ personIndex, personId: person.id, recordIndex: target, recordKey: record.key, relations: record.relations.join(", ") }];
     }));
     return {
       visiblePeople,
@@ -40,15 +41,41 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
     };
   }, [people]);
 
+  const activeFocus = focus && (focus.kind === "contact"
+    ? graph.visiblePeople.some(person => person.id === focus.key)
+    : graph.recordNodes.some(record => record.key === focus.key)) ? focus : null;
+  const focusedPerson = activeFocus?.kind === "contact"
+    ? graph.visiblePeople.find(person => person.id === activeFocus.key)
+    : undefined;
+  const focusedRecord = activeFocus?.kind === "record"
+    ? graph.recordNodes.find(record => record.key === activeFocus.key)
+    : undefined;
+  const isFocusedEdge = (edge: typeof graph.edges[number]) => !activeFocus
+    || (activeFocus.kind === "contact" ? edge.personId === activeFocus.key : edge.recordKey === activeFocus.key);
+  const isFocusedPerson = (person: PersonSummary) => !activeFocus
+    || (activeFocus.kind === "contact" ? person.id === activeFocus.key : person.records.some(record => record.key === activeFocus.key));
+  const isFocusedRecord = (record: PersonSummary["records"][number]) => !activeFocus
+    || (activeFocus.kind === "contact" ? Boolean(focusedPerson?.records.some(item => item.key === record.key)) : record.key === activeFocus.key);
+  const focusedLinks = activeFocus ? graph.edges.filter(isFocusedEdge).length : 0;
+  const focusLabel = focusedPerson ? focusedPerson.name : focusedRecord?.title;
+
   if (!graph.recordNodes.length) return <p className="ax-relationship-unlinked">{people.length
     ? "No explicit saved contact-ID links match this search. Search by another contact or source record."
     : "No matching contacts were found. Change the search to inspect a different contact or linked record."}</p>;
 
+  const toggleFocus = (next: { kind: "contact" | "record"; key: string }) => {
+    setFocus(current => current?.kind === next.kind && current.key === next.key ? null : next);
+  };
+
   return <div className="ax-relationship-graph-scroll" role="region" aria-label={`Relationship graph with ${graph.edges.length} explicit saved contact-to-record links; horizontally scrollable`} tabIndex={0}>
     <div className="ax-relationship-graph__summary" aria-live="polite">
-      <span><strong>{graph.edges.length.toLocaleString("en-IN")}</strong> visible explicit saved links</span>
+      <span><strong>{activeFocus ? focusedLinks.toLocaleString("en-IN") : graph.edges.length.toLocaleString("en-IN")}</strong> {activeFocus ? "highlighted saved links" : "visible explicit saved links"}</span>
       <span>Contacts {graph.visiblePeople.length}/{people.length} · linked records {graph.recordNodes.length}/{graph.totalRecordCount}</span>
     </div>
+    {activeFocus && <div className="ax-relationship-graph__focus-status" aria-live="polite">
+      <span>Focused: <strong>{focusLabel}</strong> · {focusedLinks} connected link{focusedLinks === 1 ? "" : "s"}</span>
+      <button type="button" onClick={() => setFocus(null)}>Clear focus <span aria-hidden="true">×</span></button>
+    </div>}
     <div className="ax-relationship-graph" style={{ height: graph.height }}>
       <div className="ax-relationship-graph__heading ax-relationship-graph__heading--people">CONTACTS <span>{graph.visiblePeople.length}</span></div>
       <div className="ax-relationship-graph__heading ax-relationship-graph__heading--records">LINKED RECORDS <span>{graph.recordNodes.length}</span></div>
@@ -56,16 +83,36 @@ function RelationshipGraph({ people, onOpenWorkspace }: { people: PersonSummary[
         {graph.edges.map((edge, index) => {
           const y1 = edge.personIndex * 104 + 88;
           const y2 = edge.recordIndex * 82 + 79;
-          return <path key={index} d={`M 258 ${y1} C 330 ${y1}, 365 ${y2}, 438 ${y2}`}><title>{edge.relations || "Explicit saved contact link"}</title></path>;
+          return <path key={index} className={activeFocus ? isFocusedEdge(edge) ? "is-focused" : "is-dimmed" : ""} d={`M 258 ${y1} C 330 ${y1}, 365 ${y2}, 438 ${y2}`}><title>{edge.relations || "Explicit saved contact link"}</title></path>;
         })}
       </svg>
-      {graph.visiblePeople.map((person, index) => <article className="ax-relationship-graph__node ax-relationship-graph__node--person" style={{ top: index * 104 + 48 }} key={person.id}>
+      {graph.visiblePeople.map((person, index) => <button
+        type="button"
+        className={`ax-relationship-graph__node ax-relationship-graph__node--person${activeFocus ? isFocusedPerson(person) ? " is-focused" : " is-dimmed" : ""}`}
+        style={{ top: index * 104 + 48 }}
+        key={person.id}
+        aria-pressed={activeFocus?.kind === "contact" && activeFocus.key === person.id}
+        aria-label={`Highlight saved relationships for ${person.name}, ${person.recordCount} linked records`}
+        onClick={() => toggleFocus({ kind: "contact", key: person.id })}
+      >
         <span className="ax-relationship-graph__node-icon"><Users size={15}/></span>
-        <span><strong>{person.name}</strong><small>{person.roles.join(" · ") || "Role not specified"}</small><small>{person.recordCount} linked records · ID {person.id}</small></span>
-      </article>)}
-      {graph.recordNodes.map((record, index) => <article className="ax-relationship-graph__node ax-relationship-graph__node--record" style={{ top: index * 82 + 48 }} key={record.key}>
-        <span className="ax-relationship-graph__node-icon"><Link2 size={15}/></span>
-        <span><strong>{record.title}</strong><small>{record.workspace || record.kind} · {record.relations.join(" · ")}</small><small>Source ID: {record.recordId || "not supplied"}</small></span>
+        <span className="ax-relationship-graph__node-copy"><strong>{person.name}</strong><small>{person.roles.join(" · ") || "Role not specified"}</small><small>{person.recordCount} linked records · ID {person.id}</small></span>
+      </button>)}
+      {graph.recordNodes.map((record, index) => <article
+        className={`ax-relationship-graph__node ax-relationship-graph__node--record${activeFocus ? isFocusedRecord(record) ? " is-focused" : " is-dimmed" : ""}`}
+        style={{ top: index * 82 + 48 }}
+        key={record.key}
+      >
+        <button
+          type="button"
+          className="ax-relationship-graph__focus"
+          aria-pressed={activeFocus?.kind === "record" && activeFocus.key === record.key}
+          aria-label={`Highlight contacts linked to ${record.title}`}
+          onClick={() => toggleFocus({ kind: "record", key: record.key })}
+        >
+          <span className="ax-relationship-graph__node-icon"><Link2 size={15}/></span>
+          <span className="ax-relationship-graph__node-copy"><strong>{record.title}</strong><small>{record.workspace || record.kind} · {record.relations.join(" · ")}</small><small>Source ID: {record.recordId || "not supplied"}</small></span>
+        </button>
         {record.workspace && <button type="button" className="text-button" onClick={() => onOpenWorkspace(record.workspace)} aria-label={`Open ${record.workspace} workspace`}><ArrowUpRight size={14}/></button>}
       </article>)}
     </div>
