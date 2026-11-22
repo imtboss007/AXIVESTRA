@@ -35,9 +35,8 @@ create table if not exists public.discovery_canonical_entities (
   created_by uuid not null references auth.users(id) on delete restrict,
   approved_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  unique(company_id,id),
-  foreign key (company_id,source_evidence_id)
-    references public.discovery_evidence_items(company_id,id) on delete restrict
+  unique(company_id,id)
+  -- source_evidence_id is an immutable historical UUID reference, not a retention-blocking FK.
 );
 create index if not exists discovery_canonical_entities_name_idx
   on public.discovery_canonical_entities(company_id,jurisdiction,normalized_name);
@@ -60,9 +59,8 @@ create table if not exists public.discovery_entity_identifiers (
   created_at timestamptz not null default now(),
   unique(company_id,id),
   foreign key (company_id,canonical_entity_id)
-    references public.discovery_canonical_entities(company_id,id) on delete cascade,
-  foreign key (company_id,source_evidence_id)
-    references public.discovery_evidence_items(company_id,id) on delete restrict
+    references public.discovery_canonical_entities(company_id,id) on delete cascade
+  -- source_evidence_id intentionally remains an immutable historical UUID reference.
 );
 create unique index if not exists discovery_entity_identifiers_accepted_unique
   on public.discovery_entity_identifiers(company_id,scheme,jurisdiction,normalized_value)
@@ -172,8 +170,7 @@ create table if not exists public.discovery_entity_review_events (
   reason text not null check (length(trim(reason)) between 1 and 1000),
   occurred_at timestamptz not null default now(),
   unique(company_id,id),
-  foreign key (company_id,candidate_id)
-    references public.discovery_entity_match_candidates(company_id,id) on delete cascade,
+  -- candidate_id remains a historical reference after E05 evidence retention.
   foreign key (company_id,canonical_entity_id)
     references public.discovery_canonical_entities(company_id,id) on delete restrict
 );
@@ -189,12 +186,10 @@ create table if not exists public.discovery_entity_assignments (
   assigned_at timestamptz not null default now(),
   unique(company_id,id),
   unique(company_id,extraction_run_id,extracted_entity_id),
-  foreign key (company_id,extraction_run_id,extracted_entity_id)
-    references public.discovery_extracted_entities(company_id,extraction_run_id,id) on delete cascade,
+  -- extraction_run_id, extracted_entity_id and source_evidence_id are historical
+  -- provenance references. Keep accepted assignments after E05 evidence purge.
   foreign key (company_id,canonical_entity_id)
     references public.discovery_canonical_entities(company_id,id) on delete restrict,
-  foreign key (company_id,source_evidence_id)
-    references public.discovery_evidence_items(company_id,id) on delete restrict,
   foreign key (company_id,review_event_id)
     references public.discovery_entity_review_events(company_id,id) on delete restrict
 );
@@ -217,9 +212,8 @@ create table if not exists public.discovery_entity_relationships (
   foreign key (company_id,from_entity_id)
     references public.discovery_canonical_entities(company_id,id) on delete cascade,
   foreign key (company_id,to_entity_id)
-    references public.discovery_canonical_entities(company_id,id) on delete cascade,
-  foreign key (company_id,evidence_id)
-    references public.discovery_evidence_items(company_id,id) on delete restrict
+    references public.discovery_canonical_entities(company_id,id) on delete cascade
+  -- evidence_id is retained as an immutable historical UUID reference.
 );
 create index if not exists discovery_entity_relationships_from_idx
   on public.discovery_entity_relationships(company_id,from_entity_id);
@@ -618,7 +612,7 @@ grant execute on function public.fail_discovery_entity_resolution_job(uuid,text,
 grant execute on function public.record_discovery_entity_resolution_review(uuid,uuid,uuid,text,text) to service_role;
 
 comment on table public.discovery_canonical_entities is
-  'Canonical organization identity created only after explicit company owner/admin resolution review.';
+  'Canonical organization identity created only after explicit company owner/admin resolution review. source_evidence_id remains a historical UUID reference after raw evidence retention purge.';
 comment on table public.discovery_entity_match_candidates is
   'Evidence-backed E05-to-E06 identity suggestions. Exact and fuzzy matches remain pending human review.';
 comment on table public.discovery_entity_identifiers is
