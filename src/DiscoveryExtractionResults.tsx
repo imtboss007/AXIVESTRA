@@ -149,8 +149,8 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
                 <b>Evidence span</b>
                 <code>{pretty(fact.source_span?.locator||fact.source_span?.kind||fact.source_span)}</code>
                 {typeof fact.source_span?.quote==="string"&&<blockquote>{fact.source_span.quote}</blockquote>}
-                {fact.source_span?.page&&<small>PDF page {String(fact.source_span.page)}</small>}
-                {fact.source_span?.line&&<small>Line {String(fact.source_span.line)}</small>}
+                {typeof fact.source_span?.page === "number" && Number.isFinite(fact.source_span.page) && <small>PDF page {fact.source_span.page}</small>}
+                {typeof fact.source_span?.line === "number" && Number.isFinite(fact.source_span.line) && <small>Line {fact.source_span.line}</small>}
               </div>
               {review&&<div className="discovery-review-receipt"><b>Last review:</b> {review.decision} — {review.reason} <small>{dateLabel(review.occurred_at)}</small></div>}
               {canReview&&!review&&<div className="discovery-fact-actions">
