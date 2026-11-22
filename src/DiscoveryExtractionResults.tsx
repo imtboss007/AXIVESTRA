@@ -44,7 +44,8 @@ export default function DiscoveryExtractionResults({companyId,companyRole,source
   const [runs,setRuns]=useState<Run[]>([]);
   const [facts,setFacts]=useState<Fact[]>([]);
   const [entities,setEntities]=useState<Entity[]>([]);
-  const [reviews,setReviews]=useState<Review[]>([]);\n  const [evidence,setEvidence]=useState<Evidence[]>([]);
+  const [reviews,setReviews]=useState<Review[]>([]);
+  const [evidence,setEvidence]=useState<Evidence[]>([]);
   const [selectedRunId,setSelectedRunId]=useState("");
   const [loading,setLoading]=useState(false);
   const [busyId,setBusyId]=useState("");
