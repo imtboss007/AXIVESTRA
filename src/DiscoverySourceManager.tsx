@@ -224,8 +224,17 @@ export default function DiscoverySourceManager({
     }
   };
 
+  const profileAlreadyExists = profiles.some(profile =>
+    profile.workspace_key === profileDraft.workspaceKey &&
+    profile.discovery_mode === profileDraft.discoveryMode
+  );
+
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (profileAlreadyExists) {
+      setError("This workspace and discovery mode already have a profile. Edit its source attachments or use the existing profile instead of overwriting it.");
+      return;
+    }
     setBusyKey("add-profile");
     setError("");
     setNotice("");
@@ -419,8 +428,9 @@ export default function DiscoverySourceManager({
         <label>Profile mode<select value={profileDraft.discoveryMode} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, discoveryMode: event.target.value })}><option value="LENDER">LENDER</option><option value="CUSTOMER">CUSTOMER</option></select></label>
         <label>Exact permitted purpose<select required value={profileDraft.purpose} disabled={!canManage || busyKey === "add-profile" || !purposeOptions.length} onChange={event => setProfileDraft({ ...profileDraft, purpose: event.target.value })}><option value="">Choose approved source purpose…</option>{purposeOptions.map(purpose => <option value={purpose} key={purpose}>{purpose}</option>)}</select></label>
         <label>Jurisdiction<input required value={profileDraft.jurisdiction} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, jurisdiction: event.target.value })}/></label>
-        <button type="submit" className="primary-button" disabled={!canManage || !profileDraft.purpose || busyKey === "add-profile"}><Plus size={15}/>Create disabled profile</button>
+        <button type="submit" className="primary-button" disabled={!canManage || !profileDraft.purpose || busyKey === "add-profile" || profileAlreadyExists}><Plus size={15}/>{profileAlreadyExists ? "Profile already exists" : "Create disabled profile"}</button>
       </form>
+      {profileAlreadyExists && <p className="discovery-readonly">A {profileDraft.discoveryMode} profile already exists for this workspace. Select another workspace/mode; existing profiles are listed below.</p>}
       {!canManage && <p className="discovery-readonly">Only company owners and admins can configure profiles and source links.</p>}
       {profiles.length === 0 ? <p className="discovery-empty-inline">No profiles created yet. Approve a source, choose its permitted purpose, then create the matching workspace profile.</p> :
         <div className="discovery-profile-list">{profiles.map(profile => {

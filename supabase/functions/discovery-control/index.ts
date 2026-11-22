@@ -144,12 +144,36 @@ Deno.serve(async request => {
         .update({ ...review, updated_by: caller.id, updated_at: new Date().toISOString() })
         .eq("company_id", companyId).eq("id", payload.sourceId).select("*").single();
       if (error) throw error;
+      let disabledProfiles: string[] = [];
+      if (review.status !== "approved") {
+        const { data: attachedProfiles, error: attachedProfilesError } = await admin
+          .from("discovery_profile_sources").select("profile_id")
+          .eq("company_id", companyId).eq("source_id", data.id);
+        if (attachedProfilesError) throw attachedProfilesError;
+        const profileIds = [...new Set((attachedProfiles || []).map((link: { profile_id: string }) => link.profile_id))];
+        if (profileIds.length) {
+          const { data: changedProfiles, error: disableError } = await admin.from("discovery_profiles")
+            .update({ enabled: false, updated_by: caller.id, updated_at: new Date().toISOString() })
+            .eq("company_id", companyId).in("id", profileIds).eq("enabled", true)
+            .select("id");
+          if (disableError) throw disableError;
+          disabledProfiles = (changedProfiles || []).map((profile: { id: string }) => profile.id);
+          for (const profileId of disabledProfiles) {
+            await writeAudit(admin, {
+              company_id: companyId, actor_user_id: caller.id, action: "profile_disabled",
+              entity_type: "profile", entity_id: profileId,
+              details: { reason: "attached_source_" + review.status, sourceId: data.id }
+            });
+          }
+        }
+      }
       const actionName = review.status === "approved" ? "source_approved" : review.status === "paused" ? "source_paused" : "source_rejected";
       await writeAudit(admin, {
         company_id: companyId, actor_user_id: caller.id, action: actionName,
-        entity_type: "source", entity_id: data.id, details: { status: data.status, domain: data.domain }
+        entity_type: "source", entity_id: data.id,
+        details: { status: data.status, domain: data.domain, disabledProfiles: disabledProfiles.length }
       });
-      return jsonResponse(200, { ok: true, source: data });
+      return jsonResponse(200, { ok: true, source: data, disabledProfiles: disabledProfiles.length });
     }
 
     if (action === "profiles.upsert") {

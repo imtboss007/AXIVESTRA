@@ -169,3 +169,18 @@ test("connector search endpoint is checked against exact approved host and paths
   });
   assert.equal(seenEndpoint, "https://registry.example.gov.in/api/v1/entities/search");
 });
+
+test("a paused or rejected source is not eligible for source use", async () => {
+  const pending = normalizeSourceRegistration(baseSource);
+  const approved = approvedSource();
+  const paused = { ...approved, ...normalizeSourceReview({ status: "paused", reason: "policy review" }, approved, "reviewer") };
+  const rejected = { ...approved, ...normalizeSourceReview({ status: "rejected", reason: "terms do not permit reuse" }, approved, "reviewer") };
+  const registry = new ConnectorRegistry();
+  registry.register({
+    key: "official_api",
+    async search() { return []; },
+    async fetchEvidence() { return {}; }
+  });
+  await assert.rejects(() => registry.search(paused, { text: "company", limit: 5 }), /Only an approved source/);
+  await assert.rejects(() => registry.search(rejected, { text: "company", limit: 5 }), /Only an approved source/);
+});
