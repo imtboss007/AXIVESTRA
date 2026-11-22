@@ -1,6 +1,15 @@
 -- AXIVESTRA E05: deterministic extraction and schema normalisation.
 -- No LLM provider, external search or source network access is used by this stage.
 begin;
+-- E05 adds an auditable retention terminal event to the existing fetch ledger.
+alter table public.discovery_fetch_events
+  drop constraint if exists discovery_fetch_events_event_type_check;
+alter table public.discovery_fetch_events
+  add constraint discovery_fetch_events_event_type_check check (event_type in (
+    'request_started','response_received','request_failed','quota_denied',
+    'robots_blocked','cache_hit','policy_rejected','worker_paused','retention_purged'
+  ));
+
 
 -- Extend the shared company audit ledger for explicit extraction-review receipts.
 alter table public.discovery_audit_events
