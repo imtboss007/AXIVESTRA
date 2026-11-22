@@ -1099,10 +1099,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     );
     assert.equal(durableIdentifier.rows[0].count,1,"reviewed registry identifier must survive evidence purge");
     const durableAssignment = await pool.query(
-      "select count(*)::int as count from public.discovery_entity_assignments where company_id=$1 and canonical_entity_id=$2",
-      [companyId,durableEntity.rows[0].id]
+      "select count(*)::int as count,count(distinct extraction_run_id)::int as run_count,count(*) filter(where extraction_run_id=$3)::int as first_source_count,count(*) filter(where extraction_run_id=$4)::int as second_source_count from public.discovery_entity_assignments where company_id=$1 and canonical_entity_id=$2",
+      [companyId,durableEntity.rows[0].id,extractionRunId,secondExtractionRunId]
     );
-    assert.equal(durableAssignment.rows[0].count,1,"owner-approved assignment must survive evidence purge");
+    assert.equal(durableAssignment.rows[0].count,2,"both owner-approved source assignments must survive evidence purge");
+    assert.equal(durableAssignment.rows[0].run_count,2,"source assignments must remain separated by extraction run");
+    assert.equal(durableAssignment.rows[0].first_source_count,1,"original source assignment must survive");
+    assert.equal(durableAssignment.rows[0].second_source_count,1,"independent source assignment must survive");
     const durableReview = await pool.query(
       "select count(*)::int as count from public.discovery_entity_review_events where company_id=$1 and decision='created_new'",
       [companyId]
