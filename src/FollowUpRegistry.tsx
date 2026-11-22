@@ -228,7 +228,7 @@ export default function FollowUpRegistry({
     setSelectedDate(nextMonth + "-01");
   };
   const jumpToCalendarMonth = (nextMonth: string) => {
-    if (!/^\\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth)) return;
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth)) return;
     setMonth(nextMonth);
     setSelectedDate(nextMonth + "-01");
   };
