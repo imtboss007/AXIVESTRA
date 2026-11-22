@@ -108,6 +108,7 @@ create table if not exists public.discovery_extracted_entities (
     check (extraction_method in ('deterministic','llm_experimental')),
   created_at timestamptz not null default now(),
   unique(extraction_run_id, mention_key),
+  unique(company_id, id),
   foreign key (company_id, evidence_id)
     references public.discovery_evidence_items(company_id, id) on delete cascade
 );
@@ -136,7 +137,9 @@ create table if not exists public.discovery_extracted_facts (
     check (extraction_method in ('deterministic','llm_experimental')),
   created_at timestamptz not null default now(),
   foreign key (company_id, evidence_id)
-    references public.discovery_evidence_items(company_id, id) on delete cascade
+    references public.discovery_evidence_items(company_id, id) on delete cascade,
+  foreign key (company_id, extracted_entity_id)
+    references public.discovery_extracted_entities(company_id, id) on delete restrict
 );
 
 create index if not exists discovery_extracted_facts_run_idx
@@ -388,6 +391,9 @@ begin
     end if;
     if not (v_source.field_schema ? v_field) then
       raise exception 'Extraction attempted a field without an approved field schema' using errcode = '42501';
+    end if;
+    if v_source.field_schema->v_field->>'type' is distinct from v_fact->>'value_type' then
+      raise exception 'Extraction value type does not match the approved field schema' using errcode = '42501';
     end if;
     v_mention_key := nullif(v_fact->>'mention_key','');
     v_entity_id := null;
