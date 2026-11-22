@@ -466,6 +466,10 @@ $function$;
 revoke all on function public.heartbeat_discovery_job(uuid,text,integer) from public, anon, authenticated;
 grant execute on function public.heartbeat_discovery_job(uuid,text,integer) to service_role;
 
+-- Preserve request spacing across independent worker processes, not only a per-job memory timer.
+alter table public.discovery_source_quota_windows
+  add column if not exists last_request_at timestamptz;
+
 -- The quota reservation re-checks live source/profile/attachment/control state.
 -- Workers MUST reserve immediately before each outbound request, including robots.txt and redirects.
 create or replace function public.reserve_discovery_fetch_request(
@@ -485,6 +489,8 @@ declare
   v_now timestamptz := clock_timestamp();
   v_limit integer;
   v_elapsed numeric;
+  v_retry_after integer;
+  v_min_interval numeric;
 begin
   if p_worker_id is null or length(trim(p_worker_id)) < 8 or length(p_worker_id) > 160 then
     raise exception 'Invalid discovery worker identity' using errcode = '22023';
@@ -522,11 +528,22 @@ begin
     where source_id = p_source_id for update;
 
   v_limit := v_source.rate_limit_per_minute;
+  v_min_interval := ceil(60.0 / v_limit);
   v_elapsed := extract(epoch from (v_now - v_quota.window_started_at));
+
+  if v_quota.last_request_at is not null then
+    v_retry_after := ceil(extract(epoch from (
+      v_quota.last_request_at + make_interval(secs => v_min_interval::integer) - v_now
+    )))::integer;
+    if v_retry_after > 0 then
+      return query select false, greatest(v_limit - v_quota.requests_used, 0), v_retry_after;
+      return;
+    end if;
+  end if;
 
   if v_elapsed >= 60 then
     update public.discovery_source_quota_windows
-      set window_started_at = v_now, requests_used = 1, updated_at = v_now
+      set window_started_at = v_now, requests_used = 1, last_request_at = v_now, updated_at = v_now
       where source_id = p_source_id;
     return query select true, greatest(v_limit - 1, 0), 0;
     return;
@@ -538,7 +555,7 @@ begin
   end if;
 
   update public.discovery_source_quota_windows
-    set requests_used = requests_used + 1, updated_at = v_now
+    set requests_used = requests_used + 1, last_request_at = v_now, updated_at = v_now
     where source_id = p_source_id;
 
   return query select true, greatest(v_limit - v_quota.requests_used - 1, 0), 0;
