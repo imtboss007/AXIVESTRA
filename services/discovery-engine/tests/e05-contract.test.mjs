@@ -51,6 +51,15 @@ test("E05 extraction uses bounded parallel slots backed by PostgreSQL SKIP LOCKE
   assert.match(migration, /for update of j skip locked/);
 });
 
+test("E05 accepts CSV evidence from approved open-data sources and keeps extraction bounded", () => {
+  assert.match(worker, /"text\/csv"/);
+  assert.match(migration, /array\['text\/csv','application\/csv'\]/);
+  assert.match(migration, /'text\/csv','application\/csv'/);
+  assert.match(extractor, /function parseCsvRows/);
+  assert.match(extractor, /CSV exceeds the 20,000-row extraction limit/);
+  assert.match(extractor, /kind: "csv-cell"/);
+});
+
 test("PDF parser releases the PDF.js loading task and keeps OCR disabled", () => {
   assert.match(extractor, /const loadingTask = getDocument/);
   assert.match(extractor, /await loadingTask\.destroy\(\)/);
