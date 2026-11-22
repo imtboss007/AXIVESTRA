@@ -1,3 +1,5 @@
+import { scorePhotonAddressMatch } from "./geo-resolution.mjs";
+
 function boundedLimit(value) {
   const n = Number(value);
   return Number.isInteger(n) ? Math.max(1, Math.min(5, n)) : 5;
