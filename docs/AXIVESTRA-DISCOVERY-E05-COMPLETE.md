@@ -69,7 +69,7 @@ Company members may view company-scoped extraction outputs; only company owner/a
 ## Validation
 
 CI includes:
-- deterministic parser tests for JSON/HTML/JSON-LD/XML/text/PDF text layers and typed values;\n- a synthetic-data parser benchmark reporting operations/second, facts/second, bytes/second, mean/p95 latency and heap delta for JSON, HTML, XML and text (run manually with `npm --prefix services/discovery-worker run bench:extractor`);
+- deterministic parser tests for JSON/HTML/JSON-LD/XML/CSV/text/PDF text layers and typed values;\n- a synthetic-data parser benchmark reporting operations/second, facts/second, bytes/second, mean/p95 latency and heap delta for JSON, HTML, XML, CSV and text (run manually with `npm --prefix services/discovery-worker run bench:extractor`);
 - alias, allowed-field, missing-required-field, injection-like text and no-consent-inference tests;
 - E05 SQL contract tests;
 - PostgreSQL 16 integration tests that apply E02/E04/E05 migrations, claim extraction jobs and verify company-scoped provenance/facts, field allow-lists, immutable output and evidence-retention cascade;
