@@ -487,6 +487,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
       const commitmentId=commitment.rows[0].id;
       assert.equal(commitment.rows[0].created_by,actorId);
+      await assert.rejects(
+        partyClient.query("update public.company_records set deleted_at=now() where company_id=$1 and record_type='contact' and record_key='party-e16'",[companyId]),
+        /Active commitments prevent soft deletion/
+      );
       await partyClient.query(
         "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values($1,'property','deal-other-e18',$2::jsonb,$3,$3)",
         [companyId,'{"title":"Different Deal"}',actorId]

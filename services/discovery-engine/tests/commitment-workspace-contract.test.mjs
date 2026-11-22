@@ -63,3 +63,9 @@ test("E18 overview workspace creates and manages typed commitments with saved me
   assert.match(ui,/Save status|changeAssignee/);
   assert.match(ui,/recurring reminders and message delivery are not enabled/);
 });
+
+test("E18 protects linked deals, parties and source tasks from deletion while commitments remain open",()=>{
+  assert.match(migration,/prevent_company_record_soft_delete_with_commitments/);
+  assert.match(migration,/Active commitments prevent soft deletion of a linked deal, party or source task/);
+  assert.match(migration,/c\.status not in \('completed','cancelled'\)/);
+});

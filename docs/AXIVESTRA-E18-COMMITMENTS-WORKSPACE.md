@@ -14,7 +14,7 @@ E18 adds a structured company-scoped register for four types of operational reco
 - Staff may assign actions only to themselves and may update actions assigned to them or created by them; owner/admin/manager roles can manage broader assignments.
 - New actions start in open. Status transitions are constrained. Completed items can only be reopened to in_progress with the explicit reopened reason; cancelled items are terminal.
 - Every create/status/assignee/due-date/details change generates an append-only event with actor and previous/new state.
-- Hard deletion is blocked. Completion and cancellation preserve history.
+- Hard deletion is blocked. Active commitments also prevent soft deletion of their linked deal, party or source task. Completion and cancellation preserve history.
 - company_commitment_inbox derives overdue, due_today, upcoming, no_due_date and closed states from due timestamps and status; no background scheduler is claimed.
 
 ## Relationship to existing tasks

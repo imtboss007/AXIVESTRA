@@ -284,6 +284,30 @@ create trigger company_action_commitments_capture_event
   after insert or update on public.company_action_commitments
   for each row execute function public.capture_company_action_commitment_event();
 
+create or replace function public.prevent_company_record_soft_delete_with_commitments()
+returns trigger language plpgsql security definer set search_path=public,pg_temp
+as $record_guard$
+begin
+  if old.deleted_at is null and new.deleted_at is not null then
+    if exists(
+      select 1 from public.company_action_commitments c
+      where c.company_id=old.company_id and c.status not in ('completed','cancelled') and (
+        (old.record_type='property' and c.deal_record_key=old.record_key)
+        or (old.record_type='contact' and c.party_record_key=old.record_key)
+        or (old.record_type='task' and c.source_task_record_key=old.record_key)
+      )
+    ) then
+      raise exception 'Active commitments prevent soft deletion of a linked deal, party or source task.';
+    end if;
+  end if;
+  return new;
+end;
+$record_guard$;
+drop trigger if exists company_record_commitment_soft_delete_guard on public.company_records;
+create trigger company_record_commitment_soft_delete_guard
+  before update on public.company_records
+  for each row execute function public.prevent_company_record_soft_delete_with_commitments();
+
 create or replace view public.company_commitment_inbox
 with (security_invoker=true)
 as
@@ -312,6 +336,7 @@ revoke all on public.company_commitment_inbox from public,anon,authenticated;
 grant select on public.company_commitment_inbox to authenticated;
 
 revoke all on function public.guard_company_action_commitment() from public,anon,authenticated,service_role;
+revoke all on function public.prevent_company_record_soft_delete_with_commitments() from public,anon,authenticated,service_role;
 revoke all on function public.prevent_company_commitment_event_mutation() from public,anon,authenticated,service_role;
 revoke all on function public.capture_company_action_commitment_event() from public,anon,authenticated,service_role;
 
