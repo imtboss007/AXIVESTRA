@@ -277,13 +277,20 @@ function normalizeTypedValue(value, type) {
       : { valid: true, normalized: value, message: null };
   }
   if (type === "date") {
-    if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.test(text)) {
+    const datePattern = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+    const match = text.match(datePattern);
+    if (!match) {
       return { valid: false, normalized: null, message: "Date must use an unambiguous ISO-8601 representation." };
     }
+    const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+    const calendarDate = new Date(Date.UTC(year, month - 1, day));
+    const calendarValid = calendarDate.getUTCFullYear() === year &&
+      calendarDate.getUTCMonth() === month - 1 && calendarDate.getUTCDate() === day;
     const parsed = new Date(text);
-    return Number.isNaN(parsed.getTime())
-      ? { valid: false, normalized: null, message: "Date is invalid." }
-      : { valid: true, normalized: text.length === 10 ? text : parsed.toISOString(), message: null };
+    if (!calendarValid || Number.isNaN(parsed.getTime())) {
+      return { valid: false, normalized: null, message: "Date is not a valid calendar date or timestamp." };
+    }
+    return { valid: true, normalized: text.length === 10 ? text : parsed.toISOString(), message: null };
   }
   if (type === "email") {
     const normalized = text.toLowerCase();
@@ -380,7 +387,12 @@ function assembleResult(observations, schema, source, contentHash, parserWarning
   for (const [field, config] of Object.entries(schema)) {
     for (const alias of config.aliases) {
       const key = normalizeKey(alias);
-      if (key && !aliasMap.has(key)) aliasMap.set(key, field);
+      if (!key) continue;
+      const prior = aliasMap.get(key);
+      if (prior && prior !== field) {
+        throw new Error("Ambiguous source field alias \"" + alias + "\" maps to both " + prior + " and " + field + ".");
+      }
+      aliasMap.set(key, field);
     }
   }
 
