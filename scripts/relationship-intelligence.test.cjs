@@ -63,4 +63,9 @@ assert.ok(!appSource.includes("const legacy = contacts.find(contact => contact.n
 assert.ok(panelSource.includes("const allFilteredRecords = new Map"), "Graph totals must include the full filtered contact set.");
 assert.ok(panelSource.includes("totalRecordCount: allFilteredRecords.size"), "The graph must separate total linked records from rendered nodes.");
 assert.ok(panelSource.includes("visible explicit saved links") && panelSource.includes("linked records {graph.recordNodes.length}/{graph.totalRecordCount}"), "The graph summary must distinguish the visible subset from full filtered totals.");
+assert.ok(panelSource.includes('useState<{ kind: "contact" | "record"; key: string } | null>'), "Graph focus state must support selecting contacts and source records.");
+assert.ok(panelSource.includes("isFocusedEdge") && panelSource.includes("isFocusedPerson") && panelSource.includes("isFocusedRecord"), "Selecting a graph node must highlight its explicit saved links and connected nodes.");
+assert.ok(panelSource.includes("aria-pressed={activeFocus?.kind === \"contact\"") && panelSource.includes("aria-pressed={activeFocus?.kind === \"record\""), "Graph nodes must expose their selected state accessibly.");
+assert.ok(panelSource.includes("Clear focus"), "A focused graph selection must have a clear-focus action.");
+assert.ok(panelSource.includes("aria-live=\"polite\""), "Relationship focus changes must be announced to assistive technology.");
 process.stdout.write("AXIVESTRA ID-based relationship intelligence tests passed.\n");
