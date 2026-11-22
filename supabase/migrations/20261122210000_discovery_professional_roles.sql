@@ -151,6 +151,20 @@ create table if not exists public.discovery_professional_role_review_events (
     references public.discovery_professional_people(company_id,id) on delete restrict
 );
 
+-- Keep immutable review receipts after E05 evidence retention removes their
+-- source-backed candidate. The snapshot deliberately excludes the person's name.
+alter table public.discovery_professional_role_review_events
+  add column if not exists candidate_snapshot jsonb not null default '{}'::jsonb
+  check (jsonb_typeof(candidate_snapshot)='object');
+alter table public.discovery_professional_role_review_events
+  alter column candidate_id drop not null;
+alter table public.discovery_professional_role_review_events
+  drop constraint if exists discovery_professional_role_review_company_id_candidate_id_fkey;
+alter table public.discovery_professional_role_review_events
+  add constraint discovery_professional_role_review_candidate_id_fkey
+  foreign key (candidate_id) references public.discovery_professional_role_candidates(id)
+  on delete set null;
+
 alter table public.discovery_professional_role_jobs enable row level security;
 alter table public.discovery_professional_role_candidates enable row level security;
 alter table public.discovery_professional_people enable row level security;
@@ -414,11 +428,18 @@ begin
     if not found then raise exception 'Existing professional person is not active in this company' using errcode='42501'; end if;
   end if;
   insert into public.discovery_professional_role_review_events(
-    company_id,candidate_id,actor_user_id,decision,professional_person_id,reason
+    company_id,candidate_id,actor_user_id,decision,professional_person_id,reason,candidate_snapshot
   ) values (
     p_company_id,p_candidate_id,p_actor_user_id,p_decision,
     case when p_decision in ('created_new','linked_existing') then v_person.id else null end,
-    trim(p_reason)
+    trim(p_reason),
+    jsonb_build_object(
+      'candidateState',v_candidate.candidate_state,
+      'canonicalEntityId',v_candidate.canonical_entity_id,
+      'roleTitle',v_candidate.role_title,
+      'evidenceId',v_candidate.evidence_id,
+      'relationshipMethod',v_candidate.relationship_method
+    )
   ) returning * into v_event;
   if p_decision in ('created_new','linked_existing') then
     insert into public.discovery_professional_role_assignments(
