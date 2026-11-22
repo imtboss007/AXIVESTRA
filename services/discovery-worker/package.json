@@ -1,0 +1,14 @@
+{
+  "name": "@axivestra/discovery-fetch-worker",
+  "private": true,
+  "type": "module",
+  "description": "Server-side governed crawler/fetch worker for AXIVESTRA E04.",
+  "scripts": {
+    "start": "node worker.mjs",
+    "test": "node worker-policy.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "crawlee": "3.18.2"
+  }
+}
