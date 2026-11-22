@@ -358,7 +358,7 @@ begin
     from public.discovery_evidence_items e
     join public.discovery_source_registry s
       on s.company_id = e.company_id and s.id = e.source_id
-    where e.captured_at <= clock_timestamp() - make_interval(days => greatest(1,s.retention_days))
+    where e.captured_at <= clock_timestamp() - make_interval(days => greatest(1,coalesce((e.licence_snapshot->>'retention_days')::integer,s.retention_days)))
     order by e.captured_at asc
     limit p_limit;
 end;
