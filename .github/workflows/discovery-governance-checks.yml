@@ -8,6 +8,7 @@ on:
       - feat/discovery-durable-queue
       - feat/discovery-job-enqueue
       - feat/discovery-e04-complete
+      - feat/discovery-e05-complete
   pull_request:
     branches:
       - main
