@@ -329,8 +329,8 @@ begin
       or coalesce(v_candidate->>'association_method','') not in ('same_source_row','unique_company_run')
       or jsonb_typeof(v_candidate->'person_source_span')<>'object'
       or jsonb_typeof(v_candidate->'role_source_span')<>'object'
-      or octet_length(v_candidate->'person_source_span'::text)>8192
-      or octet_length(v_candidate->'role_source_span'::text)>8192
+      or octet_length((v_candidate->'person_source_span')::text)>8192
+      or octet_length((v_candidate->'role_source_span')::text)>8192
       or jsonb_typeof(v_candidate->'confidence')<>'number'
       or (v_candidate->>'confidence')::numeric<0 or (v_candidate->>'confidence')::numeric>1
       or jsonb_typeof(coalesce(v_candidate->'rationale','{}'::jsonb))<>'object' then
