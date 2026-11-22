@@ -194,20 +194,34 @@ create index if not exists discovery_privacy_retention_queue_claim_idx
 -- Make identity links nullable so erasure can preserve non-identifying role history.
 alter table public.discovery_professional_role_assignments
   alter column professional_person_id drop not null;
-alter table public.discovery_professional_role_assignments
-  drop constraint if exists discovery_professional_role_assignments_company_id_professional_person_id_fkey;
+-- PostgreSQL shortens generated composite-FK identifiers. Discover the
+-- constraints by their referenced relation/columns rather than relying on
+-- a guessed generated name, then replace them with person_id-only SET NULL.
+do $drop_person_links$
+declare r record;
+begin
+  for r in
+    select conrelid::regclass as table_name,conname
+    from pg_constraint
+    where contype='f'
+      and confrelid='public.discovery_professional_people'::regclass
+      and conrelid in (
+        'public.discovery_professional_role_assignments'::regclass,
+        'public.discovery_professional_role_review_events'::regclass,
+        'public.discovery_contact_points'::regclass
+      )
+  loop
+    execute format('alter table %s drop constraint %I',r.table_name,r.conname);
+  end loop;
+end;
+$drop_person_links$;
+
 alter table public.discovery_professional_role_assignments
   add constraint discovery_professional_role_assignments_person_erasure_fkey
   foreign key(professional_person_id) references public.discovery_professional_people(id) on delete set null;
-
-alter table public.discovery_professional_role_review_events
-  drop constraint if exists discovery_professional_role_review_events_company_id_professional_person_id_fkey;
 alter table public.discovery_professional_role_review_events
   add constraint discovery_professional_role_review_person_erasure_fkey
   foreign key(professional_person_id) references public.discovery_professional_people(id) on delete set null;
-
-alter table public.discovery_contact_points
-  drop constraint if exists discovery_contact_points_company_id_professional_person_id_fkey;
 alter table public.discovery_contact_points
   add constraint discovery_contact_points_person_erasure_fkey
   foreign key(professional_person_id) references public.discovery_professional_people(id) on delete set null;
