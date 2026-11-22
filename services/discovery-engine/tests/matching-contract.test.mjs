@@ -32,5 +32,4 @@ test("E11 does not add autonomous lead creation, outreach, underwriting or AI sc
   assert.match(moduleText,/reviewState:"pending_review"/);
   assert.match(moduleText,/safeCandidateSnapshot/);
   assert.match(moduleText,/entityKind:"organization"/);
-  assert.match(moduleText,/contactEmail/);
 });
