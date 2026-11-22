@@ -59,7 +59,7 @@ test("PDF parser releases the PDF.js loading task and keeps OCR disabled", () =>
 
 test("E05 human review and audit receipt use one owner/admin-only database transaction", () => {
   assert.match(migration, /create or replace function public\.record_discovery_extraction_review/);
-  assert.match(migration, /Only a company owner or admin can review extracted facts/);
+  assert.match(migration, /Only a company owner or admin can review extracted facts/);\n  assert.match(migration, /check \(\(fact_id is null\) <> \(extracted_entity_id is null\)\)/);
   const review = migration.slice(migration.indexOf("create or replace function public.record_discovery_extraction_review"), migration.indexOf("-- Extraction results are immutable snapshots"));
   assert.match(review, /insert into public\.discovery_extraction_review_events/);
   assert.match(review, /insert into public\.discovery_audit_events/);
