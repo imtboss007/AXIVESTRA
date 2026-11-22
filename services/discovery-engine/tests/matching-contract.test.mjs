@@ -12,6 +12,9 @@ test("E11 is a deterministic configurable rules engine across all eight matrix d
   }
   assert.match(moduleText,/deterministic-rules-v1/);
   assert.match(moduleText,/no conversion|Currency differs/);
+  assert.match(moduleText,/reviewState === "accepted"/);
+  assert.match(moduleText,/buildMatchScoreRecord/);
+  assert.match(moduleText,/createHash/);
 });
 
 test("E11 persists explainability, confidence, evidence references and human review state",()=>{
@@ -27,4 +30,7 @@ test("E11 does not add autonomous lead creation, outreach, underwriting or AI sc
   assert.doesNotMatch(migration,/insert into public\.(leads|contacts|investors|borrowers)/i);
   assert.doesNotMatch(moduleText,/fetch\s*\(|axios|https?\.request|openai|anthropic|llm/i);
   assert.match(moduleText,/reviewState:"pending_review"/);
+  assert.match(moduleText,/safeCandidateSnapshot/);
+  assert.match(moduleText,/entityKind:"organization"/);
+  assert.match(moduleText,/contactEmail/);
 });
