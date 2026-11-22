@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
@@ -60,6 +60,8 @@ async function executeJob(admin, job, workerId, signal) {
   if (bytes.length !== Number(evidence.byte_length) || bytes.length > 5_000_000) {
     throw new Error("Private evidence snapshot length does not match immutable evidence metadata.");
   }
+  const actualHash = createHash("sha256").update(bytes).digest("hex");
+  if (actualHash !== evidence.content_hash) throw new Error("Evidence snapshot SHA-256 does not match the immutable evidence record.");
   throwIfAborted(signal);
 
   const result = await extractStructuredFacts({
