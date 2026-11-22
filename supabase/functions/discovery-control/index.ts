@@ -115,6 +115,45 @@ Deno.serve(async request => {
       return jsonResponse(200, { ok: true, profiles: profiles || [], sourceLinks: links || [] });
     }
 
+    if (action === "jobs.list") {
+      const { data, error } = await admin.from("discovery_jobs")
+        .select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at,started_at,finished_at,last_error_code,last_error_message")
+        .eq("company_id", companyId).order("created_at", { ascending: false }).limit(100);
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, jobs: data || [] });
+    }
+
+    if (action === "jobs.enqueue") {
+      if (!isUuid(payload.profileId) || !isUuid(payload.sourceId)) return jsonResponse(400, { error: "Valid profile and source IDs are required." });
+      const idempotencyKey = typeof payload.idempotencyKey === "string" ? payload.idempotencyKey.trim() : "";
+      if (idempotencyKey.length < 8 || idempotencyKey.length > 160) return jsonResponse(400, { error: "Provide an idempotency key between 8 and 160 characters." });
+      const criteria = payload.criteria && typeof payload.criteria === "object" && !Array.isArray(payload.criteria) ? payload.criteria as Record<string, unknown> : {};
+      if (new TextEncoder().encode(JSON.stringify(criteria)).length > 8192) return jsonResponse(413, { error: "Discovery criteria must not exceed 8 KB." });
+      const [{ data: profile, error: profileError }, { data: source, error: sourceError }, { data: link, error: linkError }] = await Promise.all([
+        admin.from("discovery_profiles").select("*").eq("company_id", companyId).eq("id", payload.profileId).maybeSingle(),
+        admin.from("discovery_source_registry").select("*").eq("company_id", companyId).eq("id", payload.sourceId).maybeSingle(),
+        admin.from("discovery_profile_sources").select("profile_id").eq("company_id", companyId).eq("profile_id", payload.profileId).eq("source_id", payload.sourceId).maybeSingle()
+      ]);
+      if (profileError) throw profileError; if (sourceError) throw sourceError; if (linkError) throw linkError;
+      if (!profile || !source || !link) return jsonResponse(404, { error: "The profile and its attached source must exist in this company." });
+      if (profile.enabled !== true) return jsonResponse(409, { error: "This discovery profile is disabled." });
+      if (source.status !== "approved") return jsonResponse(409, { error: "Only an approved discovery source can be queued." });
+      assertSourceCanBeAttached(profile, source);
+      const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : profile.purpose;
+      if (!purpose || purpose !== profile.purpose) return jsonResponse(400, { error: "The job purpose must exactly match the profile's approved purpose." });
+      if (!(Array.isArray(source.allowed_purposes) ? source.allowed_purposes : []).includes(purpose)) return jsonResponse(403, { error: "The purpose is not in this source's approved purpose allow-list." });
+      const { data: inserted, error: insertError } = await admin.from("discovery_jobs").insert({ company_id: companyId, profile_id: profile.id, source_id: source.id, requested_by: caller.id, status: "queued", payload: { purpose, criteria }, idempotency_key: idempotencyKey }).select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at").single();
+      if (insertError) {
+        if (insertError.code === "23505") {
+          const { data: existing, error: existingError } = await admin.from("discovery_jobs").select("id,profile_id,source_id,status,attempts,max_attempts,available_at,created_at").eq("company_id", companyId).eq("idempotency_key", idempotencyKey).maybeSingle();
+          if (existingError) throw existingError;
+          if (existing) return jsonResponse(200, { ok: true, duplicate: true, job: existing });
+        }
+        throw insertError;
+      }
+      await writeAudit(admin, { company_id: companyId, actor_user_id: caller.id, action: "discovery_job_queued", entity_type: "discovery_job", entity_id: inserted.id, details: { profileId: profile.id, sourceId: source.id, purpose } });
+      return jsonResponse(201, { ok: true, duplicate: false, job: inserted, message: "Discovery job queued. This action does not contact the source." });
+    }
     if (!canManage) return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources and profiles." });
 
     if (action === "sources.register") {
