@@ -359,14 +359,15 @@ begin
   select * into v_source from public.discovery_source_registry
     where company_id = v_job.company_id and id = v_job.source_id and status = 'approved'
     for share;
+  if not found then
+    raise exception 'Extraction source approval has been revoked' using errcode = '42501';
+  end if;
   select * into v_evidence from public.discovery_evidence_items
     where company_id = v_job.company_id and id = v_job.evidence_id
     for share;
-  if not found or v_evidence.content_hash is distinct from p_run->>'source_content_hash' then
-    raise exception 'Extraction evidence hash does not match the immutable source snapshot' using errcode = '42501';
-  end if;
-  if not found then
-    raise exception 'Extraction source approval has been revoked' using errcode = '42501';
+  if not found or v_evidence.source_id <> v_job.source_id
+    or v_evidence.content_hash is distinct from p_run->>'source_content_hash' then
+    raise exception 'Extraction evidence hash or source does not match the immutable snapshot' using errcode = '42501';
   end if;
 
   insert into public.discovery_extraction_runs(
