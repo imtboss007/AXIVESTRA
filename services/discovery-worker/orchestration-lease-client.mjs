@@ -114,6 +114,32 @@ export function createOrchestrationLeaseClient({
       return result.released === true;
     },
 
+    async finish(leaseId, { outcome, errorCode } = {}) {
+      const leaseToken = leaseTokens.get(leaseId);
+      if (!leaseToken) return false;
+      if (outcome !== "succeeded" && outcome !== "failed") {
+        throw new Error("Choose succeeded or failed for the attempt outcome.");
+      }
+      if (outcome === "succeeded" && errorCode !== undefined) {
+        throw new Error("A successful outcome cannot include a failure code.");
+      }
+      if (outcome === "failed" && (typeof errorCode !== "string" || !/^[A-Z][A-Z0-9_]{2,79}$/.test(errorCode))) {
+        throw new Error("A registered uppercase failure code is required for a failed attempt.");
+      }
+      const result = await invoke("finish", {
+        leaseId,
+        leaseToken,
+        outcome,
+        errorCode: outcome === "failed" ? errorCode : null
+      });
+      if (!result.outcome || typeof result.outcome !== "object" || typeof result.outcome.attemptStatus !== "string") {
+        throw new Error("The orchestration worker broker returned an incomplete attempt receipt.");
+      }
+      // The database has durably recorded the terminal outcome; discard the local lease secret.
+      leaseTokens.delete(leaseId);
+      return Object.freeze({ ...result.outcome });
+    },
+
     forgetLease(leaseId) {
       leaseTokens.delete(leaseId);
     },
