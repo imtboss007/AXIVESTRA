@@ -353,9 +353,9 @@ as $trigger$
 declare v_worker record;
 begin
   if new.enabled is true and new.expires_at>clock_timestamp() then
-    if tg_op<>'UPDATE' or old.enabled is not true or new.expires_at>=old.expires_at then
-      return new;
-    end if;
+    if tg_op<>'UPDATE' then return new; end if;
+    if old.enabled is not true then return new; end if;
+    if new.expires_at>=old.expires_at then return new; end if;
     -- Shortening a still-active company grant must release leases immediately;
     -- otherwise an old lease could outlive the newly shortened authority.
   end if;
