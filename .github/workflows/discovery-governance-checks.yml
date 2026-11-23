@@ -42,6 +42,7 @@ on:
       - "src/styles.css"
       - "supabase/migrations/*axivestra_verification*"
       - "tests/browser/axivestra-commitment-workspace.spec.ts"
+      - "tests/browser/axivestra-verification-workspace.spec.ts"
       - "docs/AXIVESTRA-E18-COMMITMENTS-WORKSPACE.md"
       - "docs/AXIVESTRA-E19-VERIFICATION-CONFIDENCE.md"
       - "docs/AXIVESTRA-REVISED-DISCOVERY-ROADMAP-E05-E16.md"
@@ -132,7 +133,8 @@ jobs:
           AXIVESTRA_E2E_PARTY_NAME: ${{ secrets.AXIVESTRA_E2E_PARTY_NAME }}
           AXIVESTRA_E2E_RELATIONSHIP_LABEL: ${{ secrets.AXIVESTRA_E2E_RELATIONSHIP_LABEL }}
           AXIVESTRA_E2E_LEGACY_TASK_TITLE: ${{ secrets.AXIVESTRA_E2E_LEGACY_TASK_TITLE }}
+          AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID: ${{ secrets.AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID }}
         run: |
           npm run build
           npx playwright install --with-deps chromium
-          npm run test:e2e -- tests/browser/axivestra-commitment-workspace.spec.ts --project=desktop-chromium
+          npm run test:e2e -- tests/browser/axivestra-commitment-workspace.spec.ts tests/browser/axivestra-verification-workspace.spec.ts --project=desktop-chromium
