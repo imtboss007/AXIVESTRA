@@ -35,7 +35,7 @@ test.describe("AXIVESTRA E19 verification acceptance",()=>{
     await expect(workspace).toBeVisible();
     await expect(workspace.getByRole("heading",{name:"Verification & confidence"})).toBeVisible();
     await expect(workspace.getByLabel("Show")).toBeVisible();
-    await expect(workspace).toContainText("Confidence index / 100");
+    await expect(workspace).toContainText("Confidence is an evidence-coverage index");
   });
 
   test("a configured provenance subject can be inspected without exposing raw values",async({page})=>{
