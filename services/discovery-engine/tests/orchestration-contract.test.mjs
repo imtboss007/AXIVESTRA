@@ -6,8 +6,9 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, edge, workspace, manager, integration] = await Promise.all([
+  const [migration, preflightMigration, edge, workspace, manager, integration] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
+    read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
     read("supabase/functions/discovery-control/index.ts"),
     read("src/DiscoveryOrchestrationWorkspace.tsx"),
     read("src/DiscoverySourceManager.tsx"),
@@ -45,6 +46,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(edge, /request_discovery_orchestration_run/);
   assert.match(edge, /record_discovery_orchestration_decision/);
   assert.match(workspace, /approved_not_dispatched/);
+  assert.match(workspace, /Preflight blocked/);
   assert.match(workspace, /No stage was dispatched/);
   assert.match(workspace, /Only owners\/admins can approve or reject it/);
   assert.match(manager, /DiscoveryOrchestrationWorkspace/);
