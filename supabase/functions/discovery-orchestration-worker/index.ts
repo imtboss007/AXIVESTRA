@@ -23,6 +23,23 @@ function defaultKeyFromJson(name: string): string {
   }
 }
 
+function configuredPublicKeys(): Set<string> {
+  const keys = new Set<string>();
+  const legacy = Deno.env.get("SUPABASE_ANON_KEY") || "";
+  if (legacy) keys.add(legacy);
+  try {
+    const configured = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "{}");
+    if (configured && typeof configured === "object" && !Array.isArray(configured)) {
+      for (const value of Object.values(configured)) {
+        if (typeof value === "string" && value.length >= 16) keys.add(value);
+      }
+    }
+  } catch {
+    // An invalid optional publishable-key map does not bypass the legacy key check.
+  }
+  return keys;
+}
+
 function isUuid(value: unknown): value is string {
   return typeof value === "string"
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -66,10 +83,8 @@ Deno.serve(async request => {
     return jsonResponse(401, { ok: false, error: "A valid scoped worker credential is required." });
   }
 
-  const publicKey = Deno.env.get("SUPABASE_ANON_KEY")
-    || defaultKeyFromJson("SUPABASE_PUBLISHABLE_KEYS");
   const gatewayApiKey = request.headers.get("apikey") || "";
-  if (!publicKey || gatewayApiKey !== publicKey) {
+  if (!gatewayApiKey || !configuredPublicKeys().has(gatewayApiKey)) {
     return jsonResponse(401, { ok: false, error: "The Supabase public API key is missing or invalid." });
   }
 
