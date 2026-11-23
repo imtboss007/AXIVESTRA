@@ -739,7 +739,8 @@ select company_id,
        (enabled is true and expires_at>clock_timestamp()) as active,
        expires_at
 from public.discovery_company_worker_controls
-where public.is_company_member(company_id);
+where current_setting('request.jwt.claim.role',true)='service_role'
+   or public.is_company_member(company_id);
 grant select on public.discovery_orchestration_company_worker_gate to authenticated,service_role;
 
 create or replace view public.discovery_orchestration_active_worker_stage_scopes
@@ -748,7 +749,8 @@ select wi.company_id,requested.stage_key,
        bool_or(wi.status='active' and wi.expires_at>clock_timestamp()) as active
 from public.discovery_orchestration_worker_identities wi
 cross join lateral unnest(wi.stage_keys) as requested(stage_key)
-where public.is_company_member(wi.company_id)
+where current_setting('request.jwt.claim.role',true)='service_role'
+   or public.is_company_member(wi.company_id)
 group by wi.company_id,requested.stage_key;
 grant select on public.discovery_orchestration_active_worker_stage_scopes to authenticated,service_role;
 
