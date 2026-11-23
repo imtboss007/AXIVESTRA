@@ -4,11 +4,7 @@ const env = process.env;
 const companyName = env.AXIVESTRA_E2E_COMPANY_NAME || "";
 const email = env.AXIVESTRA_E2E_EMAIL || "";
 const password = env.AXIVESTRA_E2E_PASSWORD || "";
-const configured = Boolean(
-  env.VITE_SUPABASE_URL &&
-  (env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY) &&
-  email && password && companyName
-);
+const configured = Boolean(email && password && companyName);
 
 async function selectOptionContaining(select: Locator, fragment: string) {
   const options = await select.locator("option").evaluateAll(elements =>
@@ -48,7 +44,7 @@ test.describe("AXIVESTRA E18 authenticated company acceptance", () => {
   test.beforeEach(async ({ page }) => {
     test.skip(
       !configured,
-      "Requires VITE_SUPABASE_URL, a publishable/anon key, AXIVESTRA_E2E_EMAIL, AXIVESTRA_E2E_PASSWORD and AXIVESTRA_E2E_COMPANY_NAME. Build with the same VITE variables before running Playwright."
+      "Requires AXIVESTRA_E2E_EMAIL, AXIVESTRA_E2E_PASSWORD and AXIVESTRA_E2E_COMPANY_NAME. Build the preview with the VITE_SUPABASE_URL and publishable/anon key before running Playwright."
     );
     await openCompanyWorkspace(page);
   });
