@@ -42,6 +42,12 @@ test("E19 review and evidence classification require owner/admin reasoned decisi
   assert.match(migration,/Verification requires supporting evidence/);
   assert.match(migration,/verification_review_recorded/);
   assert.match(migration,/verification_evidence_classified/);
+  for(const action of [
+    "discovery_match_review_recorded","discovery_lead_created","discovery_lead_assigned",
+    "discovery_lead_status_changed","discovery_lead_priority_changed","discovery_lead_next_action_set"
+  ]) assert.match(migration,new RegExp("'" + action + "'"));
+  for(const entity of ["discovery_match_review","discovery_lead"])
+    assert.match(migration,new RegExp("'" + entity + "'"));
 });
 
 test("E19 events are append-only and new evidence reopens prior verification decisions",()=>{
