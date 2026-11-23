@@ -556,6 +556,26 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
       assert.equal(safeWorkerDirectory.rows.length,1);
       assert.equal(Object.hasOwn(safeWorkerDirectory.rows[0],"credential_hash"),false);
+      const workerGrantExpiry=await pool.query(
+        "select c.expires_at as company_expiry,w.expires_at as worker_expiry,w.stage_keys,w.max_active_leases,w.lease_seconds from public.discovery_company_worker_controls c join public.discovery_orchestration_worker_identities w on w.company_id=c.company_id where c.company_id=$1 and w.id=$2",
+        [companyId,workerIdentityId]
+      );
+      assert.ok(Date.parse(workerGrantExpiry.rows[0].worker_expiry)<=Date.parse(workerGrantExpiry.rows[0].company_expiry));
+      assert.equal(workerGrantExpiry.rows[0].max_active_leases,1);
+      assert.equal(workerGrantExpiry.rows[0].lease_seconds,60);
+      const tokenPrivileges=await pool.query(
+        "select has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_lease_inbox','select') as safe_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as worker_table_select"
+      );
+      assert.equal(tokenPrivileges.rows[0].raw_lease_select,false,"raw lease-token hashes must not be exposed to authenticated members");
+      assert.equal(tokenPrivileges.rows[0].safe_lease_select,true,"company members can read the safe lease inspector");
+      assert.equal(tokenPrivileges.rows[0].worker_table_select,true,"worker table SELECT is restricted by owner/admin RLS");
+      const workerRpcPrivileges=await pool.query(
+        "select has_function_privilege('authenticated','public.grant_discovery_orchestration_worker_identity(uuid,text,text,text,text[],integer,integer,timestamptz,text)','execute') as can_grant,has_function_privilege('authenticated','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as can_claim,has_function_privilege('service_role','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as service_can_claim"
+      );
+      assert.equal(workerRpcPrivileges.rows[0].can_grant,true);
+      assert.equal(workerRpcPrivileges.rows[0].can_claim,false);
+      assert.equal(workerRpcPrivileges.rows[0].service_can_claim,true);
+
       const preflightAfterGrant=await orchestrationClient.query(
         "select stage_key,worker_identity_scope_available,company_worker_grant_active,dispatch_permitted,blocker_codes from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
         [companyId,orchestrationRunId]
@@ -569,7 +589,6 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.ok(preflightAfterGrant.rows[1].blocker_codes.includes("no_dispatcher_registered"));
 
       // Create a ready test execution behind the still-false dispatch gate.
-      const e05Step=plannedSteps.rows[1];
       await pool.query(
         "update public.discovery_orchestration_stage_registry set adapter_key='e05-test-adapter',dispatch_ready=true where stage_key='e05_extraction'"
       );
@@ -578,8 +597,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         [actorId]
       );
       await pool.query(
-        "update public.discovery_orchestration_company_stage_controls set enabled=true,changed_by=$3,changed_at=now(),reason='Isolated E20.4 test fixture only; dispatch remains blocked.' where company_id=$1 and stage_key='e05_extraction'",
-        [companyId,orchestrationRunId,actorId]
+        "update public.discovery_orchestration_company_stage_controls set enabled=true,changed_by=$2,changed_at=now(),reason='Isolated E20.4 test fixture only; dispatch remains blocked.' where company_id=$1 and stage_key='e05_extraction'",
+        [companyId,actorId]
       );
       const e05StepId=await pool.query(
         "select id from public.discovery_orchestration_steps where company_id=$1 and run_id=$2 and stage_key='e05_extraction'",
@@ -648,7 +667,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"d".repeat(64)]
         );
-        await workerServiceClient.query(
+        await pool.query(
           "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
           [companyId,executionId]
         );
@@ -674,7 +693,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"e".repeat(64)]
         );
-        await workerServiceClient.query(
+        await pool.query(
           "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
           [companyId,executionId]
         );
