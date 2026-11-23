@@ -46,6 +46,7 @@ on:
       - "supabase/migrations/*axivestra_orchestration_preflight*"
       - "supabase/migrations/*axivestra_orchestration_execution_contracts*"
       - "supabase/migrations/*axivestra_orchestration_context_binding*"
+      - "supabase/migrations/*axivestra_orchestration_worker_identity_leases*"
       - "tests/browser/axivestra-commitment-workspace.spec.ts"
       - "tests/browser/axivestra-verification-workspace.spec.ts"
       - "docs/AXIVESTRA-E18-COMMITMENTS-WORKSPACE.md"
