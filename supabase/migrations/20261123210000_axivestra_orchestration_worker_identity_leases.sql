@@ -308,6 +308,15 @@ begin
   if p_reason is null or p_reason<>trim(p_reason) or length(p_reason)<10 or length(p_reason)>1000 then
     raise exception 'A reason of 10–1000 characters is required.' using errcode='22023';
   end if;
+  -- Use the same company-grant→worker lock order as claims and grant revocation.
+  if p_status='active' then
+    select * into v_control from public.discovery_company_worker_controls c
+      where c.company_id=p_company_id and c.enabled=true and c.expires_at>clock_timestamp()
+      for share;
+    if not found then
+      raise exception 'An active, unexpired company worker grant is required to resume an identity.' using errcode='42501';
+    end if;
+  end if;
   select * into v_worker from public.discovery_orchestration_worker_identities
     where company_id=p_company_id and id=p_worker_identity_id for update;
   if not found then raise exception 'Worker identity not found in this company.' using errcode='P0002'; end if;
@@ -315,12 +324,9 @@ begin
     if v_worker.status='revoked' then
       raise exception 'Revoked identities must be re-granted with a newly issued credential.' using errcode='22023';
     end if;
-    select * into v_control from public.discovery_company_worker_controls c
-      where c.company_id=p_company_id and c.enabled=true and c.expires_at>clock_timestamp()
-      for share;
-    if not found or v_worker.expires_at<=clock_timestamp()
+    if v_worker.expires_at<=clock_timestamp()
       or v_worker.expires_at>v_control.expires_at then
-      raise exception 'An active company grant and an identity expiry no later than that grant are required.' using errcode='42501';
+      raise exception 'An identity expiry no later than the active company grant is required.' using errcode='42501';
     end if;
     v_event:='worker_resumed';
   else
