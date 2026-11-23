@@ -285,6 +285,53 @@ Deno.serve(async request => {
       })) });
     }
 
+
+    if (action === "orchestration.list") {
+      const [workflowResult, stageResult, runResult, stepResult, eventResult] = await Promise.all([
+        admin.from("discovery_orchestration_workflows").select("workflow_key,label,description,stage_keys")
+          .eq("active", true).order("label"),
+        admin.from("discovery_orchestration_stage_registry").select("stage_key,technical_stage,capability_name,description,dependency_stage_keys,permission_class,adapter_key,dispatch_ready,enabled_by_default")
+          .order("sequence_no"),
+        admin.from("discovery_orchestration_run_inbox").select("*")
+          .eq("company_id", companyId).order("created_at", { ascending: false }).limit(40),
+        admin.from("discovery_orchestration_steps").select("id,run_id,stage_key,step_order,depends_on_step_ids,status,dispatch_state,permission_class,stage_snapshot")
+          .eq("company_id", companyId).order("step_order").limit(500),
+        admin.from("discovery_orchestration_events").select("id,run_id,event_type,previous_status,new_status,reason,occurred_at,actor_user_id")
+          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800)
+      ]);
+      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult]) {
+        if (result.error) throw result.error;
+      }
+      return jsonResponse(200, {
+        ok: true,
+        workflows: workflowResult.data || [],
+        stages: stageResult.data || [],
+        runs: runResult.data || [],
+        steps: stepResult.data || [],
+        events: eventResult.data || [],
+        limits: { runs: 40, steps: 500, events: 800 }
+      });
+    }
+
+    if (action === "orchestration.request") {
+      const workflowKey = typeof payload.workflowKey === "string" ? payload.workflowKey.trim() : "";
+      const idempotencyKey = typeof payload.idempotencyKey === "string" ? payload.idempotencyKey.trim() : "";
+      if (!/^[a-z0-9_]{3,80}$/.test(workflowKey)) return jsonResponse(400, { error: "Choose a valid orchestration workflow." });
+      if (idempotencyKey.length < 8 || idempotencyKey.length > 160) return jsonResponse(400, { error: "An idempotency key between 8 and 160 characters is required." });
+      const { data, error } = await userClient.rpc("request_discovery_orchestration_run", {
+        p_company_id: companyId, p_workflow_key: workflowKey, p_idempotency_key: idempotencyKey
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "22023" || error.code === "23505") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(201, {
+        ok: true, runId: data,
+        message: "Orchestration plan created for owner/admin approval. No stage job was dispatched."
+      });
+    }
+
     if (action === "members.list") {
       const { data, error } = await admin.from("company_memberships")
         .select("user_id,role").eq("company_id", companyId).order("role");
@@ -294,6 +341,27 @@ Deno.serve(async request => {
 
     if (!canManage && action !== "jobs.enqueue") return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources, profiles or worker permissions." });
 
+
+
+    if (action === "orchestration.decide") {
+      if (!isUuid(payload.runId)) return jsonResponse(400, { error: "A valid orchestration run ID is required." });
+      const decision = String(payload.decision || "");
+      if (!["approve","reject","pause","resume","cancel"].includes(decision)) {
+        return jsonResponse(400, { error: "Choose approve, reject, pause, resume or cancel." });
+      }
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A decision reason between 10 and 1000 characters is required." });
+      const { data, error } = await userClient.rpc("record_discovery_orchestration_decision", {
+        p_company_id: companyId, p_run_id: payload.runId, p_decision: decision, p_reason: reason
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(200, { ok: true, eventId: data, message: "Orchestration plan state updated. No stage was dispatched." });
+    }
 
     if (action === "matches.review") {
       if (!isUuid(payload.matchResultId)) return jsonResponse(400, { error: "A valid match result ID is required." });
