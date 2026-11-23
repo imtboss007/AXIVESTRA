@@ -9,9 +9,10 @@ type Preflight = { step_id: string; run_id: string; blocker_codes: string[]; uns
 type Profile = { id: string; workspace_key: string; discovery_mode: string; jurisdiction: string; purpose: string; enabled: boolean };
 type Source = { id: string; name: string; status: string; allowed_purposes: string[]; allowed_fields: string[] };
 type ProfileSource = { profile_id: string; source_id: string };
+type ContextEvent = { id: string; run_id: string; event_type: string; profile_id: string; source_id: string; purpose: string; required_fields: string[]; reason: string; occurred_at: string; actor_user_id: string | null };
 type Event = { id: string; run_id: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type Run = { id: string; workflow_key: string; workflow_label: string; status: string; dispatch_state: string; requested_by: string; approved_by: string | null; approved_at: string | null; decision_reason: string | null; stage_count: number; unavailable_adapter_count: number; disabled_stage_count: number; all_stage_gates_ready: boolean; created_at: string };
-type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; runId?: string };
+type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; runId?: string };
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "The orchestration request failed.";
@@ -42,6 +43,7 @@ export default function DiscoveryOrchestrationWorkspace({
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [profileSources, setProfileSources] = useState<ProfileSource[]>([]);
+  const [contextEvents, setContextEvents] = useState<ContextEvent[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [requiredFieldNames, setRequiredFieldNames] = useState("");
@@ -78,6 +80,7 @@ export default function DiscoveryOrchestrationWorkspace({
       setProfiles(result.profiles || []);
       setSources(result.sources || []);
       setProfileSources(result.profileSources || []);
+      setContextEvents(result.contextEvents || []);
       const enabledProfiles = (result.profiles || []).filter(profile => profile.enabled);
       const chosenProfile = enabledProfiles.find(profile => profile.id === selectedProfileId) || enabledProfiles[0];
       if (chosenProfile && chosenProfile.id !== selectedProfileId) setSelectedProfileId(chosenProfile.id);
@@ -179,6 +182,7 @@ export default function DiscoveryOrchestrationWorkspace({
 
   const stepsFor = (runId: string) => steps.filter(step => step.run_id === runId).sort((a, b) => a.step_order - b.step_order);
   const eventsFor = (runId: string) => events.filter(event => event.run_id === runId).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+  const contextEventsFor = (runId: string) => contextEvents.filter(event => event.run_id === runId).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
   const preflightFor = (stepId: string) => preflight.find(item => item.step_id === stepId);
   const stagesByKey = new Map(stages.map(stage => [stage.stage_key, stage]));
 
@@ -238,6 +242,8 @@ export default function DiscoveryOrchestrationWorkspace({
       {!runs.length && !loading ? <p className="discovery-empty-inline">No orchestration plans have been requested for this company.</p> : runs.map(run => {
         const runSteps = stepsFor(run.id);
         const runEvents = eventsFor(run.id);
+        const runContextEvents = contextEventsFor(run.id);
+        const runContext = preflight.find(item => item.run_id === run.id);
         return <article className="discovery-orchestration-run" id={"ax-e20-run-" + run.id} key={run.id}>
           <div className="discovery-orchestration-run-head">
             <div><strong>{run.workflow_label}</strong><small>{run.id} · requested {formatDate(run.created_at)}</small></div>
@@ -271,6 +277,12 @@ export default function DiscoveryOrchestrationWorkspace({
               {busy === run.id + ":context" ? <LoaderCircle size={14} className="spin"/> : <ShieldCheck size={14}/>}Bind & validate context
             </button>
           </div>}
+          <div className="discovery-orchestration-context-state">
+            <ShieldCheck size={14}/>
+            {runContext?.execution_context_bound
+              ? <span>Context bound · {profiles.find(profile => profile.id === runContext.profile_id)?.workspace_key || "profile"} · {sources.find(source => source.id === runContext.source_id)?.name || "source"} · {runContext.context_snapshot_current ? "snapshot current" : "snapshot stale"}</span>
+              : <span>Execution context not yet bound to an approved profile/source/purpose/field scope</span>}
+          </div>
           <div className="discovery-orchestration-run-metrics">
             <span><GitBranch size={13}/>{run.stage_count} dependent stages</span>
             <span><CircleAlert size={13}/>{run.unavailable_adapter_count} adapters unavailable</span>
@@ -307,6 +319,10 @@ export default function DiscoveryOrchestrationWorkspace({
             {run.status === "awaiting_approval" && <button type="button" className="secondary-button" onClick={() => void decide(run,"cancel")} disabled={Boolean(busy)}>Cancel request</button>}
           </div>}
           {run.decision_reason && <p className="discovery-orchestration-decision"><b>Latest reason:</b> {run.decision_reason} {run.approved_at && <span>· approved by {run.approved_by} at {formatDate(run.approved_at)}</span>}</p>}
+          <details className="discovery-orchestration-history">
+            <summary><Clock3 size={13}/>Context history ({runContextEvents.length})</summary>
+            {runContextEvents.map(event => <div key={event.id}><b>{statusLabel(event.event_type)}</b><small>{formatDate(event.occurred_at)} · {event.actor_user_id || "system"} · {event.profile_id} / {event.source_id}</small><p>{event.purpose} · fields: {event.required_fields.join(", ")}</p><p>{event.reason}</p></div>)}
+          </details>
           <details className="discovery-orchestration-history">
             <summary><Clock3 size={13}/>Decision history ({runEvents.length})</summary>
             {runEvents.map(event => <div key={event.id}><b>{statusLabel(event.event_type)}</b><small>{formatDate(event.occurred_at)} · {event.actor_user_id || "system"}</small><p>{event.reason}</p></div>)}
