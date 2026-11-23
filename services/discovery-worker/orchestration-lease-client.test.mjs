@@ -56,9 +56,14 @@ test("E20.4 returns no work when the server-side dispatch gate returns an empty 
 test("E20.4 fails closed on RPC errors and rejects missing credentials",async()=>{
   assert.throws(()=>hashWorkerCredential("short"),/missing or invalid/);
   assert.throws(()=>createOrchestrationLeaseClient({
+    admin:null,
+    companyId:"company-001",workerIdentityId:"worker-id-001",workerToken
+  }),/server-side Supabase service client is required/);
+  const deniedClient=createOrchestrationLeaseClient({
     admin:{rpc:async()=>({data:null,error:{message:"permission denied"}})},
     companyId:"company-001",workerIdentityId:"worker-id-001",workerToken
-  }));
+  });
+  await assert.rejects(deniedClient.claim(),/failed closed: permission denied/);
   const client=createOrchestrationLeaseClient({
     admin:{rpc:async()=>({data:null,error:{message:"worker grant expired"}})},
     companyId:"company-001",workerIdentityId:"worker-id-001",workerToken
