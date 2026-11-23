@@ -680,6 +680,29 @@ comment on function public.heartbeat_discovery_orchestration_lease(uuid,uuid,uui
 comment on function public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text) is
   'Service-role-only explicit lease release. It returns execution to ready without deciding retry policy.';
 
+-- Safe invoker-visible worker gate projections. The original company worker-control table
+-- remains service-role-only; company members see only the active/expiry decision and whether
+-- any active scoped identity covers a given stage. No worker names, credentials or control
+-- change reasons are exposed by these views.
+create or replace view public.discovery_orchestration_company_worker_gate
+with (security_barrier=true) as
+select company_id,
+       (enabled is true and expires_at>clock_timestamp()) as active,
+       expires_at
+from public.discovery_company_worker_controls
+where public.is_company_member(company_id);
+grant select on public.discovery_orchestration_company_worker_gate to authenticated,service_role;
+
+create or replace view public.discovery_orchestration_active_worker_stage_scopes
+with (security_barrier=true) as
+select wi.company_id,requested.stage_key,
+       bool_or(wi.status='active' and wi.expires_at>clock_timestamp()) as active
+from public.discovery_orchestration_worker_identities wi
+cross join lateral unnest(wi.stage_keys) as requested(stage_key)
+where public.is_company_member(wi.company_id)
+group by wi.company_id,requested.stage_key;
+grant select on public.discovery_orchestration_active_worker_stage_scopes to authenticated,service_role;
+
 -- Preflight now checks the existing one-hour company worker grant and scoped worker coverage.
 -- Preserve every E20.3 column in-place; new inspector fields are appended.
 create or replace view public.discovery_orchestration_step_preflight
@@ -706,12 +729,8 @@ select
     case when ctx.run_id is not null and not coalesce(ctx.purpose_still_allowed,false) then 'purpose_not_allowlisted' end,
     case when ctx.run_id is not null and not coalesce(ctx.fields_still_allowed,false) then 'fields_not_allowlisted' end,
     case when ctx.run_id is not null and not coalesce(ctx.context_snapshot_current,false) then 'run_context_stale' end,
-    case when not coalesce(wg.enabled and wg.expires_at>clock_timestamp(),false) then 'company_worker_grant_inactive' end,
-    case when not exists(
-      select 1 from public.discovery_orchestration_worker_identities wi
-      where wi.company_id=s.company_id and wi.status='active' and wi.expires_at>clock_timestamp()
-        and s.stage_key=any(wi.stage_keys)
-    ) then 'worker_identity_scope_missing' end,
+    case when not coalesce(wg.active,false) then 'company_worker_grant_inactive' end,
+    case when not coalesce(ws.active,false) then 'worker_identity_scope_missing' end,
     'personal_data_policy_not_checked',
     'no_dispatcher_registered'
   ],null) as blocker_codes,
@@ -723,13 +742,9 @@ select
   coalesce(ctx.context_snapshot_current,false) as context_snapshot_current,
   coalesce(ctx.purpose_still_allowed,false) as purpose_still_allowed,
   coalesce(ctx.fields_still_allowed,false) as fields_still_allowed,
-  coalesce(wg.enabled and wg.expires_at>clock_timestamp(),false) as company_worker_grant_active,
+  coalesce(wg.active,false) as company_worker_grant_active,
   wg.expires_at as company_worker_grant_expires_at,
-  exists(
-    select 1 from public.discovery_orchestration_worker_identities wi
-    where wi.company_id=s.company_id and wi.status='active' and wi.expires_at>clock_timestamp()
-      and s.stage_key=any(wi.stage_keys)
-  ) as worker_identity_scope_available
+  coalesce(ws.active,false) as worker_identity_scope_available
 from public.discovery_orchestration_steps s
 join public.discovery_orchestration_runs r
   on r.company_id=s.company_id and r.id=s.run_id
@@ -738,8 +753,10 @@ left join public.discovery_orchestration_company_stage_controls c
   on c.company_id=s.company_id and c.stage_key=s.stage_key
 left join public.discovery_orchestration_run_context_status ctx
   on ctx.company_id=s.company_id and ctx.run_id=s.run_id
-left join public.discovery_company_worker_controls wg
+left join public.discovery_orchestration_company_worker_gate wg
   on wg.company_id=s.company_id
+left join public.discovery_orchestration_active_worker_stage_scopes ws
+  on ws.company_id=s.company_id and ws.stage_key=s.stage_key
 left join lateral (
   select
     count(*)::integer as dependency_count,
