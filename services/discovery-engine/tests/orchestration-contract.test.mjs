@@ -102,7 +102,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(workspace, /approved_not_dispatched/);
   assert.match(workspace, /Preflight blocked/);
   assert.match(workspace, /No stage was dispatched/);
-  assert.match(workspace, /Only owners\/admins can approve or reject it/);
+  assert.ok(workspace.includes("only owners/admins can approve or reject it."));
   assert.match(manager, /DiscoveryOrchestrationWorkspace/);
   assert.match(integration, /20261123130000_axivestra_agent_orchestration\.sql/);
   assert.match(integration, /E20: plan-only orchestration/);
