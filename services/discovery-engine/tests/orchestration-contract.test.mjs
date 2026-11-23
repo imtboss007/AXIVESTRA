@@ -115,6 +115,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_execution_lease_inbox"));
   assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_company_worker_gate"));
   assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_active_worker_stage_scopes"));
+  assert.ok(workerMigration.includes("current_setting('request.jwt.claim.role',true)='service_role'"),"trusted worker broker must evaluate membership-filtered preflight views without a human user JWT");
   assert.ok(workerMigration.includes("where public.is_company_member(company_id)"));
   assert.ok(workerMigration.includes("left join public.discovery_orchestration_company_worker_gate wg"));
   assert.ok(workerMigration.includes("left join public.discovery_orchestration_active_worker_stage_scopes ws"));
@@ -130,6 +131,8 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(integration.includes("E20.4 integration test for global company grant revocation."));
   assert.match(edge, /action === "orchestration\.workerGrant"/);
   assert.match(edge, /action === "orchestration\.workerControl"/);
+  assert.match(edge, /userClient\.from\("discovery_orchestration_step_preflight"\)/);
+  assert.match(edge, /company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available/);
   assert.match(edge, /userClient\.from\("discovery_orchestration_step_preflight"\)/);
   assert.match(edge, /company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available/);
   assert.match(edge, /crypto\.getRandomValues/);
