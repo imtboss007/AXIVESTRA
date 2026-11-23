@@ -88,6 +88,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(verificationConfidenceMigration);
     const orchestrationMigration = await readFile(new URL("../../supabase/migrations/20261123130000_axivestra_agent_orchestration.sql", import.meta.url), "utf8");
     await pool.query(orchestrationMigration);
+    const orchestrationPreflightMigration = await readFile(new URL("../../supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationPreflightMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -429,6 +431,19 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
       assert.equal(stageControls.rows[0].count,3);
       assert.equal(stageControls.rows[0].any_enabled,false,"E20 per-stage kill switches must start disabled");
+      const initialPreflight=await orchestrationClient.query(
+        "select stage_key,blocker_codes,unsatisfied_dependency_count,dispatch_permitted from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(initialPreflight.rows.length,3);
+      assert.ok(initialPreflight.rows.every(row=>row.dispatch_permitted===false),"E20.1 preflight must never dispatch");
+      assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("run_not_approved")));
+      assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("stage_kill_switch_off")));
+      assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("adapter_not_registered")));
+      assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("company_worker_grant_not_checked")));
+      assert.equal(initialPreflight.rows[0].unsatisfied_dependency_count,0);
+      assert.equal(initialPreflight.rows[1].unsatisfied_dependency_count,1);
+      assert.equal(initialPreflight.rows[2].unsatisfied_dependency_count,1);
 
       await assert.rejects(
         orchestrationClient.query(
