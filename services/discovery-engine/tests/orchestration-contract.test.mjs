@@ -63,7 +63,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(contextMigration.includes("create table if not exists public.discovery_orchestration_run_contexts"));
   assert.ok(contextMigration.includes("create table if not exists public.discovery_orchestration_context_events"));
   assert.ok(contextMigration.includes("bind_discovery_orchestration_run_context"));
-  assert.match(contextMigration, /Only company owners\/admin can bind orchestration execution context/);
+  assert.match(contextMigration, /Only company owners\\/admins can bind orchestration execution context/);
   assert.match(contextMigration, /The exact profile purpose is not approved for this source/);
   assert.match(contextMigration, /One or more required fields are outside the source field allow-list/);
   assert.match(contextMigration, /The approved source must be attached to the selected profile/);
