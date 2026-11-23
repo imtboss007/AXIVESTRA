@@ -438,7 +438,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.equal(stageControls.rows[0].count,3);
       assert.equal(stageControls.rows[0].any_enabled,false,"E20 per-stage kill switches must start disabled");
       const initialPreflight=await orchestrationClient.query(
-        "select stage_key,blocker_codes,unsatisfied_dependency_count,dispatch_permitted from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
+        "select stage_key,blocker_codes,unsatisfied_dependency_count,dispatch_permitted,company_worker_grant_active from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
         [companyId,orchestrationRunId]
       );
       assert.equal(initialPreflight.rows.length,3);
@@ -532,6 +532,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
 
       // E20.4: scoped worker identity, service-role lease API, global-grant revocation.
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
       await assert.rejects(
         orchestrationClient.query(
           "select * from public.grant_discovery_orchestration_worker_identity($1,'e20-test-worker','E20 test worker',$2,array['e05_extraction'],1,60,clock_timestamp()+interval '20 minutes','Viewer is not allowed to grant a worker identity.')",
