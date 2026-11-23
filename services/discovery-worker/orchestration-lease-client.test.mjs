@@ -46,7 +46,7 @@ test("E20.4 worker client calls the narrow broker and never calls the service ro
   const lease = await client.claim({ leaseSeconds: 90 });
 
   assert.equal(lease.leaseId, "33333333-3333-4333-8333-333333333333");
-  assert.equal(lease.leaseToken, leaseToken);
+  assert.equal(Object.hasOwn(lease, "leaseToken"), false, "raw lease token stays inside the client memory map");
   assert.equal(client.activeLeaseCount(), 1);
   assert.equal(calls[0].url, "https://axivestra-test.supabase.co/functions/v1/discovery-orchestration-worker");
   assert.equal(calls[0].init.method, "POST");
