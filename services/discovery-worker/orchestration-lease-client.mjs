@@ -58,7 +58,7 @@ export function createOrchestrationLeaseClient({
           "content-type": "application/json",
           "cache-control": "no-store"
         },
-        body: JSON.stringify({ action, companyId, workerIdentityId, ...payload }),
+        body: JSON.stringify({ ...payload, action, companyId, workerIdentityId }),
         redirect: "error",
         cache: "no-store"
       });
