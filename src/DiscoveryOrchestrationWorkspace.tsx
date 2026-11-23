@@ -5,7 +5,11 @@ import { supabase } from "./lib/supabase";
 type Workflow = { workflow_key: string; label: string; description: string; stage_keys: string[] };
 type Stage = { stage_key: string; technical_stage: string; capability_name: string; description: string; dependency_stage_keys: string[]; permission_class: string; adapter_key: string | null; dispatch_ready: boolean; enabled_by_default: boolean };
 type Step = { id: string; run_id: string; stage_key: string; step_order: number; depends_on_step_ids: string[]; status: string; dispatch_state: string; permission_class: string; stage_snapshot: Record<string, unknown> };
-type Preflight = { step_id: string; run_id: string; blocker_codes: string[]; unsatisfied_dependency_count: number; unsatisfied_dependency_ids: string[]; dispatch_permitted: boolean; execution_context_bound?: boolean; profile_id?: string | null; source_id?: string | null; purpose?: string | null; required_fields?: string[] | null; profile_enabled?: boolean; source_status?: string | null; context_snapshot_current?: boolean; purpose_still_allowed?: boolean; fields_still_allowed?: boolean };
+type Preflight = { step_id: string; run_id: string; blocker_codes: string[]; unsatisfied_dependency_count: number; unsatisfied_dependency_ids: string[]; dispatch_permitted: boolean; adapter_contract_platform_approved?: boolean; company_adapter_approved?: boolean; execution_context_bound?: boolean; profile_id?: string | null; source_id?: string | null; purpose?: string | null; required_fields?: string[] | null; profile_enabled?: boolean; source_status?: string | null; context_snapshot_current?: boolean; purpose_still_allowed?: boolean; fields_still_allowed?: boolean };
+type AdapterContract = { adapter_key: string; stage_key: string; contract_version: string; required_permission_class: string; required_policy_checks: string[]; max_attempts: number; lease_seconds: number; max_parallel_per_company: number; enabled: boolean; reviewed_at: string | null; review_reason: string | null };
+type AdapterApproval = { adapter_key: string; contract_version: string; status: "approved" | "rejected" | "suspended"; reviewed_at: string; review_reason: string; updated_at: string };
+type AdapterEvent = { id: string; adapter_key: string; contract_version: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
+type SchedulePreview = { run_id: string; step_id: string; stage_key: string; step_order: number; dependency_count: number; unsatisfied_dependency_count: number; failed_dependency_count: number; dependency_state: string; schedule_preview_state: string; dispatch_permitted: false };
 type Profile = { id: string; workspace_key: string; discovery_mode: string; jurisdiction: string; purpose: string; enabled: boolean };
 type Source = { id: string; name: string; status: string; allowed_purposes: string[]; allowed_fields: string[] };
 type ProfileSource = { profile_id: string; source_id: string };
@@ -15,7 +19,7 @@ type WorkerEvent = { id: string; worker_identity_id: string; event_type: string;
 type CompanyWorkerGrant = { enabled: boolean; expires_at: string; updated_at: string; reason: string };
 type Event = { id: string; run_id: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type Run = { id: string; workflow_key: string; workflow_label: string; status: string; dispatch_state: string; requested_by: string; approved_by: string | null; approved_at: string | null; decision_reason: string | null; stage_count: number; unavailable_adapter_count: number; disabled_stage_count: number; all_stage_gates_ready: boolean; created_at: string };
-type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
+type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; adapterContracts?: AdapterContract[]; adapterApprovals?: AdapterApproval[]; adapterEvents?: AdapterEvent[]; schedulePreview?: SchedulePreview[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "The orchestration request failed.";
@@ -47,6 +51,11 @@ export default function DiscoveryOrchestrationWorkspace({
   const [sources, setSources] = useState<Source[]>([]);
   const [profileSources, setProfileSources] = useState<ProfileSource[]>([]);
   const [contextEvents, setContextEvents] = useState<ContextEvent[]>([]);
+  const [adapterContracts, setAdapterContracts] = useState<AdapterContract[]>([]);
+  const [adapterApprovals, setAdapterApprovals] = useState<AdapterApproval[]>([]);
+  const [adapterEvents, setAdapterEvents] = useState<AdapterEvent[]>([]);
+  const [schedulePreview, setSchedulePreview] = useState<SchedulePreview[]>([]);
+  const [adapterReviewReason, setAdapterReviewReason] = useState("Reviewed exact adapter version, permission class and source/purpose/personal-data checks for this company.");
   const [workerIdentities, setWorkerIdentities] = useState<WorkerIdentity[]>([]);
   const [workerEvents, setWorkerEvents] = useState<WorkerEvent[]>([]);
   const [companyWorkerGrant, setCompanyWorkerGrant] = useState<CompanyWorkerGrant | null>(null);
@@ -98,6 +107,10 @@ export default function DiscoveryOrchestrationWorkspace({
       setSources(result.sources || []);
       setProfileSources(result.profileSources || []);
       setContextEvents(result.contextEvents || []);
+      setAdapterContracts(result.adapterContracts || []);
+      setAdapterApprovals(result.adapterApprovals || []);
+      setAdapterEvents(result.adapterEvents || []);
+      setSchedulePreview(result.schedulePreview || []);
       setWorkerIdentities(result.workerIdentities || []);
       setWorkerEvents(result.workerEvents || []);
       setCompanyWorkerGrant(result.companyWorkerGrant || null);
@@ -213,6 +226,35 @@ export default function DiscoveryOrchestrationWorkspace({
       await refresh();
     } catch (reason) {
       setError(readableError(reason));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const reviewAdapter = async (adapter: AdapterContract, decision: "approved" | "rejected" | "suspended") => {
+    const reason = adapterReviewReason.trim();
+    if (reason.length < 10 || reason.length > 1000) {
+      setError("Enter a company-specific adapter review reason of 10–1000 characters.");
+      return;
+    }
+    if (!adapter.enabled || !adapter.reviewed_at || !adapter.review_reason || adapter.review_reason.trim().length < 10) {
+      setError("Only a platform-reviewed, enabled adapter contract version can be reviewed for company approval.");
+      return;
+    }
+    setBusy("adapter:" + adapter.adapter_key);
+    setError("");
+    setNotice("");
+    try {
+      await invoke("orchestration.adapterReview", {
+        adapterKey: adapter.adapter_key,
+        contractVersion: adapter.contract_version,
+        decision,
+        reason
+      });
+      setNotice("Company adapter review recorded. This does not enable a stage kill switch or dispatch work.");
+      await refresh();
+    } catch (reasonValue) {
+      setError(readableError(reasonValue));
     } finally {
       setBusy("");
     }
@@ -451,6 +493,63 @@ export default function DiscoveryOrchestrationWorkspace({
         </article>)}
       </div>
     </div>
+
+    <section className="discovery-orchestration-worker-panel" aria-label="Versioned adapter contract approvals">
+      <div className="discovery-orchestration-section-head">
+        <div><span className="section-kicker">E20.5 · ADAPTER GOVERNANCE</span><h3>Versioned adapter contracts</h3></div>
+        <small>{adapterContracts.length} platform catalogue entries</small>
+      </div>
+      <p>Adapter definitions are registered and platform-reviewed through controlled repository changes. A company owner/admin may approve, reject or suspend an exact enabled version. Company approval does not register executable code, enable a stage kill switch or activate dispatch.</p>
+      {canManage && adapterContracts.some(item => item.enabled && item.reviewed_at) && <label>Company adapter review reason
+        <input value={adapterReviewReason} onChange={event => setAdapterReviewReason(event.target.value)} minLength={10} maxLength={1000} disabled={Boolean(busy)}/>
+      </label>}
+      <div className="discovery-orchestration-stage-grid">
+        {adapterContracts.map(adapter => {
+          const approval = adapterApprovals.find(item => item.adapter_key === adapter.adapter_key);
+          const platformApproved = adapter.enabled && Boolean(adapter.reviewed_at) && (adapter.review_reason || "").trim().length >= 10;
+          const canReview = canManage && platformApproved && !busy;
+          return <article key={adapter.adapter_key}>
+            <div><b>{adapter.adapter_key}</b><span>{adapter.stage_key} · {adapter.contract_version}</span></div>
+            <small>Permission: {adapter.required_permission_class.replaceAll("_", " ")} · required checks: {adapter.required_policy_checks.join(", ") || "None declared"}</small>
+            <small>Attempts: {adapter.max_attempts} · lease: {adapter.lease_seconds}s · per-company adapter concurrency: {adapter.max_parallel_per_company}</small>
+            <span className="discovery-orchestration-off">{platformApproved ? "Platform contract approved" : "Platform review required · not eligible for company approval"}</span>
+            <span className="discovery-orchestration-off">Company status: {approval ? statusLabel(approval.status) + " · " + approval.contract_version : "Not reviewed"}</span>
+            {approval?.review_reason && <small>Latest company reason: {approval.review_reason}</small>}
+            {canManage && <div className="discovery-orchestration-worker-actions">
+              {canReview && approval?.status !== "approved" && <button type="button" className="primary-button" onClick={() => void reviewAdapter(adapter,"approved")} disabled={Boolean(busy) || adapterReviewReason.trim().length < 10}>Approve exact version for company</button>}
+              {canReview && approval?.status !== "rejected" && <button type="button" className="secondary-button" onClick={() => void reviewAdapter(adapter,"rejected")} disabled={Boolean(busy) || adapterReviewReason.trim().length < 10}>Reject version</button>}
+              {canReview && approval?.status === "approved" && <button type="button" className="danger-button" onClick={() => void reviewAdapter(adapter,"suspended")} disabled={Boolean(busy) || adapterReviewReason.trim().length < 10}>Suspend company approval</button>}
+            </div>}
+          </article>;
+        })}
+        {!adapterContracts.length && <p className="discovery-empty-inline">No versioned adapter contracts are registered in the platform catalogue. No production adapter is added or enabled by E20.5.</p>}
+      </div>
+      <details className="discovery-orchestration-history">
+        <summary><Clock3 size={13}/>Company adapter review history ({adapterEvents.length})</summary>
+        {adapterEvents.map(event => <div key={event.id}><b>{event.adapter_key} · {event.contract_version} · {statusLabel(event.event_type)}</b><small>{formatDate(event.occurred_at)} · {event.actor_user_id || "system"}</small><p>{event.reason}</p></div>)}
+        {!adapterEvents.length && <p>No company adapter review events have been recorded.</p>}
+      </details>
+    </section>
+
+    <section className="discovery-orchestration-worker-panel" aria-label="Dependency schedule preview">
+      <div className="discovery-orchestration-section-head">
+        <div><span className="section-kicker">DEPENDENCY SCHEDULER · DRY RUN</span><h3>Dependency schedule preview</h3></div>
+        <small>{schedulePreview.length} planned steps</small>
+      </div>
+      <p>Shows which prerequisite steps are satisfied, waiting or blocked. This is a read-only projection; it never changes step state or enqueues the existing E04–E12 queues.</p>
+      <div className="discovery-orchestration-step-list">
+        {schedulePreview.map(item => {
+          const stage = stages.find(value => value.stage_key === item.stage_key);
+          return <div className="discovery-orchestration-step" key={item.step_id}>
+            <span className="discovery-orchestration-step-no">{item.step_order}</span>
+            <div><b>{stage?.technical_stage || item.stage_key} · {stage?.capability_name || item.stage_key}</b><small>{item.dependency_count} prerequisite(s) · {item.unsatisfied_dependency_count} outstanding · {item.failed_dependency_count} failed</small></div>
+            <em>{statusLabel(item.dependency_state)}</em>
+            <div className="discovery-orchestration-preflight"><strong>{statusLabel(item.schedule_preview_state)}</strong><span>Dispatch: permanently OFF</span></div>
+          </div>;
+        })}
+        {!schedulePreview.length && <p className="discovery-empty-inline">No dependency schedule rows are available until a company plan is requested.</p>}
+      </div>
+    </section>
 
     <div className="discovery-orchestration-runs">
       <div className="discovery-orchestration-section-head"><div><span className="section-kicker">RUN GOVERNANCE</span><h3>Orchestration plans</h3></div><small>{loading ? "Refreshing…" : "Latest 40 plans"}</small></div>
