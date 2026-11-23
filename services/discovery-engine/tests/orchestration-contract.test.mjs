@@ -6,13 +6,14 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, adapterMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
+  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, adapterMigration, retryMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
     read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
     read("supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql"),
     read("supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql"),
     read("supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql"),
     read("supabase/migrations/20261123230000_axivestra_orchestration_adapter_approvals.sql"),
+    read("supabase/migrations/20261123240000_axivestra_orchestration_retry_recovery.sql"),
     read("supabase/functions/discovery-control/index.ts"),
     read("supabase/functions/discovery-orchestration-worker/index.ts"),
     read("supabase/config.toml"),
@@ -150,6 +151,39 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(adapterMigration, /coalesce\(aa.status='approved' and aa.contract_version=ac.contract_version,false\) as company_adapter_approved/);
   assert.doesNotMatch(adapterMigration, /insert into public\.discovery_jobs/i);
   assert.doesNotMatch(adapterMigration, /update public\.discovery_orchestration_company_stage_controls/i);
+  assert.match(retryMigration, /create table if not exists public\.discovery_orchestration_failure_policies/);
+  assert.match(retryMigration, /create table if not exists public\.discovery_orchestration_execution_attempts/);
+  assert.match(retryMigration, /WORKER_RELEASED/);
+  assert.match(retryMigration, /LEASE_EXPIRED/);
+  assert.match(retryMigration, /UNKNOWN_FAILURE/);
+  assert.match(retryMigration, /The failure code is not in the approved retry classification catalogue/);
+  assert.match(retryMigration, /power\(2::numeric,greatest\(0,v_attempt\.attempt_number-1\)\)/);
+  assert.match(retryMigration, /e\.state in \('ready','retry_wait'\)/);
+  assert.match(retryMigration, /new\.attempt_number:=v_execution\.attempt_count\+1/);
+  assert.match(retryMigration, /'lease:'\|\|new\.id::text/);
+  assert.match(retryMigration, /record_discovery_orchestration_attempt_outcome/);
+  assert.match(retryMigration, /idempotent',true/);
+  assert.match(retryMigration, /create or replace view public\.discovery_orchestration_attempt_inbox/);
+  assert.match(retryMigration, /create or replace view public\.discovery_orchestration_execution_inbox/);
+  assert.match(retryMigration, /pf\.dispatch_permitted=true and cardinality\(pf\.blocker_codes\)=0/);
+  assert.doesNotMatch(retryMigration, /retry after .*error message/i);
+  assert.match(integration, /20261123240000_axivestra_orchestration_retry_recovery\.sql/);
+  assert.match(integration, /REMOTE_5XX/);
+  assert.match(integration, /duplicateFailureOutcome/);
+  assert.match(integration, /LEASE_EXPIRED/);
+  assert.match(integration, /attempt_count,2/);
+  assert.match(workerEdge, /action !== "finish"/);
+  assert.match(workerEdge, /action === "finish"/);
+  assert.match(workerEdge, /record_discovery_orchestration_attempt_outcome/);
+  assert.match(leaseClient, /async finish\(leaseId/);
+  assert.match(leaseClientTest, /E20\.6 worker client records a successful attempt/);
+  assert.match(leaseClientTest, /E20\.6 worker client submits only registered error-code shaped failures/);
+  assert.match(edge, /executionResult/);
+  assert.match(edge, /attemptResult/);
+  assert.match(edge, /failurePolicyResult/);
+  assert.match(workspace, /Execution attempts and retry status/);
+  assert.match(workspace, /Attempt receipt history/);
+  assert.match(workspace, /Approved failure classification catalogue/);
   assert.match(adapterMigration, /create table if not exists public\.discovery_orchestration_stage_queue_contracts/);
   assert.match(adapterMigration, /bridge_enabled boolean not null default false check\(bridge_enabled=false\)/);
   for (const stageKey of [
