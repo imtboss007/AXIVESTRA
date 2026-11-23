@@ -2570,6 +2570,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
               companyRole={company?.role}
               contacts={contacts}
               properties={properties}
+              tasks={tasks}
             />
             <div className="ax-intelligence-kpis">
               <article><span>RECORDED VALUE / EXPOSURE</span><strong>{formatIndianCompactAmount(portfolioValue)}</strong><small>Sum of entered record values across all workspaces; not a net asset valuation</small></article>
