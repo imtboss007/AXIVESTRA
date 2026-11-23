@@ -223,13 +223,6 @@ select
   coalesce(dep.dependency_count,0)::integer as dependency_count,
   coalesce(dep.unsatisfied_dependency_count,0)::integer as unsatisfied_dependency_count,
   coalesce(dep.unsatisfied_dependency_ids,'{}'::uuid[]) as unsatisfied_dependency_ids,
-  (ctx.run_id is not null) as execution_context_bound,
-  ctx.profile_id,ctx.source_id,ctx.purpose,ctx.required_fields,
-  coalesce(ctx.profile_enabled,false) as profile_enabled,
-  ctx.source_status,
-  coalesce(ctx.context_snapshot_current,false) as context_snapshot_current,
-  coalesce(ctx.purpose_still_allowed,false) as purpose_still_allowed,
-  coalesce(ctx.fields_still_allowed,false) as fields_still_allowed,
   array_remove(array[
     case when r.status<>'approved_not_dispatched' then 'run_not_approved' end,
     case when r.dispatch_state<>'ready_for_adapter_review' then 'run_dispatch_not_configured' end,
@@ -246,7 +239,14 @@ select
     'personal_data_policy_not_checked',
     'no_dispatcher_registered'
   ],null) as blocker_codes,
-  false as dispatch_permitted
+  false as dispatch_permitted,
+  (ctx.run_id is not null) as execution_context_bound,
+  ctx.profile_id,ctx.source_id,ctx.purpose,ctx.required_fields,
+  coalesce(ctx.profile_enabled,false) as profile_enabled,
+  ctx.source_status,
+  coalesce(ctx.context_snapshot_current,false) as context_snapshot_current,
+  coalesce(ctx.purpose_still_allowed,false) as purpose_still_allowed,
+  coalesce(ctx.fields_still_allowed,false) as fields_still_allowed
 from public.discovery_orchestration_steps s
 join public.discovery_orchestration_runs r
   on r.company_id=s.company_id and r.id=s.run_id
