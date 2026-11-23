@@ -150,7 +150,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.doesNotMatch(workerEdge, /console\\.(?:log|error)\\([^)]*(?:rawWorkerToken|leaseToken|leaseTokenHash|workerCredentialHash)/i);
   assert.match(workerEdge, /subtle\.digest\("SHA-256"/);
   assert.match(workerEdge, /crypto\.getRandomValues/);
-  assert.match(workerEdge, /never include input, authorization headers, hashes or tokens in error logs/i);
+  assert.match(workerEdge, /Never include database details, input, authorization headers, hashes or tokens in logs\/responses/i);
   assert.match(config, /\[functions\.discovery-orchestration-worker\]\nverify_jwt = false/);
   assert.match(leaseClient, /createOrchestrationLeaseClient/);
   assert.match(leaseClient, /fetchImpl/);
