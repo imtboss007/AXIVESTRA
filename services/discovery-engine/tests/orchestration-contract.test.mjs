@@ -72,11 +72,16 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(contextMigration, /fields_not_allowlisted/);
   assert.match(contextMigration, /run_context_stale/);
   assert.match(contextMigration, /false as dispatch_permitted/);
+  assert.ok(
+    contextMigration.indexOf("],null) as blocker_codes") < contextMigration.indexOf("false as dispatch_permitted")
+      && contextMigration.indexOf("false as dispatch_permitted") < contextMigration.indexOf("(ctx.run_id is not null) as execution_context_bound"),
+    "E20.3 must append new preflight columns without breaking the E20.1 view's existing column order"
+  );
   assert.match(integration, /20261123190000_axivestra_orchestration_context_binding\.sql/);
   assert.match(integration, /bind_discovery_orchestration_run_context/);
   assert.match(integration, /run_context_missing/);
 
-  assert.doesNotMatch(executionMigration, /create or replace function public\\.(claim|heartbeat|complete|retry)_discovery_orchestration/i);
+  assert.doesNotMatch(executionMigration, /create or replace function public[.](claim|heartbeat|complete|retry)_discovery_orchestration/i);
   assert.match(edge, /discovery_orchestration_step_preflight/);
   assert.match(edge, /action === "orchestration\.list"/);
   assert.match(edge, /action === "orchestration\.request"/);
