@@ -6,15 +6,18 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, preflightMigration, executionMigration, contextMigration, edge, workspace, manager, integration] = await Promise.all([
+  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, edge, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
     read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
     read("supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql"),
     read("supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql"),
+    read("supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql"),
     read("supabase/functions/discovery-control/index.ts"),
     read("src/DiscoveryOrchestrationWorkspace.tsx"),
     read("src/DiscoverySourceManager.tsx"),
-    read("services/discovery-worker/postgres-integration.test.mjs")
+    read("services/discovery-worker/postgres-integration.test.mjs"),
+    read("services/discovery-worker/orchestration-lease-client.mjs"),
+    read("services/discovery-worker/orchestration-lease-client.test.mjs")
   ]);
 
   for (const table of [
@@ -80,6 +83,52 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(integration, /20261123190000_axivestra_orchestration_context_binding\.sql/);
   assert.match(integration, /bind_discovery_orchestration_run_context/);
   assert.match(integration, /run_context_missing/);
+
+  assert.ok(workerMigration.includes("create table if not exists public.discovery_orchestration_worker_identities"));
+  assert.ok(workerMigration.includes("create table if not exists public.discovery_orchestration_worker_events"));
+  assert.ok(workerMigration.includes("grant_discovery_orchestration_worker_identity"));
+  assert.ok(workerMigration.includes("set_discovery_orchestration_worker_identity_status"));
+  assert.ok(workerMigration.includes("claim_discovery_orchestration_lease"));
+  assert.ok(workerMigration.includes("heartbeat_discovery_orchestration_lease"));
+  assert.ok(workerMigration.includes("release_discovery_orchestration_lease"));
+  assert.ok(workerMigration.includes("expire_discovery_orchestration_leases"));
+  assert.ok(workerMigration.includes("worker_identity_scope_missing"));
+  assert.ok(workerMigration.includes("company_worker_grant_inactive"));
+  assert.ok(workerMigration.includes("dispatch_permitted=true"));
+  assert.ok(workerMigration.includes("false as dispatch_permitted"));
+  assert.ok(workerMigration.includes("Worker grant events are append-only"));
+  assert.ok(workerMigration.includes("Company worker grant was disabled or expired"));
+  assert.ok(workerMigration.includes("Worker credential rotated; active leases were released"));
+  assert.ok(workerMigration.includes("credential_hash"));
+  assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_worker_directory"));
+  assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_execution_lease_inbox"));
+  assert.ok(workerMigration.includes("revoke all on public.discovery_orchestration_execution_leases"));
+  assert.match(integration, /20261123210000_axivestra_orchestration_worker_identity_leases\.sql/);
+  assert.match(integration, /grant_discovery_orchestration_worker_identity/);
+  assert.match(integration, /claim_discovery_orchestration_lease/);
+  assert.match(integration, /heartbeat_discovery_orchestration_lease/);
+  assert.match(integration, /release_discovery_orchestration_lease/);
+  assert.match(integration, /set_discovery_orchestration_worker_identity_status/);
+  assert.match(integration, /company worker grant revocation/);
+  assert.match(edge, /action === "orchestration\.workerGrant"/);
+  assert.match(edge, /action === "orchestration\.workerControl"/);
+  assert.match(edge, /crypto\.getRandomValues/);
+  assert.match(edge, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(workspace, /Grant temporary worker identity/);
+  assert.match(workspace, /Copy one-time credential/);
+  assert.match(workspace, /workerStageKeys/);
+  assert.match(workspace, /maxActiveLeases/);
+  assert.match(workspace, /Type \{worker\.worker_key\} to revoke/);
+  assert.match(workspace, /Worker grant history/);
+  assert.ok(!workspace.includes("localStorage.setItem(workerToken"));
+  assert.match(leaseClient, /createOrchestrationLeaseClient/);
+  assert.match(leaseClient, /createHash/);
+  assert.match(leaseClient, /randomBytes/);
+  assert.match(leaseClient, /leaseTokens = new Map/);
+  assert.match(leaseClientTest, /E20\.4 hashes worker credentials/);
+  assert.match(leaseClientTest, /fail closed/);
+  assert.match(leaseClientTest, /forget its token/);
+
 
   assert.doesNotMatch(executionMigration, /create or replace function public[.](claim|heartbeat|complete|retry)_discovery_orchestration/i);
   assert.match(edge, /discovery_orchestration_step_preflight/);
