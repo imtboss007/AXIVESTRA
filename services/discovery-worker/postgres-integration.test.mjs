@@ -589,11 +589,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       }
 
       const tokenPrivileges=await pool.query(
-        "select has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_lease_inbox','select') as safe_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as worker_table_select"
+        "select has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_lease_inbox','select') as safe_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as worker_table_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_directory','select') as safe_worker_directory_select"
       );
       assert.equal(tokenPrivileges.rows[0].raw_lease_select,false,"raw lease-token hashes must not be exposed to authenticated members");
       assert.equal(tokenPrivileges.rows[0].safe_lease_select,true,"company members can read the safe lease inspector");
-      assert.equal(tokenPrivileges.rows[0].worker_table_select,true,"worker table SELECT is restricted by owner/admin RLS");
+      assert.equal(tokenPrivileges.rows[0].worker_table_select,false,"credential-bearing worker identity rows are never directly readable by authenticated users");
+      assert.equal(tokenPrivileges.rows[0].safe_worker_directory_select,true,"owners/admins use the safe worker directory view");
       const workerRpcPrivileges=await pool.query(
         "select has_function_privilege('authenticated','public.grant_discovery_orchestration_worker_identity(uuid,text,text,text,text[],integer,integer,timestamptz,text)','execute') as can_grant,has_function_privilege('authenticated','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as can_claim,has_function_privilege('service_role','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as service_can_claim"
       );
