@@ -102,6 +102,13 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(workerMigration.includes("credential_hash"));
   assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_worker_directory"));
   assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_execution_lease_inbox"));
+  assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_company_worker_gate"));
+  assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_active_worker_stage_scopes"));
+  assert.ok(workerMigration.includes("where public.is_company_member(company_id)"));
+  assert.ok(workerMigration.includes("left join public.discovery_orchestration_company_worker_gate wg"));
+  assert.ok(workerMigration.includes("left join public.discovery_orchestration_active_worker_stage_scopes ws"));
+  assert.doesNotMatch(workerMigration, /left join public\\.discovery_company_worker_controls wg/);
+
   assert.ok(workerMigration.includes("revoke all on public.discovery_orchestration_execution_leases"));
   assert.match(integration, /20261123210000_axivestra_orchestration_worker_identity_leases\.sql/);
   assert.match(integration, /grant_discovery_orchestration_worker_identity/);
