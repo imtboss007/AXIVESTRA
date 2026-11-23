@@ -15,7 +15,7 @@ const common = {
 const ok = body => ({ ok: true, status: 200, json: async () => body });
 const fail = (status, error) => ({ ok: false, status, json: async () => ({ ok: false, error }) });
 
-test("E20.4 worker client calls the narrow broker and keeps lease tokens only in process memory", async () => {
+test("E20.4 worker client calls the narrow broker and never calls the service role", async () => {
   const calls = [];
   const leaseToken = randomBytes(32).toString("hex");
   const fetchImpl = async (url, init) => {
