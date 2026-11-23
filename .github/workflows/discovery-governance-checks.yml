@@ -127,8 +127,7 @@ jobs:
       - name: Build AXIVESTRA web application
         run: npm run build
 
-      - name: Run authenticated E18 browser acceptance when QA secrets are configured
-        if: ${{ secrets.AXIVESTRA_E2E_SUPABASE_URL != '' && secrets.AXIVESTRA_E2E_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AXIVESTRA_E2E_EMAIL != '' && secrets.AXIVESTRA_E2E_PASSWORD != '' && secrets.AXIVESTRA_E2E_COMPANY_NAME != '' && secrets.AXIVESTRA_E2E_DEAL_TITLE != '' && secrets.AXIVESTRA_E2E_PARTY_NAME != '' }}
+      - name: Run authenticated E18/E19 browser acceptance when QA secrets are configured
         env:
           VITE_SUPABASE_URL: ${{ secrets.AXIVESTRA_E2E_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AXIVESTRA_E2E_SUPABASE_PUBLISHABLE_KEY }}
@@ -141,6 +140,10 @@ jobs:
           AXIVESTRA_E2E_LEGACY_TASK_TITLE: ${{ secrets.AXIVESTRA_E2E_LEGACY_TASK_TITLE }}
           AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID: ${{ secrets.AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID }}
         run: |
-          npm run build
-          npx playwright install --with-deps chromium
-          npm run test:e2e -- tests/browser/axivestra-commitment-workspace.spec.ts tests/browser/axivestra-verification-workspace.spec.ts --project=desktop-chromium
+          if [ -n "$AXIVESTRA_E2E_SUPABASE_URL" ] && [ -n "$VITE_SUPABASE_PUBLISHABLE_KEY" ] && [ -n "$AXIVESTRA_E2E_EMAIL" ] && [ -n "$AXIVESTRA_E2E_PASSWORD" ] && [ -n "$AXIVESTRA_E2E_COMPANY_NAME" ] && [ -n "$AXIVESTRA_E2E_DEAL_TITLE" ] && [ -n "$AXIVESTRA_E2E_PARTY_NAME" ]; then
+            npm run build
+            npx playwright install --with-deps chromium
+            npm run test:e2e -- tests/browser/axivestra-commitment-workspace.spec.ts tests/browser/axivestra-verification-workspace.spec.ts --project=desktop-chromium
+          else
+            echo "::notice::Authenticated E18/E19 browser acceptance skipped because required QA secrets are not configured."
+          fi
