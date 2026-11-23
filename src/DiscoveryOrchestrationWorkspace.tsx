@@ -5,9 +5,10 @@ import { supabase } from "./lib/supabase";
 type Workflow = { workflow_key: string; label: string; description: string; stage_keys: string[] };
 type Stage = { stage_key: string; technical_stage: string; capability_name: string; description: string; dependency_stage_keys: string[]; permission_class: string; adapter_key: string | null; dispatch_ready: boolean; enabled_by_default: boolean };
 type Step = { id: string; run_id: string; stage_key: string; step_order: number; depends_on_step_ids: string[]; status: string; dispatch_state: string; permission_class: string; stage_snapshot: Record<string, unknown> };
+type Preflight = { step_id: string; run_id: string; blocker_codes: string[]; unsatisfied_dependency_count: number; unsatisfied_dependency_ids: string[]; dispatch_permitted: boolean };
 type Event = { id: string; run_id: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type Run = { id: string; workflow_key: string; workflow_label: string; status: string; dispatch_state: string; requested_by: string; approved_by: string | null; approved_at: string | null; decision_reason: string | null; stage_count: number; unavailable_adapter_count: number; disabled_stage_count: number; all_stage_gates_ready: boolean; created_at: string };
-type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; runId?: string };
+type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; runId?: string };
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "The orchestration request failed.";
@@ -34,6 +35,7 @@ export default function DiscoveryOrchestrationWorkspace({
   const [runs, setRuns] = useState<Run[]>([]);
   const [steps, setSteps] = useState<Step[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [preflight, setPreflight] = useState<Preflight[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState("company_identity");
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState("");
@@ -63,6 +65,7 @@ export default function DiscoveryOrchestrationWorkspace({
       setRuns(result.runs || []);
       setSteps(result.steps || []);
       setEvents(result.events || []);
+      setPreflight(result.preflight || []);
       if (result.workflows?.length && !result.workflows.some(item => item.workflow_key === selectedWorkflow)) {
         setSelectedWorkflow(result.workflows[0].workflow_key);
       }
@@ -118,6 +121,7 @@ export default function DiscoveryOrchestrationWorkspace({
 
   const stepsFor = (runId: string) => steps.filter(step => step.run_id === runId).sort((a, b) => a.step_order - b.step_order);
   const eventsFor = (runId: string) => events.filter(event => event.run_id === runId).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+  const preflightFor = (stepId: string) => preflight.find(item => item.step_id === stepId);
   const stagesByKey = new Map(stages.map(stage => [stage.stage_key, stage]));
 
   if (!companyId) {
@@ -181,6 +185,7 @@ export default function DiscoveryOrchestrationWorkspace({
             <div><strong>{run.workflow_label}</strong><small>{run.id} · requested {formatDate(run.created_at)}</small></div>
             <span className={"discovery-orchestration-status status-" + run.status}>{statusLabel(run.status)}</span>
           </div>
+          <div className="discovery-orchestration-preflight-banner"><ShieldCheck size={13}/> Read-only dry-run preflight: every step remains non-dispatchable until adapter, worker grant, source/purpose and privacy policy gates are implemented and independently approved.</div>
           <div className="discovery-orchestration-run-metrics">
             <span><GitBranch size={13}/>{run.stage_count} dependent stages</span>
             <span><CircleAlert size={13}/>{run.unavailable_adapter_count} adapters unavailable</span>
@@ -194,6 +199,10 @@ export default function DiscoveryOrchestrationWorkspace({
                 <span className="discovery-orchestration-step-no">{step.step_order}</span>
                 <div><b>{stage?.technical_stage || step.stage_key} · {stage?.capability_name || step.stage_key}</b><small>Depends on {step.depends_on_step_ids.length ? step.depends_on_step_ids.length + " prior stage(s)" : "no prior stage"} · {step.permission_class.replaceAll("_", " ")}</small></div>
                 <em>{statusLabel(step.status)}</em>
+                {preflightFor(step.id) && <div className="discovery-orchestration-preflight">
+                  <strong>{preflightFor(step.id)?.dispatch_permitted ? "Preflight eligible" : "Preflight blocked"}</strong>
+                  <span>{preflightFor(step.id)?.blocker_codes.map(code => code.replaceAll("_"," ")).join(" · ") || "No reported blockers"}</span>
+                </div>}
               </div>;
             })}
           </div>
