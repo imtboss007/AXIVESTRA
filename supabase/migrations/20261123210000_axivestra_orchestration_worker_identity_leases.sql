@@ -475,16 +475,16 @@ begin
 
   -- Hold a shared lock on the existing one-hour global grant. Revocation obtains an
   -- exclusive row lock and then releases every active scoped lease after this claim commits.
-  select * into v_company_worker_control
-    from public.discovery_company_worker_controls
-    where company_id=p_company_id and enabled=true and expires_at>v_now
+  select c.* into v_company_worker_control
+    from public.discovery_company_worker_controls as c
+    where c.company_id=p_company_id and c.enabled=true and c.expires_at>v_now
     for share;
   if not found then return; end if;
 
   -- Lock the scoped worker before lease rows. Pause/revoke uses the same worker→lease order.
-  select * into v_worker from public.discovery_orchestration_worker_identities
-    where company_id=p_company_id and id=p_worker_identity_id
-      and status='active' and expires_at>v_now and credential_hash=p_worker_credential_hash
+  select wi.* into v_worker from public.discovery_orchestration_worker_identities as wi
+    where wi.company_id=p_company_id and wi.id=p_worker_identity_id
+      and wi.status='active' and wi.expires_at>v_now and wi.credential_hash=p_worker_credential_hash
     for update;
   if not found then return; end if;
 
@@ -519,8 +519,8 @@ begin
     for update of e skip locked limit 1;
   if not found then return; end if;
 
-  select * into v_adapter from public.discovery_orchestration_adapter_contracts
-    where adapter_key=v_execution.adapter_key;
+  select ac.* into v_adapter from public.discovery_orchestration_adapter_contracts as ac
+    where ac.adapter_key=v_execution.adapter_key;
   select * into v_run from public.discovery_orchestration_runs
     where company_id=p_company_id and id=v_execution.run_id
     for update;
@@ -572,7 +572,7 @@ begin
   );
 
   return query select v_lease_id,v_execution.id,v_execution.run_id,v_execution.step_id,
-    (select stage_key from public.discovery_orchestration_steps where company_id=p_company_id and id=v_execution.step_id),
+    (select s.stage_key from public.discovery_orchestration_steps as s where s.company_id=p_company_id and s.id=v_execution.step_id),
     v_execution.adapter_key,v_worker.worker_key,v_now,v_now+make_interval(secs=>v_seconds);
 end;
 $claim$;
