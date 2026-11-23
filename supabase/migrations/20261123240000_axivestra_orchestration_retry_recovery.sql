@@ -75,6 +75,36 @@ create index if not exists discovery_orchestration_attempts_retry_idx
   on public.discovery_orchestration_execution_attempts(company_id,next_retry_at)
   where status='failed' and retryable=true;
 
+create or replace function public.guard_discovery_orchestration_attempt_receipt()
+returns trigger language plpgsql
+as $attempt_guard$
+begin
+  if tg_op='DELETE' then
+    raise exception 'Orchestration attempt receipts are immutable; retain the historical record.';
+  end if;
+  if old.status<>'started' then
+    raise exception 'A finalized orchestration attempt receipt is immutable.';
+  end if;
+  if (new.id,new.company_id,new.execution_id,new.lease_id,new.attempt_number,
+      new.idempotency_key,new.started_at,new.created_at)
+     is distinct from
+     (old.id,old.company_id,old.execution_id,old.lease_id,old.attempt_number,
+      old.idempotency_key,old.started_at,old.created_at) then
+    raise exception 'Orchestration attempt identity fields are immutable.';
+  end if;
+  if new.status='started' or new.finished_at is null then
+    raise exception 'An attempt receipt can only transition once from started to a final outcome.';
+  end if;
+  return new;
+end;
+$attempt_guard$;
+drop trigger if exists discovery_orchestration_attempts_immutable
+  on public.discovery_orchestration_execution_attempts;
+create trigger discovery_orchestration_attempts_immutable
+  before update or delete on public.discovery_orchestration_execution_attempts
+  for each row execute function public.guard_discovery_orchestration_attempt_receipt();
+revoke all on function public.guard_discovery_orchestration_attempt_receipt() from public,anon,authenticated,service_role;
+
 alter table public.discovery_orchestration_failure_policies enable row level security;
 alter table public.discovery_orchestration_execution_attempts enable row level security;
 drop policy if exists discovery_orchestration_failure_policies_read
@@ -641,6 +671,8 @@ grant execute on function public.expire_discovery_orchestration_leases(uuid,inte
 grant execute on function public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer) to service_role;
 grant execute on function public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text) to service_role;
 
+comment on function public.guard_discovery_orchestration_attempt_receipt() is
+  'Allows only the one-way started-to-final transition; finalized attempt receipts and their identity are immutable.';
 comment on table public.discovery_orchestration_execution_attempts is
   'E20.6 immutable-per-lease attempt receipts. One lease consumes one bounded attempt; outcomes are idempotent and audit-preserving.';
 comment on table public.discovery_orchestration_failure_policies is
