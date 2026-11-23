@@ -57,6 +57,9 @@ Deno.serve(async request => {
   if (request.method !== "POST") {
     return jsonResponse(405, { ok: false, error: "Use POST for the orchestration worker lease API." });
   }
+  if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) {
+    return jsonResponse(415, { ok: false, error: "The worker lease API accepts JSON requests only." });
+  }
 
   const rawWorkerToken = request.headers.get("x-axivestra-worker-token") || "";
   if (!isHash(rawWorkerToken)) {
@@ -183,10 +186,12 @@ Deno.serve(async request => {
     });
     if (error) throw error;
     return jsonResponse(200, { ok: true, released: data === true });
-  } catch (error) {
-    // Never include input, authorization headers, hashes or tokens in error logs.
+  } catch {
+    // Never include database details, input, authorization headers, hashes or tokens in logs/responses.
     console.error("discovery-orchestration-worker: lease operation failed");
-    const message = error instanceof Error ? error.message : "The worker lease operation failed.";
-    return jsonResponse(409, { ok: false, error: message });
+    return jsonResponse(409, {
+      ok: false,
+      error: "The worker identity, company grant, dispatch gate or lease is no longer valid."
+    });
   }
 });
