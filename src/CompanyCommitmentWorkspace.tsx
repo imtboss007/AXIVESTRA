@@ -62,9 +62,11 @@ export default function CompanyCommitmentWorkspace({companyId,companyRole,proper
 
   const load=useCallback(async()=>{
     if(!companyId||!supabase){setRows([]);setMembers([]);setRelationships([]);setLegacyTaskRows([]);return;}
+    const client=supabase;
+    if(!client){setRows([]);setMembers([]);setRelationships([]);setLegacyTaskRows([]);return;}
     setLoading(true);setError("");
     try{
-      const readAllPages=async<T,>(readPage:(from:number,to:number)=>Promise<{data:T[]|null;error:{message:string}|null}>,pageSize=500)=>{
+      const readAllPages=async<T,>(readPage:(from:number,to:number)=>PromiseLike<{data:T[]|null;error:{message:string}|null}>,pageSize=500):Promise<T[]>=>{
         const all:T[]=[];
         for(let from=0;;from+=pageSize){
           const {data,error}=await readPage(from,from+pageSize-1);
@@ -77,11 +79,11 @@ export default function CompanyCommitmentWorkspace({companyId,companyRole,proper
         return all;
       };
       const [items,people,user,links,sourceTasks]=await Promise.all([
-        supabase.from("company_commitment_inbox").select("*").eq("company_id",companyId).order("due_at",{ascending:true}).limit(500),
-        supabase.from("company_memberships").select("user_id,role").eq("company_id",companyId).order("role"),
-        supabase.auth.getUser(),
-        readAllPages((from,to)=>supabase.from("company_deal_parties").select("id,deal_record_key,party_record_key,role_code,responsibility_code,verification_state,effective_to").eq("company_id",companyId).range(from,to)),
-        readAllPages((from,to)=>supabase.from("company_records").select("record_key,payload").eq("company_id",companyId).eq("record_type","task").is("deleted_at",null).order("record_key").range(from,to))
+        client.from("company_commitment_inbox").select("*").eq("company_id",companyId).order("due_at",{ascending:true}).limit(500),
+        client.from("company_memberships").select("user_id,role").eq("company_id",companyId).order("role"),
+        client.auth.getUser(),
+        readAllPages((from,to)=>client.from("company_deal_parties").select("id,deal_record_key,party_record_key,role_code,responsibility_code,verification_state,effective_to").eq("company_id",companyId).range(from,to)),
+        readAllPages((from,to)=>client.from("company_records").select("record_key,payload").eq("company_id",companyId).eq("record_type","task").is("deleted_at",null).order("record_key").range(from,to))
       ]);
       if(items.error)throw items.error;
       if(people.error)throw people.error;
