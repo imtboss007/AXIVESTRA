@@ -6,10 +6,11 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, preflightMigration, executionMigration, edge, workspace, manager, integration] = await Promise.all([
+  const [migration, preflightMigration, executionMigration, contextMigration, edge, workspace, manager, integration] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
     read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
     read("supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql"),
+    read("supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql"),
     read("supabase/functions/discovery-control/index.ts"),
     read("src/DiscoveryOrchestrationWorkspace.tsx"),
     read("src/DiscoverySourceManager.tsx"),
@@ -59,6 +60,22 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(executionMigration, /lease_seconds integer not null default 120/);
   assert.match(executionMigration, /Execution events are append-only/);
   assert.ok(executionMigration.includes("no worker claim/heartbeat/complete/retry RPC"));
+  assert.ok(contextMigration.includes("create table if not exists public.discovery_orchestration_run_contexts"));
+  assert.ok(contextMigration.includes("create table if not exists public.discovery_orchestration_context_events"));
+  assert.ok(contextMigration.includes("bind_discovery_orchestration_run_context"));
+  assert.match(contextMigration, /Only company owners\/admin can bind orchestration execution context/);
+  assert.match(contextMigration, /The exact profile purpose is not approved for this source/);
+  assert.match(contextMigration, /One or more required fields are outside the source field allow-list/);
+  assert.match(contextMigration, /The approved source must be attached to the selected profile/);
+  assert.match(contextMigration, /run_context_missing/);
+  assert.match(contextMigration, /purpose_not_allowlisted/);
+  assert.match(contextMigration, /fields_not_allowlisted/);
+  assert.match(contextMigration, /run_context_stale/);
+  assert.match(contextMigration, /false as dispatch_permitted/);
+  assert.match(integration, /20261123190000_axivestra_orchestration_context_binding\.sql/);
+  assert.match(integration, /bind_discovery_orchestration_run_context/);
+  assert.match(integration, /run_context_missing/);
+
   assert.doesNotMatch(executionMigration, /create or replace function public\\.(claim|heartbeat|complete|retry)_discovery_orchestration/i);
   assert.match(edge, /discovery_orchestration_step_preflight/);
   assert.match(edge, /action === "orchestration\.list"/);
