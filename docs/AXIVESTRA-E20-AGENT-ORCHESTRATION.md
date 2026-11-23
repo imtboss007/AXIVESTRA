@@ -2,7 +2,7 @@
 
 **Revised roadmap alias:** E16 — Agent Orchestration  
 **Depends on:** technical E04–E12 stage queues, E02 source governance, E13 provenance, E14 privacy controls and E19 verification workflow  
-**Migrations:** `20261123130000_axivestra_agent_orchestration.sql`, `20261123150000_axivestra_orchestration_preflight.sql`, `20261123170000_axivestra_orchestration_execution_contracts.sql`, `20261123190000_axivestra_orchestration_context_binding.sql`
+**Migrations:** `20261123130000_axivestra_agent_orchestration.sql`, `20261123150000_axivestra_orchestration_preflight.sql`, `20261123170000_axivestra_orchestration_execution_contracts.sql`, `20261123190000_axivestra_orchestration_context_binding.sql`, `20261123210000_axivestra_orchestration_worker_identity_leases.sql`
 
 ## Purpose
 
@@ -22,6 +22,9 @@ AXIVESTRA already has separate source-fetch, extraction, entity, role, contact, 
 - E20.2 adds adapter-contract metadata, durable execution and lease schemas, bounded retry/lease/concurrency parameters and append-only execution-event storage. All adapter contracts remain unseeded; there are no worker claim, heartbeat, completion or retry RPCs.
 - E20.3 adds owner/admin-only context binding in the workspace. A run must reference an enabled company profile, an approved source attached to that profile, the profile's exact purpose and a required-field subset of that source's allow-list. The context is timestamp-snapshotted; changed profile/source policy becomes a preflight blocker. Bind/rebind receipts are append-only.
 - E20.3 adds owner/admin-only run-context binding. It requires an enabled company profile, an approved source attached to that profile, an exact matching purpose and a required-field subset of the source allow-list. Context snapshots and append-only bind/rebind events are retained; stale profile/source changes become preflight blockers.
+- E20.4 adds temporary, company-scoped worker identities with exact E04–E12 stage scopes, max active leases, bounded lease duration and expiry that cannot outlive the existing one-hour company worker grant. Only SHA-256 credential hashes are stored; the raw worker token is shown once by the workspace and is not written to audit history.
+- Owners/admins can pause or permanently revoke an identity. Both actions release active leases immediately; revocation cannot be resumed without a new grant. Disabling or expiring the company-wide worker grant automatically pauses scoped identities and releases their leases.
+- Service-role-only claim, heartbeat, release and expiry RPCs validate worker identity, token hash, company grant, stage scope and lease expiry. The safe lease inspector omits lease-token hashes. Claim also requires `dispatch_permitted=true` and zero preflight blockers; the current view still hard-codes dispatch to false, so no E20 execution can be claimed.
 - The Discovery Sources workspace displays the stage inventory, dependency chain, run approvals, adapter readiness, disabled stage gates, per-step preflight blockers, context binding controls and separate decision/context histories.
 
 ## Current boundaries
@@ -38,13 +41,12 @@ The E20 contract suite checks the schema, stage dependency map, disabled-by-defa
 
 ## Remaining E20 sequence (indicative)
 
-Four substantial implementation increments remain after E20.3:
+Three substantial implementation increments remain after E20.4:
 
-1. **E20.4 — Worker identity and lease lifecycle:** connect the existing company worker grant to orchestration admission; implement worker identity, atomic claim, heartbeat, expiry and release with concurrency-safe locking.
-2. **E20.5 — Adapter approval and dependency scheduler:** register versioned stage adapters, review the contracts per company, and bridge approved plan steps to existing E04–E12 queues only after every policy gate is verified.
-3. **E20.6 — Retry and recovery:** enforce per-company concurrency, idempotent attempts, retry classification/backoff, expired-lease recovery, pause/cancel propagation and cross-stage failure handling.
-4. **E20.7 — Execution console and acceptance:** add operational status/metrics and run end-to-end security, PostgreSQL, worker and authenticated browser acceptance before any separate activation decision.
+1. **E20.5 — Adapter approval and dependency scheduler:** register versioned stage adapters, review contracts per company, and design the bridge to existing E04–E12 queues. The current dispatch gate remains false until policy integration is independently accepted.
+2. **E20.6 — Retry and recovery:** enforce per-company concurrency, idempotent attempts, retry classification/backoff, expired-lease recovery, pause/cancel propagation and cross-stage failure handling.
+3. **E20.7 — Execution console and acceptance:** add operational status/metrics and run end-to-end security, PostgreSQL, worker and authenticated browser acceptance before any separate activation decision.
 
-These are engineering slices, not permission to activate a worker. The dispatch_permitted flag remains false until the full safety gate and separate approval are completed.
+These are engineering slices, not permission to activate a worker. The `dispatch_permitted` flag remains hard-coded false; E20.4's claim RPC cannot acquire work until a later separately approved release changes that invariant after the full safety gate and acceptance.
 
 A successful current-head PostgreSQL governance workflow and app build are required before E20 is considered validated. Authenticated browser acceptance remains subject to the dedicated QA fixture. No production migration, worker activation, provider connection, deployment or merge is performed by this implementation.
