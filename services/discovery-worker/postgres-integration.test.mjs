@@ -450,7 +450,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       const contextArgs=[companyId,orchestrationRunId,profileId,sourceId,"company identity verification",["legal_name","registration_id"],"Owner bound the approved company identity source and exact field scope for this test run."];
       await assert.rejects(
         orchestrationClient.query(bindContextSql,contextArgs),
-        /Only company owners\/admins can bind orchestration execution context/
+        new RegExp("Only company owners/admins can bind orchestration execution context")
       );
       await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
       await assert.rejects(
