@@ -551,6 +551,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.equal(workerGrant.rows[0].status,"active");
       assert.deepEqual(workerGrant.rows[0].stage_keys,["e05_extraction"]);
       assert.ok(Date.parse(workerGrant.rows[0].expires_at)>Date.now());
+      await assert.rejects(
+        orchestrationClient.query(
+          "select * from public.grant_discovery_orchestration_worker_identity($1,'e20-test-worker','E20 test worker',$2,array['e05_extraction'],1,60,clock_timestamp()+interval '20 minutes','Attempt to re-use the prior worker credential must be rejected.')",
+          [companyId,workerCredentialHash]
+        ),
+        /A new random worker credential is required/
+      );
       const safeWorkerDirectory=await orchestrationClient.query(
         "select * from public.discovery_orchestration_worker_directory where company_id=$1 and id=$2",
         [companyId,workerIdentityId]
@@ -701,6 +708,28 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         );
         assert.equal(releasedState.rows[0].state,"ready");
         assert.ok(releasedState.rows[0].released_at);
+
+        // Expired leases return to ready without consuming an attempt; retry classification is E20.6.
+        const expiredLease=await pool.query(
+          "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp()-interval '90 seconds',clock_timestamp()-interval '30 seconds',clock_timestamp()-interval '30 seconds') returning id",
+          [companyId,executionId,workerIdentityId,"f".repeat(64)]
+        );
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        const expiredCount=await workerServiceClient.query(
+          "select public.expire_discovery_orchestration_leases($1,10) as count",
+          [companyId]
+        );
+        assert.equal(expiredCount.rows[0].count,1);
+        const expiredState=await workerServiceClient.query(
+          "select e.state,e.attempt_count,l.released_at from public.discovery_orchestration_executions e join public.discovery_orchestration_execution_leases l on l.company_id=e.company_id and l.execution_id=e.id where e.company_id=$1 and e.id=$2 and l.id=$3",
+          [companyId,executionId,expiredLease.rows[0].id]
+        );
+        assert.equal(expiredState.rows[0].state,"ready");
+        assert.equal(expiredState.rows[0].attempt_count,0);
+        assert.ok(expiredState.rows[0].released_at);
         await assert.rejects(
           pool.query("update public.discovery_orchestration_execution_events set reason='tampered' where execution_id=$1",[executionId]),
           /append-only/
