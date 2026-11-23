@@ -79,15 +79,14 @@ export default function CompanyCommitmentWorkspace({companyId,companyRole,proper
         return all;
       };
       const [items,people,user,links,sourceTasks]=await Promise.all([
-        client.from("company_commitment_inbox").select("*").eq("company_id",companyId).order("due_at",{ascending:true}).limit(500),
+        readAllPages((from,to)=>client.from("company_commitment_inbox").select("*").eq("company_id",companyId).order("due_at",{ascending:true}).range(from,to)),
         client.from("company_memberships").select("user_id,role").eq("company_id",companyId).order("role"),
         client.auth.getUser(),
         readAllPages((from,to)=>client.from("company_deal_parties").select("id,deal_record_key,party_record_key,role_code,responsibility_code,verification_state,effective_to").eq("company_id",companyId).range(from,to)),
         readAllPages((from,to)=>client.from("company_records").select("record_key,payload").eq("company_id",companyId).eq("record_type","task").is("deleted_at",null).order("record_key").range(from,to))
       ]);
-      if(items.error)throw items.error;
       if(people.error)throw people.error;
-      setRows((items.data||[]) as Commitment[]);
+      setRows(items as Commitment[]);
       setMembers((people.data||[]) as Member[]);
       setCurrentUserId(user.data.user?.id||"");
       setRelationships(links as Relationship[]);
