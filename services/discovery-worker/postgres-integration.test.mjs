@@ -122,6 +122,15 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationWorkerMigration);
     const orchestrationAdapterApprovalMigration = await readFile(new URL("../../supabase/migrations/20261123230000_axivestra_orchestration_adapter_approvals.sql", import.meta.url), "utf8");
     await pool.query(orchestrationAdapterApprovalMigration);
+    const orchestrationRetryRecoveryMigration = await readFile(new URL("../../supabase/migrations/20261123240000_axivestra_orchestration_retry_recovery.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationRetryRecoveryMigration);
+
+    const retryPolicyCatalogue=await pool.query(
+      "select count(*)::int as count,bool_and((retryable and base_delay_seconds>0 and max_delay_seconds>=base_delay_seconds) or (not retryable and base_delay_seconds=0 and max_delay_seconds=0)) as policy_bounds_valid from public.discovery_orchestration_failure_policies"
+    );
+    assert.ok(retryPolicyCatalogue.rows[0].count>=14);
+    assert.equal(retryPolicyCatalogue.rows[0].policy_bounds_valid,true);
+
 
     // E20.5 maps every existing E04–E12 stage queue without creating a second queue
     // or enabling any bridge. E11 deliberately remains deterministic inline.
@@ -782,7 +791,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         [companyId,orchestrationRunId]
       );
       const execution=await pool.query(
-        "insert into public.discovery_orchestration_executions(company_id,run_id,step_id,adapter_key,state,max_attempts) values($1,$2,$3,'e05-test-adapter','ready',2) returning id",
+        "insert into public.discovery_orchestration_executions(company_id,run_id,step_id,adapter_key,state,max_attempts) values($1,$2,$3,'e05-test-adapter','ready',8) returning id",
         [companyId,orchestrationRunId,e05StepId.rows[0].id]
       );
       const executionId=execution.rows[0].id;
@@ -816,11 +825,17 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         assert.equal(unchangedExecution.rows[0].state,"ready");
         assert.equal(unchangedExecution.rows[0].attempt_count,0);
 
-        // Exercise heartbeat and explicit release against a synthetic lease receipt.
+        // E20.6 counts every issued lease as an attempt and records a unique start receipt.
+        // This synthetic lease cannot be claimed by a worker because dispatch remains OFF.
         const leaseOne=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"c".repeat(64)]
         );
+        const firstAttempt=await pool.query(
+          "select l.attempt_number,a.attempt_number as receipt_attempt,a.status,a.idempotency_key from public.discovery_orchestration_execution_leases l join public.discovery_orchestration_execution_attempts a on a.lease_id=l.id where l.company_id=$1 and l.id=$2",
+          [companyId,leaseOne.rows[0].id]
+        );
+        assert.deepEqual(firstAttempt.rows,[{attempt_number:1,receipt_attempt:1,status:"started",idempotency_key:"lease:"+leaseOne.rows[0].id}]);
         const memberLeaseClient=await pool.connect();
         try {
           await memberLeaseClient.query("set role authenticated");
@@ -867,10 +882,28 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           "select e.state,l.released_at from public.discovery_orchestration_executions e join public.discovery_orchestration_execution_leases l on l.company_id=e.company_id and l.execution_id=e.id where e.company_id=$1 and e.id=$2 and l.id=$3",
           [companyId,executionId,leaseOne.rows[0].id]
         );
-        assert.equal(releasedState.rows[0].state,"ready");
+        assert.equal(releasedState.rows[0].state,"retry_wait");
         assert.ok(releasedState.rows[0].released_at);
+        const releasedAttempt=await workerServiceClient.query(
+          "select status,error_code,failure_class,retryable,next_retry_at from public.discovery_orchestration_execution_attempts where company_id=$1 and lease_id=$2",
+          [companyId,leaseOne.rows[0].id]
+        );
+        assert.equal(releasedAttempt.rows[0].status,"released");
+        assert.equal(releasedAttempt.rows[0].error_code,"WORKER_RELEASED");
+        assert.equal(releasedAttempt.rows[0].failure_class,"transient");
+        assert.equal(releasedAttempt.rows[0].retryable,true);
+        assert.ok(releasedAttempt.rows[0].next_retry_at>new Date());
+        const duplicateReleaseReceipt=await workerServiceClient.query(
+          "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'released',null) as result",
+          [companyId,workerIdentityId,workerCredentialHash,leaseOne.rows[0].id,"c".repeat(64)]
+        );
+        assert.equal(duplicateReleaseReceipt.rows[0].result.idempotent,true,"the same lease release outcome returns its original receipt without creating another attempt");
 
-        // Expired leases return to ready without consuming an attempt; retry classification is E20.6.
+        // Lease expiry is a classified, counted attempt with bounded exponential backoff.
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='ready',available_at=clock_timestamp() where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
         const expiredLease=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp()-interval '90 seconds',clock_timestamp()-interval '30 seconds',clock_timestamp()-interval '30 seconds') returning id",
           [companyId,executionId,workerIdentityId,"f".repeat(64)]
@@ -888,15 +921,74 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           "select e.state,e.attempt_count,l.released_at from public.discovery_orchestration_executions e join public.discovery_orchestration_execution_leases l on l.company_id=e.company_id and l.execution_id=e.id where e.company_id=$1 and e.id=$2 and l.id=$3",
           [companyId,executionId,expiredLease.rows[0].id]
         );
-        assert.equal(expiredState.rows[0].state,"ready");
-        assert.equal(expiredState.rows[0].attempt_count,0);
+        assert.equal(expiredState.rows[0].state,"retry_wait");
+        assert.equal(expiredState.rows[0].attempt_count,2);
         assert.ok(expiredState.rows[0].released_at);
+        const expiredAttempt=await workerServiceClient.query(
+          "select status,error_code,failure_class,retryable,next_retry_at from public.discovery_orchestration_execution_attempts where company_id=$1 and lease_id=$2",
+          [companyId,expiredLease.rows[0].id]
+        );
+        assert.equal(expiredAttempt.rows[0].status,"expired");
+        assert.equal(expiredAttempt.rows[0].error_code,"LEASE_EXPIRED");
+        assert.equal(expiredAttempt.rows[0].failure_class,"transient");
+        assert.equal(expiredAttempt.rows[0].retryable,true);
+        assert.ok(expiredAttempt.rows[0].next_retry_at>new Date());
         await assert.rejects(
           pool.query("update public.discovery_orchestration_execution_events set reason='tampered' where execution_id=$1",[executionId]),
           /append-only/
         );
 
+        // A known transient error is retried with a bounded exponential delay.
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='ready',available_at=clock_timestamp() where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        const failureLease=await pool.query(
+          "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
+          [companyId,executionId,workerIdentityId,"7".repeat(64)]
+        );
+        await assert.rejects(
+          workerServiceClient.query(
+            "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'failed','ERROR_TEXT_FROM_WORKER')",
+            [companyId,workerIdentityId,workerCredentialHash,failureLease.rows[0].id,"7".repeat(64)]
+          ),
+          /approved error code/
+        );
+        const failedOutcome=await workerServiceClient.query(
+          "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'failed','REMOTE_5XX') as result",
+          [companyId,workerIdentityId,workerCredentialHash,failureLease.rows[0].id,"7".repeat(64)]
+        );
+        assert.equal(failedOutcome.rows[0].result.executionState,"retry_wait");
+        assert.equal(failedOutcome.rows[0].result.attemptStatus,"failed");
+        assert.equal(failedOutcome.rows[0].result.errorCode,"REMOTE_5XX");
+        assert.equal(failedOutcome.rows[0].result.failureClass,"transient");
+        assert.equal(failedOutcome.rows[0].result.retryable,true);
+        assert.ok(new Date(failedOutcome.rows[0].result.nextRetryAt)>new Date());
+        const failureAttempt=await workerServiceClient.query(
+          "select status,error_code,failure_class,retryable,next_retry_at from public.discovery_orchestration_execution_attempts where company_id=$1 and lease_id=$2",
+          [companyId,failureLease.rows[0].id]
+        );
+        assert.equal(failureAttempt.rows[0].status,"failed");
+        assert.equal(failureAttempt.rows[0].error_code,"REMOTE_5XX");
+        assert.equal(failureAttempt.rows[0].retryable,true);
+        const duplicateFailureOutcome=await workerServiceClient.query(
+          "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'failed','REMOTE_5XX') as result",
+          [companyId,workerIdentityId,workerCredentialHash,failureLease.rows[0].id,"7".repeat(64)]
+        );
+        assert.equal(duplicateFailureOutcome.rows[0].result.idempotent,true,"repeating the same error outcome returns the original idempotent receipt");
+        const afterFailureExecution=await workerServiceClient.query(
+          "select state,attempt_count,available_at from public.discovery_orchestration_executions where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        assert.equal(afterFailureExecution.rows[0].state,"retry_wait");
+        assert.equal(afterFailureExecution.rows[0].attempt_count,3);
+        assert.ok(afterFailureExecution.rows[0].available_at>new Date());
+
         // Pausing a scoped worker immediately releases its active lease.
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='ready',available_at=clock_timestamp() where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
         const leaseTwo=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"d".repeat(64)]
@@ -916,13 +1008,17 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           [companyId,leaseTwo.rows[0].id]
         );
         assert.ok(pausedLease.rows[0].released_at);
-        assert.equal(pausedLease.rows[0].state,"ready");
+        assert.equal(pausedLease.rows[0].state,"retry_wait");
         await orchestrationClient.query(
           "select * from public.set_discovery_orchestration_worker_identity_status($1,$2,'active',$3)",
           [companyId,workerIdentityId,"Owner resumed the paused worker within the active company grant."]
         );
 
         // Shortening an active company grant must pause the scoped worker and release its lease immediately.
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='ready',available_at=clock_timestamp() where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
         const leaseThree=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"e".repeat(64)]
@@ -945,7 +1041,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           [companyId,leaseThree.rows[0].id]
         );
         assert.ok(shortenedReleasedLease.rows[0].released_at);
-        assert.equal(shortenedReleasedLease.rows[0].state,"ready");
+        assert.equal(shortenedReleasedLease.rows[0].state,"retry_wait");
 
         await orchestrationClient.query(
           "select * from public.set_discovery_company_worker_grant($1,$2,true,$3)",
@@ -957,6 +1053,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         );
 
         // Disabling the existing company-wide grant pauses all scoped identities and releases leases.
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='ready',available_at=clock_timestamp() where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
         const leaseFour=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"9".repeat(64)]
@@ -979,7 +1079,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           [companyId,leaseFour.rows[0].id]
         );
         assert.ok(globalReleasedLease.rows[0].released_at);
-        assert.equal(globalReleasedLease.rows[0].state,"ready");
+        assert.equal(globalReleasedLease.rows[0].state,"retry_wait");
 
         await orchestrationClient.query(
           "select * from public.set_discovery_company_worker_grant($1,$2,true,$3)",
