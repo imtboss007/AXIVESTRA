@@ -1739,6 +1739,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.ok(e19.confidence_index>=40&&e19.confidence_index<=100);
       assert.ok(e19.independent_source_count>=1);
 
+      await verificationClient.query(
+        "insert into public.discovery_provenance_events(company_id,subject_kind,subject_id,event_type,source_id,evidence_content_hash,source_name_snapshot,source_domain_snapshot,origin_table,origin_record_id,actor_user_id,event_metadata) values($1,'canonical_entity',$2,'source_observed',$3,$4,'Example registry initial verification fixture','registry.example.gov.in','discovery_audit_events','99999999-9999-4999-8999-999999999990',$5,'{\"verification_fixture\":true}'::jsonb)",
+        [companyId,canonical.rows[0].id,sourceId,"c".repeat(64),actorId]
+      );
       const e19Refs=await verificationClient.query(
         "select id,provenance_event_id from public.discovery_verification_evidence where company_id=$1 and case_id=$2 order by occurred_at",
         [companyId,e19.id]
