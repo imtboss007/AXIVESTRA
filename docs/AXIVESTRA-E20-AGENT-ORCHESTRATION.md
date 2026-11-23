@@ -2,7 +2,7 @@
 
 **Revised roadmap alias:** E16 — Agent Orchestration  
 **Depends on:** technical E04–E12 stage queues, E02 source governance, E13 provenance, E14 privacy controls and E19 verification workflow  
-**Migrations:** `20261123130000_axivestra_agent_orchestration.sql`, `20261123150000_axivestra_orchestration_preflight.sql`, `20261123170000_axivestra_orchestration_execution_contracts.sql`, `20261123190000_axivestra_orchestration_context_binding.sql`, `20261123210000_axivestra_orchestration_worker_identity_leases.sql`
+**Migrations:** `20261123130000_axivestra_agent_orchestration.sql`, `20261123150000_axivestra_orchestration_preflight.sql`, `20261123170000_axivestra_orchestration_execution_contracts.sql`, `20261123190000_axivestra_orchestration_context_binding.sql`, `20261123210000_axivestra_orchestration_worker_identity_leases.sql` plus the `discovery-orchestration-worker` Edge Function
 
 ## Purpose
 
@@ -23,7 +23,8 @@ AXIVESTRA already has separate source-fetch, extraction, entity, role, contact, 
 - E20.3 adds owner/admin-only context binding in the workspace. A run must reference an enabled company profile, an approved source attached to that profile, the profile's exact purpose and a required-field subset of that source's allow-list. The context is timestamp-snapshotted; changed profile/source policy becomes a preflight blocker. Bind/rebind receipts are append-only.
 - E20.4 adds temporary, company-scoped worker identities with exact E04–E12 stage scopes, max active leases, bounded lease duration and expiry that cannot outlive the existing one-hour company worker grant. Only SHA-256 credential hashes are stored; the raw worker token is shown once by the workspace and is not written to audit history.
 - Owners/admins can pause or permanently revoke an identity. Both actions release active leases immediately; revocation cannot be resumed without a new grant. Disabling or expiring the company-wide worker grant automatically pauses scoped identities and releases their leases.
-- Service-role-only claim, heartbeat, release and expiry RPCs validate worker identity, token hash, company grant, stage scope and lease expiry. The safe lease inspector omits lease-token hashes. Claim also requires `dispatch_permitted=true` and zero preflight blockers; the current view still hard-codes dispatch to false, so no E20 execution can be claimed.
+- Worker lease operations are brokered through `supabase/functions/discovery-orchestration-worker`, which accepts only the temporary scoped worker token and the Supabase public API key. The service-role credential remains inside the Edge Function; the worker process never receives it. The broker hashes the worker token, creates and hashes lease tokens server-side, and returns a lease token once for the worker to keep in memory. It sanitizes errors and never logs credentials or token hashes.
+- The broker invokes service-role-only claim, heartbeat, release and expiry RPCs, which validate worker identity, company grant, stage scope, token and expiry. The safe lease inspector omits lease-token hashes. Claim also requires `dispatch_permitted=true` and zero preflight blockers; the current view still hard-codes dispatch to false, so no E20 execution can be claimed.
 - The Discovery Sources workspace displays the stage inventory, dependency chain, run approvals, adapter readiness, disabled stage gates, per-step preflight blockers, context binding controls, scoped worker grant/revoke controls and separate decision/context/worker histories.
 
 ## Current boundaries
@@ -36,7 +37,7 @@ AXIVESTRA already has separate source-fetch, extraction, entity, role, contact, 
 
 ## Validation
 
-The E20 contract suite checks the schema, stage dependency map, disabled-by-default execution gates, UI approval boundary, preflight blocker vocabulary and authenticated edge-function routes. PostgreSQL integration tests apply E20 after E19 and exercise plan idempotency, approval, governed run-context binding, worker owner/admin grants, stage scoping, expiry bounds, credential privacy, service-role-only lease APIs, blocked claims while dispatch is false, heartbeat/release, expired-lease return-to-ready, pause/revoke and immediate release following company-grant revocation. Current-head CI must pass before E20.4 is considered validated.
+The E20 contract suite checks the schema, stage dependency map, disabled-by-default execution gates, UI approval boundary, preflight blocker vocabulary and authenticated edge-function routes. PostgreSQL integration tests apply E20 after E19 and exercise plan idempotency, approval, governed run-context binding, worker owner/admin grants, stage scoping, expiry bounds, credential privacy, public-key plus scoped-token Edge broker, no service-role key in the worker client, blocked claims while dispatch is false, heartbeat/release, expired-lease return-to-ready, pause/revoke and immediate release following company-grant revocation. Current-head CI must pass before E20.4 is considered validated.
 
 ## Remaining E20 sequence (indicative)
 
