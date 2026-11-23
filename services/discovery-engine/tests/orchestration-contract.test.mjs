@@ -150,6 +150,28 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(adapterMigration, /coalesce\(aa.status='approved' and aa.contract_version=ac.contract_version,false\) as company_adapter_approved/);
   assert.doesNotMatch(adapterMigration, /insert into public\.discovery_jobs/i);
   assert.doesNotMatch(adapterMigration, /update public\.discovery_orchestration_company_stage_controls/i);
+  assert.match(adapterMigration, /create table if not exists public\.discovery_orchestration_stage_queue_contracts/);
+  assert.match(adapterMigration, /bridge_enabled boolean not null default false check\(bridge_enabled=false\)/);
+  for (const stageKey of [
+    "e04_source_capture","e05_extraction","e06_entity_resolution","e07_professional_roles",
+    "e08_contact_validation","e09_geo_resolution","e10_enrichment","e11_matching","e12_deduplication"
+  ]) assert.ok(adapterMigration.includes("('" + stageKey + "','e20.5-map-v1'"), "E20.5 must map " + stageKey);
+  assert.match(adapterMigration, /'e11_matching','e20\.5-map-v1','deterministic_inline',null,'none',null/);
+  assert.match(adapterMigration, /stage_queue_bridge_disabled/);
+  assert.match(adapterMigration, /stage_queue_mapping_missing/);
+  assert.match(adapterMigration, /q\.queue_table as stage_queue_table/);
+  assert.match(adapterMigration, /q\.claim_routine as stage_queue_claim_routine/);
+  assert.match(adapterMigration, /bridge_enabled=false/);
+  assert.doesNotMatch(adapterMigration, /perform public\.enqueue_discovery_/i);
+  assert.doesNotMatch(adapterMigration, /select \* from public\.claim_discovery_/i);
+  assert.match(integration, /discovery_orchestration_stage_queue_contracts/);
+  assert.match(integration, /E11 matching is deterministic inline/);
+  assert.match(integration, /stage_queue_bridge_disabled/);
+  assert.match(edge, /stageQueueContractResult/);
+  assert.match(edge, /stageQueueContracts/);
+  assert.match(workspace, /Existing stage queue map/);
+  assert.match(workspace, /LEGACY QUEUE CONTRACTS/);
+  assert.match(workspace, /Bridge: \{contract\.bridge_enabled \? "Enabled" : "OFF · read-only mapping"\}/);
   assert.match(integration, /20261123230000_axivestra_orchestration_adapter_approvals\.sql/);
   assert.match(integration, /review_discovery_orchestration_company_adapter/);
   assert.match(integration, /dependency_preview/);
