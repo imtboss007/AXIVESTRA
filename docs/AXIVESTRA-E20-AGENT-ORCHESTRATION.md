@@ -2,7 +2,7 @@
 
 **Revised roadmap alias:** E16 — Agent Orchestration  
 **Depends on:** technical E04–E12 stage queues, E02 source governance, E13 provenance, E14 privacy controls and E19 verification workflow  
-**Migration:** `20261123130000_axivestra_agent_orchestration.sql`
+**Migrations:** `20261123130000_axivestra_agent_orchestration.sql`, `20261123150000_axivestra_orchestration_preflight.sql`
 
 ## Purpose
 
@@ -18,11 +18,12 @@ AXIVESTRA already has separate source-fetch, extraction, entity, role, contact, 
 - Approval transitions to `approved_not_dispatched`. It does not start an agent, create a discovery job, invoke a provider or contact an external source.
 - Per-company/per-stage kill-switch rows are created OFF by default. No user-facing enable path is provided until a specific adapter, policy check and acceptance test have been registered.
 - Company members can read runs, steps and history. Direct table writes are revoked; state changes pass through role-checked database functions.
-- The Discovery Sources workspace displays the stage inventory, dependency chain, run approvals, adapter readiness, disabled stage gates and append-only history.
+- A read-only preflight view computes per-step blockers: approval state, dispatch configuration, stage kill switch, adapter registration, dependency completion, worker grant, source/purpose grants, personal-data policy and dispatcher registration.
+- The Discovery Sources workspace displays the stage inventory, dependency chain, run approvals, adapter readiness, disabled stage gates, per-step preflight blockers and append-only history.
 
 ## Current boundaries
 
-- **Plan and approval only.** There is no shared dispatcher, queue consumer, worker lease, dependency scheduler, retry engine or cross-agent recovery loop in this release.
+- **Plan, approval and read-only preflight only.** Preflight is a dry-run blocker projection; it does not transition steps to runnable, reserve work or dispatch anything. There is no shared dispatcher, queue consumer, worker lease, execution scheduler, retry engine or cross-agent recovery loop in this release.
 - Stage adapters are unregistered and marked not dispatch-ready. The existing stage queues remain independently governed and are not automatically bridged to E20.
 - The existing company-wide worker grant, source approval, exact purpose/field allow-lists and privacy controls remain separate mandatory safeguards.
 - No agent autonomy, internet search, unapproved scraping, outreach, underwriting, credit/property decision, model-provider call or automatic entity merge is introduced.
@@ -30,6 +31,6 @@ AXIVESTRA already has separate source-fetch, extraction, entity, role, contact, 
 
 ## Validation
 
-The E20 contract suite checks the schema, stage dependency map, disabled-by-default execution gates, UI approval boundary and authenticated edge-function routes. PostgreSQL integration assertions apply E20 after E19 and test plan idempotency, stage dependency creation, member request, owner/admin approval, viewer rejection and immutable event history.
+The E20 contract suite checks the schema, stage dependency map, disabled-by-default execution gates, UI approval boundary, preflight blocker vocabulary and authenticated edge-function routes. PostgreSQL integration assertions apply E20 after E19 and E20.1 after E20, then test plan idempotency, dependency creation, member request, owner/admin approval, viewer rejection, append-only history and read-only preflight blocker results.
 
 A successful current-head PostgreSQL governance workflow and app build are required before E20 is considered validated. Authenticated browser acceptance remains subject to the dedicated QA fixture. No production migration, worker activation, provider connection, deployment or merge is performed by this implementation.
