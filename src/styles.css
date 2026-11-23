@@ -6167,3 +6167,51 @@ h2,h3{color:#e5f2fc}
 .discovery-orchestration-preflight{grid-column:2/-1;display:grid;gap:3px;margin-top:1px;padding:6px 8px;border-left:2px solid #d8b87b;background:#fcfaf5}
 .discovery-orchestration-preflight strong{color:#89652e;font-size:8px;text-transform:uppercase}
 .discovery-orchestration-preflight span{color:#8b8068;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
+
+
+/* E20.3 governed run-context admission controls */
+.discovery-orchestration-context {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid var(--border, rgba(128,128,128,.25));
+  border-radius: 12px;
+  background: var(--surface-soft, rgba(128,128,128,.045));
+}
+.discovery-orchestration-context > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+.discovery-orchestration-context > div:first-child b {
+  font-size: 13px;
+}
+.discovery-orchestration-context small {
+  color: var(--muted, #737373);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.discovery-orchestration-context label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.discovery-orchestration-context select,
+.discovery-orchestration-context input {
+  width: 100%;
+  min-width: 0;
+}
+.discovery-orchestration-context > small {
+  overflow-wrap: anywhere;
+}
+@media (min-width: 760px) {
+  .discovery-orchestration-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+  .discovery-orchestration-context > div:first-child,
+  .discovery-orchestration-context > small {
+    grid-column: 1 / -1;
+  }
+}
