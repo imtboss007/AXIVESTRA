@@ -84,6 +84,11 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(edge, /action === "orchestration\.bindContext"/);
   assert.match(edge, /bind_discovery_orchestration_run_context/);
   assert.match(edge, /profileSourceResult/);
+  assert.match(edge, /contextEventResult/);
+  assert.match(workspace, /Context history/);
+  assert.match(workspace, /Context bound/);
+  assert.match(workspace, /execution_context_bound/);
+
   assert.match(workspace, /Bind & validate context/);
   assert.match(workspace, /orchestration\.bindContext/);
   assert.match(workspace, /Source allow-list/);
