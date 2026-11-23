@@ -86,6 +86,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
 
     const verificationConfidenceMigration = await readFile(new URL("../../supabase/migrations/20261123110000_axivestra_verification_confidence.sql", import.meta.url), "utf8");
     await pool.query(verificationConfidenceMigration);
+    const orchestrationMigration = await readFile(new URL("../../supabase/migrations/20261123130000_axivestra_agent_orchestration.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -387,6 +389,76 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const viewerId = "12121212-1212-4121-8121-121212121212";
     await pool.query("insert into auth.users(id) values($1)",[viewerId]);
     await pool.query("insert into public.company_memberships(company_id,user_id,role) values($1,$2,'viewer')",[companyId,viewerId]);
+
+    // E20: plan-only orchestration preserves dependencies and requires owner/admin approval.
+    const orchestrationClient=await pool.connect();
+    try{
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      const planKey="e20-integration-company-identity-01";
+      const requestedPlan=await orchestrationClient.query(
+        "select public.request_discovery_orchestration_run($1,'company_identity',$2) as id",
+        [companyId,planKey]
+      );
+      const orchestrationRunId=requestedPlan.rows[0].id;
+      const duplicatePlan=await orchestrationClient.query(
+        "select public.request_discovery_orchestration_run($1,'company_identity',$2) as id",
+        [companyId,planKey]
+      );
+      assert.equal(duplicatePlan.rows[0].id,orchestrationRunId,"E20 idempotent requests must return the original plan");
+      const pendingPlan=await orchestrationClient.query(
+        "select status,dispatch_state,stage_count,unavailable_adapter_count,disabled_stage_count from public.discovery_orchestration_run_inbox where company_id=$1 and id=$2",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(pendingPlan.rows[0].status,"awaiting_approval");
+      assert.equal(pendingPlan.rows[0].dispatch_state,"not_configured");
+      assert.equal(pendingPlan.rows[0].stage_count,3);
+      assert.equal(pendingPlan.rows[0].unavailable_adapter_count,3);
+      assert.equal(pendingPlan.rows[0].disabled_stage_count,3);
+      const plannedSteps=await orchestrationClient.query(
+        "select stage_key,step_order,depends_on_step_ids,status,dispatch_state from public.discovery_orchestration_steps where company_id=$1 and run_id=$2 order by step_order",
+        [companyId,orchestrationRunId]
+      );
+      assert.deepEqual(plannedSteps.rows.map(row=>row.stage_key),["e04_source_capture","e05_extraction","e06_entity_resolution"]);
+      assert.equal(plannedSteps.rows[0].depends_on_step_ids.length,0);
+      assert.equal(plannedSteps.rows[1].depends_on_step_ids.length,1);
+      assert.equal(plannedSteps.rows[2].depends_on_step_ids.length,1);
+      assert.ok(plannedSteps.rows.every(row=>row.status==="planned"&&row.dispatch_state==="adapter_not_registered"));
+      const stageControls=await orchestrationClient.query(
+        "select bool_and(enabled) as any_enabled,count(*)::int as count from public.discovery_orchestration_company_stage_controls where company_id=$1 and stage_key=any(array['e04_source_capture','e05_extraction','e06_entity_resolution'])",
+        [companyId]
+      );
+      assert.equal(stageControls.rows[0].count,3);
+      assert.equal(stageControls.rows[0].any_enabled,false,"E20 per-stage kill switches must start disabled");
+
+      await assert.rejects(
+        orchestrationClient.query(
+          "select public.record_discovery_orchestration_decision($1,$2,'approve','Viewer cannot approve an orchestration plan.')",
+          [companyId,orchestrationRunId]
+        ),
+        /Only company owners\/admin/
+      );
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const approvedEvent=await orchestrationClient.query(
+        "select public.record_discovery_orchestration_decision($1,$2,'approve','Approved for adapter-readiness review only; execution remains disabled.') as id",
+        [companyId,orchestrationRunId]
+      );
+      assert.ok(approvedEvent.rows[0].id);
+      const approvedPlan=await orchestrationClient.query(
+        "select status,dispatch_state from public.discovery_orchestration_runs where company_id=$1 and id=$2",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(approvedPlan.rows[0].status,"approved_not_dispatched");
+      assert.equal(approvedPlan.rows[0].dispatch_state,"not_configured");
+      const orchestrationHistory=await orchestrationClient.query(
+        "select count(*)::int as count from public.discovery_orchestration_events where company_id=$1 and run_id=$2",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(orchestrationHistory.rows[0].count,2,"E20 writes immutable request and approval receipts");
+      await assert.rejects(
+        orchestrationClient.query("update public.discovery_orchestration_events set reason='rewritten' where run_id=$1",[orchestrationRunId]),
+        /append-only/
+      );
+    } finally { orchestrationClient.release(); }
     // E16: normalized deal-specific party links use stable record keys and retain history.
     const partyClient=await pool.connect();
     try {
