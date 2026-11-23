@@ -57,6 +57,7 @@ export default function DiscoveryOrchestrationWorkspace({
   const [workerLeaseSeconds, setWorkerLeaseSeconds] = useState(120);
   const [workerExpiryMinutes, setWorkerExpiryMinutes] = useState(30);
   const [workerReason, setWorkerReason] = useState("Temporary worker scope for reviewed orchestration stages.");
+  const [workerGrantConfirmed, setWorkerGrantConfirmed] = useState(false);
   const [workerToken, setWorkerToken] = useState("");
   const [workerTokenKey, setWorkerTokenKey] = useState("");
   const [revokeConfirm, setRevokeConfirm] = useState<Record<string, string>>({});
@@ -141,6 +142,10 @@ export default function DiscoveryOrchestrationWorkspace({
   };
 
   const grantWorker = async () => {
+    if (!workerGrantConfirmed) {
+      setError("Review and acknowledge the exact worker scope and expiry before granting this credential.");
+      return;
+    }
     const workerKey = workerKeyDraft.trim();
     const displayName = workerNameDraft.trim();
     if (!/^[a-z0-9][a-z0-9._-]{2,79}$/.test(workerKey)) {
@@ -176,6 +181,7 @@ export default function DiscoveryOrchestrationWorkspace({
       setWorkerKeyDraft("");
       setWorkerNameDraft("");
       setWorkerStageKeys([]);
+      setWorkerGrantConfirmed(false);
       await refresh();
     } catch (reason) {
       setError(readableError(reason));
@@ -377,9 +383,14 @@ export default function DiscoveryOrchestrationWorkspace({
           <b>Grant preview</b>
           <span>Identity: {workerKeyDraft || "Not named"} · Stages: {workerStageKeys.length ? workerStageKeys.map(key => stages.find(stage => stage.stage_key === key)?.technical_stage || key).join(", ") : "None selected"}</span>
           <span>Concurrency: {workerMaxLeases} active lease(s) · Lease: {workerLeaseSeconds}s · Expiry: {workerExpiryMinutes} min (never beyond company grant)</span>
+          <span>Authority: claim/heartbeat/release only. The E20 dispatch gate remains OFF; this grant cannot start discovery work.</span>
         </div>
+        <label className="discovery-orchestration-worker-confirm">
+          <input type="checkbox" checked={workerGrantConfirmed} onChange={event => setWorkerGrantConfirmed(event.target.checked)} disabled={Boolean(busy)}/>
+          <span>I reviewed this exact stage scope, lease/concurrency limits and expiry. I understand this creates a temporary credential but does not enable dispatch.</span>
+        </label>
         <button type="button" className="primary-button" onClick={() => void grantWorker()}
-          disabled={Boolean(busy) || loading || !workerStageKeys.length || !companyWorkerGrant?.enabled || Date.parse(companyWorkerGrant.expires_at) <= Date.now()}>
+          disabled={!workerGrantConfirmed || Boolean(busy) || loading || workerKeyDraft.trim().length < 3 || workerNameDraft.trim().length < 3 || !workerStageKeys.length || workerReason.trim().length < 10 || !companyWorkerGrant?.enabled || Date.parse(companyWorkerGrant.expires_at) <= Date.now()}>
           {busy === "worker-grant" ? <LoaderCircle size={14} className="spin"/> : <ShieldCheck size={14}/>}Grant temporary worker identity
         </button>
       </div>}
