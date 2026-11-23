@@ -564,6 +564,30 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.ok(Date.parse(workerGrantExpiry.rows[0].worker_expiry)<=Date.parse(workerGrantExpiry.rows[0].company_expiry));
       assert.equal(workerGrantExpiry.rows[0].max_active_leases,1);
       assert.equal(workerGrantExpiry.rows[0].lease_seconds,60);
+
+      const memberReadClient=await pool.connect();
+      try {
+        await memberReadClient.query("set role authenticated");
+        await memberReadClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+        const viewerPreflight=await memberReadClient.query(
+          "select stage_key,company_worker_grant_active,worker_identity_scope_available,dispatch_permitted from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
+          [companyId,orchestrationRunId]
+        );
+        assert.equal(viewerPreflight.rows.length,3,"a regular company member can read the safe orchestration preflight");
+        assert.equal(viewerPreflight.rows[1].stage_key,"e05_extraction");
+        assert.equal(viewerPreflight.rows[1].company_worker_grant_active,true);
+        assert.equal(viewerPreflight.rows[1].worker_identity_scope_available,true);
+        assert.equal(viewerPreflight.rows[1].dispatch_permitted,false);
+        const viewerWorkerDirectory=await memberReadClient.query(
+          "select id from public.discovery_orchestration_worker_directory where company_id=$1",
+          [companyId]
+        );
+        assert.equal(viewerWorkerDirectory.rows.length,0,"worker identity names are owner/admin only");
+      } finally {
+        await memberReadClient.query("reset role");
+        memberReadClient.release();
+      }
+
       const tokenPrivileges=await pool.query(
         "select has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_lease_inbox','select') as safe_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as worker_table_select"
       );
@@ -638,6 +662,24 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"c".repeat(64)]
         );
+        const memberLeaseClient=await pool.connect();
+        try {
+          await memberLeaseClient.query("set role authenticated");
+          await memberLeaseClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+          const safeLease=await memberLeaseClient.query(
+            "select * from public.discovery_orchestration_execution_lease_inbox where company_id=$1 and id=$2",
+            [companyId,leaseOne.rows[0].id]
+          );
+          assert.equal(safeLease.rows.length,1);
+          assert.equal(Object.hasOwn(safeLease.rows[0],"lease_token_hash"),false);
+          await assert.rejects(
+            memberLeaseClient.query("select lease_token_hash from public.discovery_orchestration_execution_leases where company_id=$1 and id=$2",[companyId,leaseOne.rows[0].id]),
+            /permission denied/
+          );
+        } finally {
+          await memberLeaseClient.query("reset role");
+          memberLeaseClient.release();
+        }
         await pool.query(
           "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
           [companyId,executionId]
