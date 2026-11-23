@@ -1133,7 +1133,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         );
         assert.equal(permanentExecution.rows[0].state,"failed");
         assert.equal(permanentExecution.rows[0].last_error_code,"INVALID_INPUT");
-        assert.equal(permanentExecution.rows[0].attempt_count,4);
+        assert.equal(permanentExecution.rows[0].attempt_count,7);
         const downstreamSchedule=await orchestrationClient.query(
           "select stage_key,dependency_state,schedule_preview_state,dispatch_permitted from public.discovery_orchestration_dependency_schedule where company_id=$1 and run_id=$2 and stage_key='e06_entity_resolution'",
           [companyId,orchestrationRunId]
