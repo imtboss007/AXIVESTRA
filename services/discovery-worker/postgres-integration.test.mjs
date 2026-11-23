@@ -942,6 +942,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         assert.equal(expiredAttempt.rows[0].failure_class,"transient");
         assert.equal(expiredAttempt.rows[0].retryable,true);
         assert.ok(expiredAttempt.rows[0].next_retry_at>new Date());
+        const releaseAfterExpiry=await workerServiceClient.query(
+          "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'released',null) as result",
+          [companyId,workerIdentityId,workerCredentialHash,expiredLease.rows[0].id,"f".repeat(64)]
+        );
+        assert.equal(releaseAfterExpiry.rows[0].result.idempotent,true,"a delayed duplicate release after the expiry sweeper returns the already-finalized expiry receipt");
         await assert.rejects(
           pool.query("update public.discovery_orchestration_execution_events set reason='tampered' where execution_id=$1",[executionId]),
           /append-only/
