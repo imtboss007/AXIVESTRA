@@ -1024,6 +1024,14 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         assert.equal(permanentExecution.rows[0].state,"failed");
         assert.equal(permanentExecution.rows[0].last_error_code,"INVALID_INPUT");
         assert.equal(permanentExecution.rows[0].attempt_count,4);
+        const downstreamSchedule=await workerServiceClient.query(
+          "select stage_key,dependency_state,schedule_preview_state,dispatch_permitted from public.discovery_orchestration_dependency_schedule where company_id=$1 and run_id=$2 and stage_key='e06_entity_resolution'",
+          [companyId,orchestrationRunId]
+        );
+        assert.equal(downstreamSchedule.rows.length,1);
+        assert.equal(downstreamSchedule.rows[0].dependency_state,"blocked_by_failed_dependency");
+        assert.equal(downstreamSchedule.rows[0].schedule_preview_state,"blocked_by_failed_dependency");
+        assert.equal(downstreamSchedule.rows[0].dispatch_permitted,false,"a failed upstream stage blocks downstream scheduling without dispatch");
 
         // Pausing a scoped worker immediately releases its active lease.
         await pool.query(
