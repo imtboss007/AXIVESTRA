@@ -55,6 +55,14 @@ test("E20.4 worker client calls the narrow broker and never calls the service ro
   assert.equal(calls[0].init.headers.apikey, publicApiKey);
   assert.equal(calls[0].init.headers["x-axivestra-worker-token"], workerToken);
   assert.equal(calls[0].init.headers.Authorization, undefined);
+  assert.deepEqual(
+    Object.keys(calls[0].init.headers).sort(),
+    ["apikey","cache-control","content-type","x-axivestra-worker-token"].sort(),
+    "worker requests carry only the public API key and its own scoped token (plus transport headers)"
+  );
+  assert.equal(JSON.stringify(calls[0].body).includes(workerToken), false, "scoped token must not be duplicated into the request body");
+  assert.equal(JSON.stringify(calls[0].body).includes(publicApiKey), false, "public key must remain in the apikey header");
+  assert.equal(JSON.stringify(calls[0].init.headers).toLowerCase().includes("service_role"), false, "service-role credentials must never enter the worker process");
   assert.deepEqual(calls[0].body, {
     action: "claim", companyId: common.companyId,
     workerIdentityId: common.workerIdentityId, leaseSeconds: 90
