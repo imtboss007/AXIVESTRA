@@ -89,6 +89,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(workerMigration.includes("create table if not exists public.discovery_orchestration_worker_identities"));
   assert.ok(workerMigration.includes("create table if not exists public.discovery_orchestration_worker_events"));
   assert.ok(workerMigration.includes("grant_discovery_orchestration_worker_identity"));
+  assert.ok(workerMigration.includes("wi.worker_key=p_worker_key"), "E20.4 grant lookup must qualify worker_key to avoid RETURNS TABLE variable ambiguity");
   assert.ok(workerMigration.includes("set_discovery_orchestration_worker_identity_status"));
   assert.ok(workerMigration.includes("claim_discovery_orchestration_lease"));
   assert.ok(workerMigration.includes("heartbeat_discovery_orchestration_lease"));
