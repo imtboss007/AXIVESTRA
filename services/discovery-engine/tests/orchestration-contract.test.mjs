@@ -6,13 +6,15 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, edge, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
+  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
     read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
     read("supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql"),
     read("supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql"),
     read("supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql"),
     read("supabase/functions/discovery-control/index.ts"),
+    read("supabase/functions/discovery-orchestration-worker/index.ts"),
+    read("supabase/config.toml"),
     read("src/DiscoveryOrchestrationWorkspace.tsx"),
     read("src/DiscoverySourceManager.tsx"),
     read("services/discovery-worker/postgres-integration.test.mjs"),
@@ -137,13 +139,25 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(workspace, /Type \{worker\.worker_key\} to revoke/);
   assert.match(workspace, /Worker grant history/);
   assert.ok(!workspace.includes("localStorage.setItem(workerToken"));
+  assert.match(workerEdge, /x-axivestra-worker-token/);
+  assert.match(workerEdge, /claim_discovery_orchestration_lease/);
+  assert.match(workerEdge, /heartbeat_discovery_orchestration_lease/);
+  assert.match(workerEdge, /release_discovery_orchestration_lease/);
+  assert.match(workerEdge, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(workerEdge, /subtle\.digest\("SHA-256"/);
+  assert.match(workerEdge, /crypto\.getRandomValues/);
+  assert.match(workerEdge, /never include input, authorization headers, hashes or tokens in error logs/);
+  assert.match(config, /\[functions\.discovery-orchestration-worker\]\nverify_jwt = false/);
   assert.match(leaseClient, /createOrchestrationLeaseClient/);
-  assert.match(leaseClient, /createHash/);
-  assert.match(leaseClient, /randomBytes/);
+  assert.match(leaseClient, /fetchImpl/);
+  assert.match(leaseClient, /x-axivestra-worker-token/);
+  assert.match(leaseClient, /functions\/v1\/discovery-orchestration-worker/);
+  assert.doesNotMatch(leaseClient, /SUPABASE_SERVICE_ROLE_KEY|service_role|admin\.rpc|p_worker_credential_hash|p_lease_token_hash/);
   assert.match(leaseClient, /leaseTokens = new Map/);
-  assert.match(leaseClientTest, /E20\.4 hashes worker credentials/);
+  assert.match(leaseClientTest, /E20\.4 worker client calls the narrow broker/);
   assert.match(leaseClientTest, /fails closed/);
   assert.match(leaseClientTest, /forgotten its token/);
+  assert.match(leaseClientTest, /never call the service role/);
 
 
   assert.doesNotMatch(executionMigration, /create or replace function public[.](claim|heartbeat|complete|retry)_discovery_orchestration/i);
