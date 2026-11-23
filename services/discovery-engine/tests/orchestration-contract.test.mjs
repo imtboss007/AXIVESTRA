@@ -161,7 +161,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(leaseClientTest, /E20\.4 worker client calls the narrow broker/);
   assert.match(leaseClientTest, /fails closed/);
   assert.match(leaseClientTest, /forgotten its token/);
-  assert.match(leaseClientTest, /never call the service role/);
+  assert.match(leaseClientTest, /never calls the service role/);
 
 
   assert.doesNotMatch(executionMigration, /create or replace function public[.](claim|heartbeat|complete|retry)_discovery_orchestration/i);
