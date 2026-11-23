@@ -84,6 +84,9 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const commitmentWorkspaceMigration = await readFile(new URL("../../supabase/migrations/20261122330000_axivestra_commitment_workspace.sql", import.meta.url), "utf8");
     await pool.query(commitmentWorkspaceMigration);
 
+    const verificationConfidenceMigration = await readFile(new URL("../../supabase/migrations/20261123110000_axivestra_verification_confidence.sql", import.meta.url), "utf8");
+    await pool.query(verificationConfidenceMigration);
+
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -1718,7 +1721,79 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId,leadId]
     );
     assert.equal(createdLead.rows[0].status,"inbox");
+
     assert.equal(createdLead.rows[0].workspace_key,"startup");
+
+    // E19: source-backed E13 lineage automatically opens a cross-stage verification case.
+    const verificationClient=await pool.connect();
+    try{
+      await verificationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const verificationCase=await verificationClient.query(
+        "select * from public.discovery_verification_inbox where company_id=$1 and subject_kind='canonical_entity' and subject_id=$2",
+        [companyId,canonical.rows[0].id]
+      );
+      assert.equal(verificationCase.rows.length,1,"E19 must backfill/open a case for an existing canonical-entity provenance subject");
+      const e19=verificationCase.rows[0];
+      assert.ok(e19.evidence_count>=1);
+      assert.ok(e19.supporting_evidence_count>=1);
+      assert.ok(e19.confidence_index>=40&&e19.confidence_index<=100);
+      assert.ok(e19.independent_source_count>=1);
+
+      const e19Refs=await verificationClient.query(
+        "select id,provenance_event_id from public.discovery_verification_evidence where company_id=$1 and case_id=$2 order by occurred_at",
+        [companyId,e19.id]
+      );
+      assert.ok(e19Refs.rows.length>=1);
+      await verificationClient.query(
+        "select public.record_discovery_verification_evidence_classification($1,$2,$3,'context','This provenance event is contextual history, not independent support.')",
+        [companyId,e19.id,e19Refs.rows[0].provenance_event_id]
+      );
+      const afterClassify=await verificationClient.query(
+        "select supporting_evidence_count,confidence_index from public.discovery_verification_inbox where company_id=$1 and id=$2",
+        [companyId,e19.id]
+      );
+      assert.ok(afterClassify.rows[0].supporting_evidence_count>=0);
+
+      await verificationClient.query(
+        "select public.record_discovery_verification_review($1,$2,'in_review','Owner begins the evidence review.')",
+        [companyId,e19.id]
+      );
+      await verificationClient.query(
+        "select public.record_discovery_verification_review($1,$2,'verified','Source-backed identity evidence was reviewed and cross-checked.')",
+        [companyId,e19.id]
+      );
+      const verifiedCase=await verificationClient.query(
+        "select status from public.discovery_verification_cases where company_id=$1 and id=$2",
+        [companyId,e19.id]
+      );
+      assert.equal(verifiedCase.rows[0].status,"verified");
+
+      // New provenance reopens a verified case instead of leaving a stale approval in place.
+      await verificationClient.query(
+        "insert into public.discovery_provenance_events(company_id,subject_kind,subject_id,event_type,source_id,evidence_content_hash,source_name_snapshot,source_domain_snapshot,origin_table,origin_record_id,actor_user_id,event_metadata) values($1,'canonical_entity',$2,'source_observed',$3,$4,'Example registry second observation','registry.example.gov.in','discovery_audit_events','99999999-9999-4999-8999-999999999991',$5,'{"verification_fixture":true}'::jsonb)",
+        [companyId,canonical.rows[0].id,sourceId,"d".repeat(64),actorId]
+      );
+      const reopenedCase=await verificationClient.query(
+        "select status from public.discovery_verification_cases where company_id=$1 and id=$2",
+        [companyId,e19.id]
+      );
+      assert.equal(reopenedCase.rows[0].status,"pending_review","new source-backed provenance must reopen a prior verified decision");
+      const reopenedReceipt=await verificationClient.query(
+        "select count(*)::int as count from public.discovery_verification_events where company_id=$1 and case_id=$2 and event_type='case_reopened_after_new_evidence'",
+        [companyId,e19.id]
+      );
+      assert.equal(reopenedReceipt.rows[0].count,1);
+
+      await verificationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      await assert.rejects(
+        verificationClient.query(
+          "select public.record_discovery_verification_review($1,$2,'rejected','Viewer must not decide a case.')",
+          [companyId,e19.id]
+        ),
+        /Only company owners\/admins can decide verification cases/
+      );
+    } finally { verificationClient.release(); }
+
     await assert.rejects(
       pool.query(
         "select public.record_discovery_match_review($1,$2,$3,'accepted_for_review','match_confirmed')",
