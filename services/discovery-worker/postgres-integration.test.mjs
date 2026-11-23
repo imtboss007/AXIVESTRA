@@ -966,7 +966,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
             "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'failed','ERROR_TEXT_FROM_WORKER')",
             [companyId,workerIdentityId,workerCredentialHash,failureLease.rows[0].id,"7".repeat(64)]
           ),
-          /approved error code/
+          /approved failure classification catalogue/
         );
         const failedOutcome=await workerServiceClient.query(
           "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'failed','REMOTE_5XX') as result",
