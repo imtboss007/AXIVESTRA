@@ -494,10 +494,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.equal(executionGrants.rows[0].can_insert_execution,false);
       assert.equal(executionGrants.rows[0].can_insert_lease,false);
       assert.equal(executionGrants.rows[0].can_insert_event,false);
+      // E20.2 exposes no direct execution RPCs. E20.4 adds separately named,
+      // service-role-only scoped lease RPCs (claim/heartbeat/release); do not
+      // mistake the E20.4 heartbeat RPC for an E20.2 execution dispatcher.
       const executionRoutines=await orchestrationClient.query(
-        "select count(*)::int as routines from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('claim_discovery_orchestration_execution','heartbeat_discovery_orchestration_lease','complete_discovery_orchestration_execution','retry_discovery_orchestration_execution')"
+        "select count(*)::int as routines from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('claim_discovery_orchestration_execution','complete_discovery_orchestration_execution','retry_discovery_orchestration_execution')"
       );
-      assert.equal(executionRoutines.rows[0].routines,0,"E20.2 exposes no worker execution RPCs");
+      assert.equal(executionRoutines.rows[0].routines,0,"E20.2 exposes no direct worker execution RPCs");
       assert.equal(initialPreflight.rows[0].unsatisfied_dependency_count,0);
       assert.equal(initialPreflight.rows[1].unsatisfied_dependency_count,1);
       assert.equal(initialPreflight.rows[2].unsatisfied_dependency_count,1);
