@@ -317,7 +317,7 @@ Deno.serve(async request => {
       let companyWorkerGrant: Record<string, unknown> | null = null;
       if (canManage) {
         const [workerResult, workerEventResult, companyGrantResult] = await Promise.all([
-          admin.from("discovery_orchestration_worker_directory")
+          admin.from("discovery_orchestration_worker_identities")
             .select("id,worker_key,display_name,stage_keys,max_active_leases,lease_seconds,status,expires_at,last_used_at,granted_by,updated_by,reason,created_at,updated_at")
             .eq("company_id", companyId).order("created_at", { ascending: false }).limit(100),
           admin.from("discovery_orchestration_worker_events")
