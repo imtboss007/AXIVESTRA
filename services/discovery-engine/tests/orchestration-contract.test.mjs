@@ -108,7 +108,10 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(workerMigration.includes("dispatch_permitted=true"));
   assert.ok(workerMigration.includes("false as dispatch_permitted"));
   assert.ok(workerMigration.includes("Worker grant events are append-only"));
-  assert.ok(workerMigration.includes("Company worker grant was disabled or expired"));
+  assert.ok(workerMigration.includes("Company worker grant was disabled, shortened or expired"));
+  assert.ok(workerMigration.includes("Shortening a still-active company grant must release leases immediately"));
+  assert.ok(workerMigration.includes("new.expires_at>=old.expires_at"));
+  assert.match(integration, /shortening a still-enabled company grant must pause scoped workers/);
   assert.ok(workerMigration.includes("Worker credential rotated; active leases were released"));
   assert.ok(workerMigration.includes("credential_hash"));
   assert.ok(workerMigration.includes("create or replace view public.discovery_orchestration_worker_directory"));
