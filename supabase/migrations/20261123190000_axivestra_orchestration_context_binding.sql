@@ -111,8 +111,9 @@ begin
     raise exception 'An exact approved purpose is required.' using errcode='22023';
   end if;
   if p_required_fields is null or cardinality(p_required_fields)<1 or cardinality(p_required_fields)>40
-    or exists(select 1 from unnest(p_required_fields) f where f is null or f<>trim(f) or length(f)=0 or length(f)>120)
-    or cardinality(p_required_fields)<>(select count(distinct f) from unnest(p_required_fields) f) then
+    or exists(select 1 from unnest(p_required_fields) as req(field_name)
+      where field_name is null or field_name<>trim(field_name) or length(field_name)=0 or length(field_name)>120)
+    or cardinality(p_required_fields)<>(select count(distinct field_name) from unnest(p_required_fields) as req(field_name)) then
     raise exception 'Required fields must be a unique list of 1–40 non-empty field names.' using errcode='22023';
   end if;
 
@@ -142,7 +143,8 @@ begin
   if not (p_purpose=any(v_source.allowed_purposes)) then
     raise exception 'The exact profile purpose is not approved for this source.' using errcode='42501';
   end if;
-  if exists(select 1 from unnest(p_required_fields) f where not (f=any(v_source.allowed_fields))) then
+  if exists(select 1 from unnest(p_required_fields) as req(field_name)
+      where not (field_name=any(v_source.allowed_fields))) then
     raise exception 'One or more required fields are outside the source field allow-list.' using errcode='42501';
   end if;
   if not exists(
