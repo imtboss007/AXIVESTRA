@@ -6,12 +6,13 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
+  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, adapterMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
     read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
     read("supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql"),
     read("supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql"),
     read("supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql"),
+    read("supabase/migrations/20261123230000_axivestra_orchestration_adapter_approvals.sql"),
     read("supabase/functions/discovery-control/index.ts"),
     read("supabase/functions/discovery-orchestration-worker/index.ts"),
     read("supabase/config.toml"),
@@ -134,6 +135,34 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(workerMigration.includes("left join public.discovery_orchestration_company_worker_gate wg"));
   assert.ok(workerMigration.includes("left join public.discovery_orchestration_active_worker_stage_scopes ws"));
   assert.doesNotMatch(workerMigration, /left join public\\.discovery_company_worker_controls wg/);
+
+  assert.ok(adapterMigration.includes("create table if not exists public.discovery_orchestration_company_adapter_approvals"));
+  assert.ok(adapterMigration.includes("create table if not exists public.discovery_orchestration_company_adapter_events"));
+  assert.match(adapterMigration, /review_discovery_orchestration_company_adapter/);
+  assert.match(adapterMigration, /Only company owners\/admins can review a company adapter contract/);
+  assert.match(adapterMigration, /Only a platform-reviewed, enabled adapter contract can be approved for a company/);
+  assert.match(adapterMigration, /Company adapter approval history is append-only/);
+  assert.match(adapterMigration, /create or replace view public\.discovery_orchestration_dependency_schedule/);
+  assert.match(adapterMigration, /eligible_for_policy_review_only/);
+  assert.match(adapterMigration, /false as dispatch_permitted/);
+  assert.match(adapterMigration, /adapter_contract_not_platform_approved/);
+  assert.match(adapterMigration, /company_adapter_not_approved/);
+  assert.match(adapterMigration, /coalesce\(aa.status='approved' and aa.contract_version=ac.contract_version,false\) as company_adapter_approved/);
+  assert.doesNotMatch(adapterMigration, /insert into public\.discovery_jobs/i);
+  assert.doesNotMatch(adapterMigration, /update public\.discovery_orchestration_company_stage_controls/i);
+  assert.match(integration, /20261123230000_axivestra_orchestration_adapter_approvals\.sql/);
+  assert.match(integration, /review_discovery_orchestration_company_adapter/);
+  assert.match(integration, /dependency_preview/);
+  assert.match(integration, /company_adapter_approved/);
+  assert.match(edge, /action === "orchestration\.adapterReview"/);
+  assert.match(edge, /adapterContractResult/);
+  assert.match(edge, /adapterApprovalResult/);
+  assert.match(edge, /schedulePreviewResult/);
+  assert.match(workspace, /Versioned adapter contracts/);
+  assert.match(workspace, /Approve exact version for company/);
+  assert.match(workspace, /Company adapter review history/);
+  assert.match(workspace, /Dependency schedule preview/);
+  assert.match(workspace, /Dispatch: permanently OFF/);
 
   assert.ok(workerMigration.includes("revoke all on public.discovery_orchestration_execution_leases"));
   assert.match(integration, /20261123210000_axivestra_orchestration_worker_identity_leases\.sql/);
