@@ -312,6 +312,27 @@ Deno.serve(async request => {
       for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult]) {
         if (result.error) throw result.error;
       }
+      let workerIdentities: Record<string, unknown>[] = [];
+      let workerEvents: Record<string, unknown>[] = [];
+      let companyWorkerGrant: Record<string, unknown> | null = null;
+      if (canManage) {
+        const [workerResult, workerEventResult, companyGrantResult] = await Promise.all([
+          admin.from("discovery_orchestration_worker_directory")
+            .select("id,worker_key,display_name,stage_keys,max_active_leases,lease_seconds,status,expires_at,last_used_at,granted_by,updated_by,reason,created_at,updated_at")
+            .eq("company_id", companyId).order("created_at", { ascending: false }).limit(100),
+          admin.from("discovery_orchestration_worker_events")
+            .select("id,worker_identity_id,event_type,worker_key_snapshot,stage_keys_snapshot,reason,details,occurred_at,actor_user_id")
+            .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(300),
+          admin.from("discovery_company_worker_controls")
+            .select("enabled,expires_at,updated_at,reason").eq("company_id", companyId).maybeSingle()
+        ]);
+        for (const result of [workerResult, workerEventResult, companyGrantResult]) {
+          if (result.error) throw result.error;
+        }
+        workerIdentities = workerResult.data || [];
+        workerEvents = workerEventResult.data || [];
+        companyWorkerGrant = companyGrantResult.data || null;
+      }
       return jsonResponse(200, {
         ok: true,
         workflows: workflowResult.data || [],
@@ -324,7 +345,10 @@ Deno.serve(async request => {
         sources: sourceResult.data || [],
         profileSources: profileSourceResult.data || [],
         contextEvents: contextEventResult.data || [],
-        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500, contextEvents: 800 }
+        workerIdentities,
+        workerEvents,
+        companyWorkerGrant,
+        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500, contextEvents: 800, workerIdentities: 100, workerEvents: 300 }
       });
     }
 
@@ -388,6 +412,91 @@ Deno.serve(async request => {
         throw error;
       }
       return jsonResponse(200, { ok: true, eventId: data, message: "Run context bound and audited. Dispatch remains disabled." });
+    }
+
+    if (action === "orchestration.workerGrant") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can grant a scoped orchestration worker." });
+      const workerKey = typeof payload.workerKey === "string" ? payload.workerKey.trim() : "";
+      const displayName = typeof payload.displayName === "string" ? payload.displayName.trim() : "";
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      const stageKeys = Array.isArray(payload.stageKeys)
+        ? payload.stageKeys.filter((value): value is string => typeof value === "string")
+        : [];
+      const maxActiveLeases = Number(payload.maxActiveLeases || 1);
+      const leaseSeconds = Number(payload.leaseSeconds || 120);
+      const expiresMinutes = Number(payload.expiresMinutes || 30);
+      if (!/^[a-z0-9][a-z0-9._-]{2,79}$/.test(workerKey)) return jsonResponse(400, { error: "Worker key must be 3–80 lowercase letters, digits, dot, underscore or dash." });
+      if (displayName.length < 3 || displayName.length > 120) return jsonResponse(400, { error: "Worker display name must be 3–120 characters." });
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A grant reason of 10–1000 characters is required." });
+      if (!stageKeys.length || stageKeys.length > 9 || new Set(stageKeys).size !== stageKeys.length) {
+        return jsonResponse(400, { error: "Choose 1–9 distinct orchestration stages. No broad or wildcard scope is supported." });
+      }
+      if (!Number.isInteger(maxActiveLeases) || maxActiveLeases < 1 || maxActiveLeases > 4) return jsonResponse(400, { error: "Maximum active leases must be between 1 and 4." });
+      if (!Number.isInteger(leaseSeconds) || leaseSeconds < 15 || leaseSeconds > 300) return jsonResponse(400, { error: "Lease duration must be between 15 and 300 seconds." });
+      if (!Number.isInteger(expiresMinutes) || expiresMinutes < 5 || expiresMinutes > 60) return jsonResponse(400, { error: "Worker grant duration must be between 5 and 60 minutes." });
+
+      const credentialBytes = crypto.getRandomValues(new Uint8Array(32));
+      const workerToken = Array.from(credentialBytes, value => value.toString(16).padStart(2, "0")).join("");
+      const tokenDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(workerToken));
+      const credentialHash = Array.from(new Uint8Array(tokenDigest), value => value.toString(16).padStart(2, "0")).join("");
+      const expiresAt = new Date(Date.now() + expiresMinutes * 60_000).toISOString();
+      const { data, error } = await userClient.rpc("grant_discovery_orchestration_worker_identity", {
+        p_company_id: companyId,
+        p_worker_key: workerKey,
+        p_display_name: displayName,
+        p_credential_hash: credentialHash,
+        p_stage_keys: stageKeys,
+        p_max_active_leases: maxActiveLeases,
+        p_lease_seconds: leaseSeconds,
+        p_expires_at: expiresAt,
+        p_reason: reason
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        if (error.code === "23505") return jsonResponse(409, { error: "This worker key or credential is already registered in this company." });
+        throw error;
+      }
+      const worker = Array.isArray(data) ? data[0] : data;
+      if (!worker) throw new Error("Worker grant transaction returned no receipt.");
+      return jsonResponse(201, {
+        ok: true,
+        worker,
+        workerToken,
+        credentialHandling: "This credential is shown once. Copy it to the worker's secret environment; AXIVESTRA stores only its SHA-256 hash. It is not included in audit history.",
+        dispatchMessage: "Worker identity granted, but no work can be claimed: orchestration dispatch remains disabled."
+      });
+    }
+
+    if (action === "orchestration.workerControl") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can pause or revoke an orchestration worker." });
+      if (!isUuid(payload.workerIdentityId)) return jsonResponse(400, { error: "A valid worker identity ID is required." });
+      const status = payload.status === "revoked" ? "revoked" : payload.status === "paused" ? "paused" : payload.status === "active" ? "active" : "";
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (!status) return jsonResponse(400, { error: "Choose active, paused or revoked status." });
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A control reason of 10–1000 characters is required." });
+      const { data, error } = await userClient.rpc("set_discovery_orchestration_worker_identity_status", {
+        p_company_id: companyId,
+        p_worker_identity_id: payload.workerIdentityId,
+        p_status: status,
+        p_reason: reason
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      const worker = Array.isArray(data) ? data[0] : data;
+      if (!worker) throw new Error("Worker identity control transaction returned no receipt.");
+      return jsonResponse(200, {
+        ok: true, worker,
+        message: status === "revoked"
+          ? "Worker identity revoked. Active orchestration leases were released immediately."
+          : status === "paused"
+            ? "Worker identity paused. Active orchestration leases were released immediately."
+            : "Worker identity resumed. Expiry and the company grant are still enforced."
+      });
     }
 
     if (action === "orchestration.decide") {
