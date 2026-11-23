@@ -985,6 +985,14 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           [companyId,workerIdentityId,workerCredentialHash,failureLease.rows[0].id,"7".repeat(64)]
         );
         assert.equal(duplicateFailureOutcome.rows[0].result.idempotent,true,"repeating the same error outcome returns the original idempotent receipt");
+        await assert.rejects(
+          pool.query("update public.discovery_orchestration_execution_attempts set status='started' where company_id=$1 and lease_id=$2",[companyId,failureLease.rows[0].id]),
+          /finalized orchestration attempt receipt is immutable/
+        );
+        await assert.rejects(
+          pool.query("delete from public.discovery_orchestration_execution_attempts where company_id=$1 and lease_id=$2",[companyId,failureLease.rows[0].id]),
+          /attempt receipts are immutable/
+        );
         const afterFailureExecution=await workerServiceClient.query(
           "select state,attempt_count,available_at from public.discovery_orchestration_executions where company_id=$1 and id=$2",
           [companyId,executionId]
@@ -992,6 +1000,30 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         assert.equal(afterFailureExecution.rows[0].state,"retry_wait");
         assert.equal(afterFailureExecution.rows[0].attempt_count,3);
         assert.ok(afterFailureExecution.rows[0].available_at>new Date());
+
+        // A known permanent error is terminal and never enters the retry queue.
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='ready',available_at=clock_timestamp() where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        const permanentLease=await pool.query(
+          "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
+          [companyId,executionId,workerIdentityId,"8".repeat(64)]
+        );
+        const permanentOutcome=await workerServiceClient.query(
+          "select public.record_discovery_orchestration_attempt_outcome($1,$2,$3,$4,$5,'failed','INVALID_INPUT') as result",
+          [companyId,workerIdentityId,workerCredentialHash,permanentLease.rows[0].id,"8".repeat(64)]
+        );
+        assert.equal(permanentOutcome.rows[0].result.executionState,"failed");
+        assert.equal(permanentOutcome.rows[0].result.failureClass,"permanent");
+        assert.equal(permanentOutcome.rows[0].result.retryable,false);
+        const permanentExecution=await workerServiceClient.query(
+          "select state,attempt_count,last_error_code from public.discovery_orchestration_executions where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        assert.equal(permanentExecution.rows[0].state,"failed");
+        assert.equal(permanentExecution.rows[0].last_error_code,"INVALID_INPUT");
+        assert.equal(permanentExecution.rows[0].attempt_count,4);
 
         // Pausing a scoped worker immediately releases its active lease.
         await pool.query(
