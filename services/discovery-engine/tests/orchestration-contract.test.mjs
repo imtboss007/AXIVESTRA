@@ -182,6 +182,12 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
 
 
   assert.doesNotMatch(executionMigration, /create or replace function public[.](claim|heartbeat|complete|retry)_discovery_orchestration/i);
+  assert.match(integration, /E20\.2 must create no worker lease, execution, completion, retry or dispatch RPCs/);
+  assert.match(integration, /E20\.4 must expose exactly the explicit claim\/heartbeat\/release broker RPCs/);
+  assert.match(integration, /authenticated_can_heartbeat/);
+  assert.match(integration, /service_can_release/);
+  assert.match(leaseClientTest, /worker requests carry only the public API key and its own scoped token/);
+  assert.match(leaseClientTest, /service-role credentials must never enter the worker process/);
   assert.match(edge, /discovery_orchestration_step_preflight/);
   assert.match(edge, /action === "orchestration\.list"/);
   assert.match(edge, /action === "orchestration\.request"/);
