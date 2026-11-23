@@ -41,7 +41,13 @@ async function openCompanyWorkspace(page: Page) {
 }
 
 test.describe("AXIVESTRA E18 authenticated company acceptance", () => {
-  test.beforeEach(async ({ page }) => {
+  test.describe.configure({ mode: "serial" });
+
+  test.beforeEach(async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "desktop-chromium",
+      "Fixture-mutating E18 acceptance runs once on desktop; it is not duplicated across mobile project workers."
+    );
     test.skip(
       !configured,
       "Requires AXIVESTRA_E2E_EMAIL, AXIVESTRA_E2E_PASSWORD and AXIVESTRA_E2E_COMPANY_NAME. Build the preview with the VITE_SUPABASE_URL and publishable/anon key before running Playwright."
