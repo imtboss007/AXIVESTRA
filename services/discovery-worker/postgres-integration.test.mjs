@@ -491,6 +491,37 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         partyClient.query("update public.company_records set deleted_at=now() where company_id=$1 and record_type='contact' and record_key='party-e16'",[companyId]),
         /Active commitments prevent soft deletion/
       );
+      await assert.rejects(
+        partyClient.query("update public.company_records set deleted_at=now() where company_id=$1 and record_type='property' and record_key='deal-e16'",[companyId]),
+        /Active commitments prevent soft deletion/
+      );
+      await partyClient.query(
+        "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values($1,'task','e18-source-task',$2::jsonb,$3,$3)",
+        [companyId,'{"title":"Linked source task"}',actorId]
+      );
+      const sourceTaskCommitment=await partyClient.query(
+        "insert into public.company_action_commitments(company_id,record_key,commitment_type,title,status,responsible_user_id,source_task_record_key) values($1,'e18-source-task-commitment','task','Preserve linked source task','open',$2,'e18-source-task') returning id",
+        [companyId,actorId]
+      );
+      await assert.rejects(
+        partyClient.query("update public.company_records set deleted_at=now() where company_id=$1 and record_type='task' and record_key='e18-source-task'",[companyId]),
+        /Active commitments prevent soft deletion/
+      );
+      await partyClient.query(
+        "update public.company_action_commitments set status='cancelled',change_reason_code='cancelled' where company_id=$1 and id=$2",
+        [companyId,sourceTaskCommitment.rows[0].id]
+      );
+      await partyClient.query(
+        "update public.company_records set deleted_at=now() where company_id=$1 and record_type='task' and record_key='e18-source-task'",
+        [companyId]
+      );
+      await assert.rejects(
+        partyClient.query(
+          "insert into public.company_action_commitments(company_id,record_key,commitment_type,title,responsible_user_id,source_task_record_key) values($1,'e18-deleted-source-task','task','Reject deleted source task',$2,'e18-source-task')",
+          [companyId,actorId]
+        ),
+        /Deleted source task records cannot receive active commitments/
+      );
       await partyClient.query(
         "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values($1,'property','deal-other-e18',$2::jsonb,$3,$3)",
         [companyId,'{"title":"Different Deal"}',actorId]
