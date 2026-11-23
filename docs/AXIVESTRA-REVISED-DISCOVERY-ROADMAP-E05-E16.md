@@ -43,5 +43,5 @@ These are already implemented as separate technical stages and must not be lost 
 ## Next implementation sequence
 
 1. **Technical E19 — Verification Confidence & Workflow (revised E13):** finish CI/PostgreSQL verification, then run the authenticated QA workflow when a seeded QA company is configured.
-2. **Technical E20 — Agent Orchestration (revised E16):** design a central, company-scoped orchestration plane that coordinates the existing stage queues rather than replacing them. It must preserve per-stage kill switches, source grants, bounded concurrency, audit/provenance and human approval boundaries.
+2. **Technical E20 — Agent Orchestration (revised E16):** plan, approval and read-only preflight foundations are implemented. E20.2 adds disabled adapter-contract, execution, lease and retry/concurrency metadata schemas only. Worker claim/heartbeat/complete/retry RPCs, adapter activation, dependency scheduling, bounded execution, retries and recovery remain pending.
 3. Close the listed E11/E12/E15 user-facing evidence, deduplication and governance gaps as separate acceptance items; do not silently call them complete because their backend tables exist.
