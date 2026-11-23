@@ -14,6 +14,15 @@ function jsonResponse(status: number, body: JsonObject) {
   });
 }
 
+function defaultKeyFromJson(name: string): string {
+  try {
+    const value = JSON.parse(Deno.env.get(name) || "{}");
+    return value && typeof value.default === "string" ? value.default : "";
+  } catch {
+    return "";
+  }
+}
+
 function configuredPublicKeys(): Set<string> {
   const keys = new Set<string>();
   const legacy = Deno.env.get("SUPABASE_ANON_KEY") || "";
