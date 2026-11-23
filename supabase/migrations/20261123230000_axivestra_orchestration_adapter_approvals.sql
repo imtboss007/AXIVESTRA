@@ -191,7 +191,7 @@ insert into public.discovery_orchestration_stage_queue_contracts(
   source_migration,mapping_notes,bridge_enabled
 ) values
   ('e04_source_capture','e20.5-map-v1','existing_durable_queue','discovery_jobs',
-   'discovery-control.jobs.enqueue (governed company/profile/source admission)',
+   'discovery-control.jobs.enqueue → enqueue_discovery_job() (governed company/profile/source admission)',
    'claim_discovery_job','20261122170000_discovery_durable_queue.sql',
    'E04 source capture uses the existing discovery_jobs queue; E20 does not call its enqueue or claim paths.',false),
   ('e05_extraction','e20.5-map-v1','existing_durable_queue','discovery_extraction_jobs',
