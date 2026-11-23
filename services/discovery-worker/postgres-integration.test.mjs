@@ -692,11 +692,21 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
           [companyId,executionId]
         );
+        const beforeBlockedHeartbeat=await pool.query(
+          "select expires_at,heartbeat_at from public.discovery_orchestration_execution_leases where company_id=$1 and id=$2",
+          [companyId,leaseOne.rows[0].id]
+        );
         const heartbeatLease=await workerServiceClient.query(
           "select public.heartbeat_discovery_orchestration_lease($1,$2,$3,$4,$5,45) as ok",
           [companyId,leaseOne.rows[0].id,workerIdentityId,workerCredentialHash,"c".repeat(64)]
         );
-        assert.equal(heartbeatLease.rows[0].ok,true);
+        assert.equal(heartbeatLease.rows[0].ok,false,"E20.4 heartbeat must fail closed while E20 preflight dispatch_permitted remains false");
+        const afterBlockedHeartbeat=await pool.query(
+          "select expires_at,heartbeat_at from public.discovery_orchestration_execution_leases where company_id=$1 and id=$2",
+          [companyId,leaseOne.rows[0].id]
+        );
+        assert.equal(afterBlockedHeartbeat.rows[0].expires_at.toISOString(),beforeBlockedHeartbeat.rows[0].expires_at.toISOString(),"blocked heartbeat must not extend the lease");
+        assert.equal(afterBlockedHeartbeat.rows[0].heartbeat_at.toISOString(),beforeBlockedHeartbeat.rows[0].heartbeat_at.toISOString(),"blocked heartbeat must not advance its timestamp");
         const releaseLease=await workerServiceClient.query(
           "select public.release_discovery_orchestration_lease($1,$2,$3,$4,$5,$6) as ok",
           [companyId,leaseOne.rows[0].id,workerIdentityId,workerCredentialHash,"c".repeat(64),"Worker completed an isolated heartbeat and lease-release lifecycle test."]
