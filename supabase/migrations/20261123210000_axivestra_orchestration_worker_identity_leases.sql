@@ -237,7 +237,10 @@ begin
   select * into v_worker from public.discovery_orchestration_worker_identities
     where company_id=p_company_id and worker_key=p_worker_key for update;
   v_event_type:=case when not found then 'worker_granted' else 'worker_token_rotated' end;
-  if found and v_worker.credential_hash<>p_credential_hash then
+  if found and v_worker.credential_hash=p_credential_hash then
+    raise exception 'A new random worker credential is required when re-granting or rotating an identity.' using errcode='22023';
+  end if;
+  if found then
     perform public.release_discovery_orchestration_worker_leases(
       p_company_id,v_worker.id,'Worker credential rotated; active leases were released for re-authentication.',v_actor
     );
@@ -440,6 +443,7 @@ declare
   v_execution public.discovery_orchestration_executions%rowtype;
   v_adapter public.discovery_orchestration_adapter_contracts%rowtype;
   v_run public.discovery_orchestration_runs%rowtype;
+  v_company_worker_control public.discovery_company_worker_controls%rowtype;
   v_lease_id uuid;
   v_seconds integer;
   v_active integer;
@@ -449,14 +453,25 @@ begin
     or p_lease_seconds not between 15 and 300 then
     raise exception 'Worker credential, lease token or lease duration is invalid.' using errcode='22023';
   end if;
+  -- Serialize claims within the company so adapter/company and run concurrency limits
+  -- cannot race across two different scoped worker identities.
+  perform 1 from public.companies where id=p_company_id for update;
+  if not found then return; end if;
+
+  -- Hold a shared lock on the existing one-hour global grant. Revocation obtains an
+  -- exclusive row lock and then releases every active scoped lease after this claim commits.
+  select * into v_company_worker_control
+    from public.discovery_company_worker_controls
+    where company_id=p_company_id and enabled=true and expires_at>v_now
+    for share;
+  if not found then return; end if;
+
   perform public.expire_discovery_orchestration_leases(p_company_id,100);
 
-  select w.* into v_worker from public.discovery_orchestration_worker_identities w
-    join public.discovery_company_worker_controls c on c.company_id=w.company_id
-      and c.enabled=true and c.expires_at>v_now
-    where w.company_id=p_company_id and w.id=p_worker_identity_id
-      and w.status='active' and w.expires_at>v_now and w.credential_hash=p_worker_credential_hash
-    for update of w;
+  select * into v_worker from public.discovery_orchestration_worker_identities
+    where company_id=p_company_id and id=p_worker_identity_id
+      and status='active' and expires_at>v_now and credential_hash=p_worker_credential_hash
+    for update;
   if not found then return; end if;
 
   select count(*)::integer into v_active
@@ -495,13 +510,20 @@ begin
   select count(*)::integer into v_active
     from public.discovery_orchestration_execution_leases l
     join public.discovery_orchestration_executions e on e.company_id=l.company_id and e.id=l.execution_id
+    where l.company_id=p_company_id and e.adapter_key=v_execution.adapter_key
+      and l.released_at is null and l.expires_at>v_now;
+  if v_active>=v_adapter.max_parallel_per_company then return; end if;
+
+  select count(*)::integer into v_active
+    from public.discovery_orchestration_execution_leases l
+    join public.discovery_orchestration_executions e on e.company_id=l.company_id and e.id=l.execution_id
     where l.company_id=p_company_id and e.run_id=v_run.id
       and l.released_at is null and l.expires_at>v_now;
-  if v_active>=least(v_adapter.max_parallel_per_company,v_run.max_parallel_steps) then return; end if;
+  if v_active>=v_run.max_parallel_steps then return; end if;
 
   v_seconds:=least(p_lease_seconds,v_worker.lease_seconds,v_adapter.lease_seconds,
     greatest(0,floor(extract(epoch from (v_worker.expires_at-v_now)))::integer),
-    greatest(0,floor(extract(epoch from ((select c.expires_at from public.discovery_company_worker_controls c where c.company_id=p_company_id)-v_now)))::integer));
+    greatest(0,floor(extract(epoch from (v_company_worker_control.expires_at-v_now)))::integer));
   if v_seconds<15 then return; end if;
 
   insert into public.discovery_orchestration_execution_leases(
@@ -549,17 +571,21 @@ declare
   v_now timestamptz:=clock_timestamp();
   v_worker public.discovery_orchestration_worker_identities%rowtype;
   v_lease public.discovery_orchestration_execution_leases%rowtype;
+  v_company_worker_control public.discovery_company_worker_controls%rowtype;
   v_seconds integer;
 begin
   if p_worker_credential_hash is null or p_worker_credential_hash !~ '^[a-f0-9]{64}$'
     or p_lease_token_hash is null or p_lease_token_hash !~ '^[a-f0-9]{64}$'
     or p_lease_seconds not between 15 and 300 then return false; end if;
-  select w.* into v_worker from public.discovery_orchestration_worker_identities w
-    join public.discovery_company_worker_controls c on c.company_id=w.company_id
-      and c.enabled=true and c.expires_at>v_now
-    where w.company_id=p_company_id and w.id=p_worker_identity_id
-      and w.status='active' and w.expires_at>v_now and w.credential_hash=p_worker_credential_hash
-    for update of w;
+  select * into v_company_worker_control
+    from public.discovery_company_worker_controls
+    where company_id=p_company_id and enabled=true and expires_at>v_now
+    for share;
+  if not found then return false; end if;
+  select * into v_worker from public.discovery_orchestration_worker_identities
+    where company_id=p_company_id and id=p_worker_identity_id
+      and status='active' and expires_at>v_now and credential_hash=p_worker_credential_hash
+    for update;
   if not found then return false; end if;
   select * into v_lease from public.discovery_orchestration_execution_leases
     where company_id=p_company_id and id=p_lease_id and worker_identity_id=v_worker.id
@@ -568,7 +594,7 @@ begin
   if not found then return false; end if;
   v_seconds:=least(p_lease_seconds,v_worker.lease_seconds,
     greatest(0,floor(extract(epoch from (v_worker.expires_at-v_now)))::integer),
-    greatest(0,floor(extract(epoch from ((select c.expires_at from public.discovery_company_worker_controls c where c.company_id=p_company_id)-v_now)))::integer));
+    greatest(0,floor(extract(epoch from (v_company_worker_control.expires_at-v_now)))::integer));
   if v_seconds<15 then return false; end if;
   update public.discovery_orchestration_execution_leases
     set heartbeat_at=v_now,expires_at=v_now+make_interval(secs=>v_seconds)
