@@ -450,7 +450,7 @@ declare
 begin
   if p_worker_credential_hash is null or p_worker_credential_hash !~ '^[a-f0-9]{64}$'
     or p_lease_token_hash is null or p_lease_token_hash !~ '^[a-f0-9]{64}$'
-    or p_lease_seconds not between 15 and 300 then
+    or coalesce(p_lease_seconds,0) not between 15 and 300 then
     raise exception 'Worker credential, lease token or lease duration is invalid.' using errcode='22023';
   end if;
   -- Serialize claims within the company so adapter/company and run concurrency limits
@@ -576,7 +576,7 @@ declare
 begin
   if p_worker_credential_hash is null or p_worker_credential_hash !~ '^[a-f0-9]{64}$'
     or p_lease_token_hash is null or p_lease_token_hash !~ '^[a-f0-9]{64}$'
-    or p_lease_seconds not between 15 and 300 then return false; end if;
+    or coalesce(p_lease_seconds,0) not between 15 and 300 then return false; end if;
   select * into v_company_worker_control
     from public.discovery_company_worker_controls
     where company_id=p_company_id and enabled=true and expires_at>v_now
