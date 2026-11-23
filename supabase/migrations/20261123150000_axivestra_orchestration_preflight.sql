@@ -42,8 +42,8 @@ left join public.discovery_orchestration_company_stage_controls c
 left join lateral (
   select
     count(*)::integer as dependency_count,
-    count(*) filter(where d.status<>'succeeded')::integer as unsatisfied_dependency_count,
-    coalesce(array_agg(d.id order by d.step_order) filter(where d.status<>'succeeded'),'{}'::uuid[]) as unsatisfied_dependency_ids
+    count(*) filter(where d.id is null or d.status<>'succeeded')::integer as unsatisfied_dependency_count,
+    coalesce(array_agg(required.required_id order by required.required_id) filter(where d.id is null or d.status<>'succeeded'),'{}'::uuid[]) as unsatisfied_dependency_ids
   from unnest(s.depends_on_step_ids) required(required_id)
   left join public.discovery_orchestration_steps d
     on d.company_id=s.company_id and d.run_id=s.run_id and d.id=required.required_id
