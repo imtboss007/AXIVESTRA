@@ -92,11 +92,72 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationPreflightMigration);
     const orchestrationExecutionMigration = await readFile(new URL("../../supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql", import.meta.url), "utf8");
     await pool.query(orchestrationExecutionMigration);
+
+    // E20.2 is a persistence-contract migration only. Assert at this exact
+    // migration boundary (before E20.3/E20.4 are applied) that it exposes no
+    // worker lease broker or direct execution/dispatch RPCs.
+    const e20_2WorkerRpcNames = [
+      "claim_discovery_orchestration_lease",
+      "heartbeat_discovery_orchestration_lease",
+      "release_discovery_orchestration_lease",
+      "expire_discovery_orchestration_leases",
+      "claim_discovery_orchestration_execution",
+      "heartbeat_discovery_orchestration_execution",
+      "complete_discovery_orchestration_execution",
+      "retry_discovery_orchestration_execution"
+    ];
+    const e20_2WorkerRpcs = await pool.query(
+      "select p.proname, pg_get_function_identity_arguments(p.oid) as arguments from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=any($1::text[]) order by p.proname",
+      [e20_2WorkerRpcNames]
+    );
+    assert.deepEqual(
+      e20_2WorkerRpcs.rows,
+      [],
+      "E20.2 must create no worker lease, execution, completion, retry or dispatch RPCs"
+    );
+
     const orchestrationContextMigration = await readFile(new URL("../../supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql", import.meta.url), "utf8");
     await pool.query(orchestrationContextMigration);
     const orchestrationWorkerMigration = await readFile(new URL("../../supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql", import.meta.url), "utf8");
     await pool.query(orchestrationWorkerMigration);
 
+    // E20.4 adds only the three narrow broker RPCs consumed by the worker
+    // Edge Function. Confirm the cumulative database has exactly those APIs,
+    // all SECURITY DEFINER, with execute granted only to service_role.
+    const e20_4WorkerBrokerRpcNames = [
+      "claim_discovery_orchestration_lease",
+      "heartbeat_discovery_orchestration_lease",
+      "release_discovery_orchestration_lease"
+    ];
+    const e20_4WorkerBrokerRpcs = await pool.query(
+      "select p.proname, pg_get_function_identity_arguments(p.oid) as arguments, p.prosecdef as security_definer from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=any($1::text[]) order by p.proname",
+      [e20_4WorkerBrokerRpcNames]
+    );
+    assert.deepEqual(
+      e20_4WorkerBrokerRpcs.rows.map(row => row.proname),
+      [...e20_4WorkerBrokerRpcNames].sort(),
+      "E20.4 must expose exactly the explicit claim/heartbeat/release broker RPCs"
+    );
+    assert.ok(
+      e20_4WorkerBrokerRpcs.rows.every(row => row.security_definer === true),
+      "E20.4 worker broker RPCs must execute through their server-side SECURITY DEFINER boundary"
+    );
+
+    // The legacy broad execution/complete/retry names must remain absent.
+    const forbiddenDirectDispatchRpcs = await pool.query(
+      "select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname=any($1::text[]) order by p.proname",
+      [[
+        "claim_discovery_orchestration_execution",
+        "heartbeat_discovery_orchestration_execution",
+        "complete_discovery_orchestration_execution",
+        "retry_discovery_orchestration_execution"
+      ]]
+    );
+    assert.deepEqual(
+      forbiddenDirectDispatchRpcs.rows,
+      [],
+      "E20.4 must not expose broad direct execution, completion or retry RPCs"
+    );
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -494,13 +555,15 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.equal(executionGrants.rows[0].can_insert_execution,false);
       assert.equal(executionGrants.rows[0].can_insert_lease,false);
       assert.equal(executionGrants.rows[0].can_insert_event,false);
-      // E20.2 exposes no direct execution RPCs. E20.4 adds separately named,
-      // service-role-only scoped lease RPCs (claim/heartbeat/release); do not
-      // mistake the E20.4 heartbeat RPC for an E20.2 execution dispatcher.
-      const executionRoutines=await orchestrationClient.query(
-        "select count(*)::int as routines from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('claim_discovery_orchestration_execution','complete_discovery_orchestration_execution','retry_discovery_orchestration_execution')"
+      // E20.2 and E20.4 migration-boundary and RPC allow-list assertions
+      // run immediately after their respective migrations above. Keep this
+      // orchestration flow check focused on the hard-off dispatch invariant.
+      const cumulativePreflight=await orchestrationClient.query(
+        "select bool_and(dispatch_permitted=false) as dispatch_stays_off from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2",
+        [companyId,orchestrationRunId]
       );
-      assert.equal(executionRoutines.rows[0].routines,0,"E20.2 exposes no direct worker execution RPCs");
+      assert.equal(cumulativePreflight.rows[0].dispatch_stays_off,true,"E20.4 does not enable dispatch");
+
       assert.equal(initialPreflight.rows[0].unsatisfied_dependency_count,0);
       assert.equal(initialPreflight.rows[1].unsatisfied_dependency_count,1);
       assert.equal(initialPreflight.rows[2].unsatisfied_dependency_count,1);
@@ -606,11 +669,25 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.equal(tokenPrivileges.rows[0].worker_table_select,false,"credential-bearing worker identity rows are never directly readable by authenticated users");
       assert.equal(tokenPrivileges.rows[0].safe_worker_directory_select,true,"owners/admins use the safe worker directory view");
       const workerRpcPrivileges=await pool.query(
-        "select has_function_privilege('authenticated','public.grant_discovery_orchestration_worker_identity(uuid,text,text,text,text[],integer,integer,timestamptz,text)','execute') as can_grant,has_function_privilege('authenticated','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as can_claim,has_function_privilege('service_role','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as service_can_claim"
+        "select " +
+        "has_function_privilege('authenticated','public.grant_discovery_orchestration_worker_identity(uuid,text,text,text,text[],integer,integer,timestamptz,text)','execute') as can_grant, " +
+        "has_function_privilege('anon','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as anon_can_claim, " +
+        "has_function_privilege('authenticated','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as authenticated_can_claim, " +
+        "has_function_privilege('service_role','public.claim_discovery_orchestration_lease(uuid,uuid,text,text,integer)','execute') as service_can_claim, " +
+        "has_function_privilege('anon','public.heartbeat_discovery_orchestration_lease(uuid,uuid,uuid,text,text,integer)','execute') as anon_can_heartbeat, " +
+        "has_function_privilege('authenticated','public.heartbeat_discovery_orchestration_lease(uuid,uuid,uuid,text,text,integer)','execute') as authenticated_can_heartbeat, " +
+        "has_function_privilege('service_role','public.heartbeat_discovery_orchestration_lease(uuid,uuid,uuid,text,text,integer)','execute') as service_can_heartbeat, " +
+        "has_function_privilege('anon','public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text)','execute') as anon_can_release, " +
+        "has_function_privilege('authenticated','public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text)','execute') as authenticated_can_release, " +
+        "has_function_privilege('service_role','public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text)','execute') as service_can_release"
       );
-      assert.equal(workerRpcPrivileges.rows[0].can_grant,true);
-      assert.equal(workerRpcPrivileges.rows[0].can_claim,false);
-      assert.equal(workerRpcPrivileges.rows[0].service_can_claim,true);
+      assert.equal(workerRpcPrivileges.rows[0].can_grant,true,"authenticated control path is guarded by owner/admin checks");
+      for (const field of ["anon_can_claim","authenticated_can_claim","anon_can_heartbeat","authenticated_can_heartbeat","anon_can_release","authenticated_can_release"]) {
+        assert.equal(workerRpcPrivileges.rows[0][field],false,field+" must not be executable by anon/authenticated");
+      }
+      for (const field of ["service_can_claim","service_can_heartbeat","service_can_release"]) {
+        assert.equal(workerRpcPrivileges.rows[0][field],true,field+" must be executable by the server-side service role");
+      }
 
       const preflightAfterGrant=await orchestrationClient.query(
         "select stage_key,worker_identity_scope_available,company_worker_grant_active,dispatch_permitted,blocker_codes from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
