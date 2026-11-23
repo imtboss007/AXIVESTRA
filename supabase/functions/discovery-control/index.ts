@@ -287,7 +287,7 @@ Deno.serve(async request => {
 
 
     if (action === "orchestration.list") {
-      const [workflowResult, stageResult, runResult, stepResult, eventResult] = await Promise.all([
+      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult] = await Promise.all([
         admin.from("discovery_orchestration_workflows").select("workflow_key,label,description,stage_keys")
           .eq("active", true).order("label"),
         admin.from("discovery_orchestration_stage_registry").select("stage_key,technical_stage,capability_name,description,dependency_stage_keys,permission_class,adapter_key,dispatch_ready,enabled_by_default")
@@ -297,9 +297,11 @@ Deno.serve(async request => {
         admin.from("discovery_orchestration_steps").select("id,run_id,stage_key,step_order,depends_on_step_ids,status,dispatch_state,permission_class,stage_snapshot")
           .eq("company_id", companyId).order("step_order").limit(500),
         admin.from("discovery_orchestration_events").select("id,run_id,event_type,previous_status,new_status,reason,occurred_at,actor_user_id")
-          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800)
+          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800),
+        admin.from("discovery_orchestration_step_preflight").select("step_id,run_id,blocker_codes,unsatisfied_dependency_count,unsatisfied_dependency_ids,dispatch_permitted")
+          .eq("company_id", companyId).limit(500)
       ]);
-      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult]) {
+      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult]) {
         if (result.error) throw result.error;
       }
       return jsonResponse(200, {
@@ -309,7 +311,8 @@ Deno.serve(async request => {
         runs: runResult.data || [],
         steps: stepResult.data || [],
         events: eventResult.data || [],
-        limits: { runs: 40, steps: 500, events: 800 }
+        preflight: preflightResult.data || [],
+        limits: { runs: 40, steps: 500, events: 800, preflight: 500 }
       });
     }
 
