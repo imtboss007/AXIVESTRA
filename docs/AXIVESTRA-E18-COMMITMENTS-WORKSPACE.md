@@ -27,4 +27,11 @@ Company membership is enforced in RLS and in the database write guard. Composite
 
 ## Verification
 
-The PostgreSQL integration test verifies commitment creation, overdue projection, status completion, company scoping, relationship consistency, source-task integrity and immutable event history. Contract tests also verify that the UI exposes summary/detail editing, matching relationship selection, and explicit legacy-task linking without changing the source task. A live authenticated browser acceptance run still requires a dedicated company test account and seeded company dataset; the existing general browser suite does not create an authenticated company session.
+The PostgreSQL integration test verifies commitment creation, overdue projection, status completion, company scoping, relationship consistency, source-task integrity and immutable event history. Contract tests also verify that the UI exposes summary/detail editing, matching relationship selection, and explicit legacy-task linking without changing the source task.
+
+A dedicated Playwright spec now covers authenticated E18 commitment creation, summary editing, E16 relationship selection and one-time legacy-task linking. It is fixture-gated and has not been run against a live company account in this work session because no E18 QA credentials/company fixture are configured in the current Actions environment. The spec expects:
+- Build-time: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (or `VITE_SUPABASE_ANON_KEY`)
+- Test-time: `AXIVESTRA_E2E_EMAIL`, `AXIVESTRA_E2E_PASSWORD`, `AXIVESTRA_E2E_COMPANY_NAME`, `AXIVESTRA_E2E_DEAL_TITLE`, and `AXIVESTRA_E2E_PARTY_NAME`
+- Optional: `AXIVESTRA_E2E_RELATIONSHIP_LABEL` to select a particular active E16 edge and `AXIVESTRA_E2E_LEGACY_TASK_TITLE` to exercise one unlinked cloud-synced task
+
+Build with the Vite variables, then run `npm run test:e2e -- tests/browser/axivestra-commitment-workspace.spec.ts` with the test variables. Use a dedicated QA company: the first test creates and cancels a commitment (history is retained), and the legacy-task test consumes the selected source-task link once. The original task itself remains unchanged. Do not put credentials or keys in source control.
