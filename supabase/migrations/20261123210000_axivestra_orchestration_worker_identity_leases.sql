@@ -506,7 +506,8 @@ begin
   select * into v_adapter from public.discovery_orchestration_adapter_contracts
     where adapter_key=v_execution.adapter_key;
   select * into v_run from public.discovery_orchestration_runs
-    where company_id=p_company_id and id=v_execution.run_id;
+    where company_id=p_company_id and id=v_execution.run_id
+    for update;
   select count(*)::integer into v_active
     from public.discovery_orchestration_execution_leases l
     join public.discovery_orchestration_executions e on e.company_id=l.company_id and e.id=l.execution_id
@@ -592,6 +593,27 @@ begin
       and lease_token_hash=p_lease_token_hash and released_at is null and expires_at>v_now
     for update;
   if not found then return false; end if;
+  -- Re-check live execution gates on every heartbeat. A pause, cancel, revoked
+  -- stage gate or changed preflight policy prevents continued work.
+  if not exists(
+    select 1
+    from public.discovery_orchestration_executions e
+    join public.discovery_orchestration_steps s
+      on s.company_id=e.company_id and s.id=e.step_id and s.run_id=e.run_id
+    join public.discovery_orchestration_runs r
+      on r.company_id=e.company_id and r.id=e.run_id
+    join public.discovery_orchestration_stage_registry g
+      on g.stage_key=s.stage_key and g.dispatch_ready=true and g.adapter_key=e.adapter_key
+    join public.discovery_orchestration_company_stage_controls sc
+      on sc.company_id=e.company_id and sc.stage_key=s.stage_key and sc.enabled=true
+    join public.discovery_orchestration_adapter_contracts a
+      on a.adapter_key=e.adapter_key and a.stage_key=s.stage_key and a.enabled=true
+    join public.discovery_orchestration_step_preflight pf
+      on pf.company_id=e.company_id and pf.run_id=e.run_id and pf.step_id=e.step_id
+        and pf.dispatch_permitted=true and cardinality(pf.blocker_codes)=0
+    where e.company_id=p_company_id and e.id=v_lease.execution_id
+      and e.state='leased' and r.status='approved_not_dispatched'
+  ) then return false; end if;
   v_seconds:=least(p_lease_seconds,v_worker.lease_seconds,
     greatest(0,floor(extract(epoch from (v_worker.expires_at-v_now)))::integer),
     greatest(0,floor(extract(epoch from (v_company_worker_control.expires_at-v_now)))::integer));
