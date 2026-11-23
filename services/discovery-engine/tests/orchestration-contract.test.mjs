@@ -94,6 +94,15 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(workerMigration.includes("expire_discovery_orchestration_leases"));
   assert.ok(workerMigration.includes("worker_identity_scope_missing"));
   assert.ok(workerMigration.includes("company_worker_grant_inactive"));
+  assert.ok(workerMigration.includes("perform 1 from public.companies where id=p_company_id for update"));
+  assert.ok(workerMigration.includes("select count(*)::integer into v_active"));
+  assert.ok(workerMigration.includes("e.adapter_key=v_execution.adapter_key"));
+  assert.ok(workerMigration.includes("v_active>=v_adapter.max_parallel_per_company"));
+  assert.ok(workerMigration.includes("v_active>=v_run.max_parallel_steps"));
+  assert.ok(workerMigration.includes("from public.discovery_company_worker_controls"));
+  assert.ok(workerMigration.includes("for share"));
+  assert.ok(workerMigration.includes("A new random worker credential is required"));
+  assert.ok(workerMigration.includes("coalesce(p_lease_seconds,0) not between 15 and 300"));
   assert.ok(workerMigration.includes("dispatch_permitted=true"));
   assert.ok(workerMigration.includes("false as dispatch_permitted"));
   assert.ok(workerMigration.includes("Worker grant events are append-only"));
