@@ -142,6 +142,17 @@ begin
     or v_execution.attempt_count>=v_execution.max_attempts then
     raise exception 'The execution is not eligible for another bounded attempt.' using errcode='55000';
   end if;
+  if not exists(
+    select 1
+    from public.discovery_orchestration_steps s
+    join public.discovery_orchestration_runs r
+      on r.company_id=s.company_id and r.id=s.run_id
+    where s.company_id=new.company_id and s.id=v_execution.step_id
+      and s.run_id=v_execution.run_id and s.status in ('planned','ready')
+      and r.status='approved_not_dispatched'
+  ) then
+    raise exception 'The orchestration step or parent run is not eligible for another attempt.' using errcode='55000';
+  end if;
   new.attempt_number:=v_execution.attempt_count+1;
   update public.discovery_orchestration_executions
     set attempt_count=new.attempt_number,state='leased',updated_at=v_now
