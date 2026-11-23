@@ -167,7 +167,7 @@ declare
   v_reason text;
   v_final_error_code text;
 begin
-  if p_outcome not in ('succeeded','failed','expired','released') then
+  if p_outcome is null or p_outcome not in ('succeeded','failed','expired','released') then
     raise exception 'The attempt outcome is not supported.' using errcode='22023';
   end if;
   select l.* into v_lease from public.discovery_orchestration_execution_leases l
@@ -322,7 +322,7 @@ declare
 begin
   if p_worker_credential_hash is null or p_worker_credential_hash !~ '^[a-f0-9]{64}$'
     or p_lease_token_hash is null or p_lease_token_hash !~ '^[a-f0-9]{64}$'
-    or p_outcome not in ('succeeded','failed','released') then
+    or p_outcome is null or p_outcome not in ('succeeded','failed','released') then
     raise exception 'Worker credential, lease token or outcome is invalid.' using errcode='22023';
   end if;
   select wi.* into v_worker from public.discovery_orchestration_worker_identities wi
