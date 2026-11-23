@@ -287,7 +287,7 @@ Deno.serve(async request => {
 
 
     if (action === "orchestration.list") {
-      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult] = await Promise.all([
+      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult] = await Promise.all([
         admin.from("discovery_orchestration_workflows").select("workflow_key,label,description,stage_keys")
           .eq("active", true).order("label"),
         admin.from("discovery_orchestration_stage_registry").select("stage_key,technical_stage,capability_name,description,dependency_stage_keys,permission_class,adapter_key,dispatch_ready,enabled_by_default")
@@ -298,10 +298,16 @@ Deno.serve(async request => {
           .eq("company_id", companyId).order("step_order").limit(500),
         admin.from("discovery_orchestration_events").select("id,run_id,event_type,previous_status,new_status,reason,occurred_at,actor_user_id")
           .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800),
-        admin.from("discovery_orchestration_step_preflight").select("step_id,run_id,blocker_codes,unsatisfied_dependency_count,unsatisfied_dependency_ids,dispatch_permitted")
+        admin.from("discovery_orchestration_step_preflight").select("step_id,run_id,blocker_codes,unsatisfied_dependency_count,unsatisfied_dependency_ids,dispatch_permitted,execution_context_bound,profile_id,source_id,purpose,required_fields,profile_enabled,source_status,context_snapshot_current,purpose_still_allowed,fields_still_allowed")
+          .eq("company_id", companyId).limit(500),
+        admin.from("discovery_profiles").select("id,workspace_key,discovery_mode,jurisdiction,purpose,enabled,updated_at")
+          .eq("company_id", companyId).order("workspace_key").limit(200),
+        admin.from("discovery_source_registry").select("id,name,status,allowed_purposes,allowed_fields,updated_at")
+          .eq("company_id", companyId).order("name").limit(300),
+        admin.from("discovery_profile_sources").select("profile_id,source_id")
           .eq("company_id", companyId).limit(500)
       ]);
-      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult]) {
+      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult]) {
         if (result.error) throw result.error;
       }
       return jsonResponse(200, {
@@ -312,7 +318,10 @@ Deno.serve(async request => {
         steps: stepResult.data || [],
         events: eventResult.data || [],
         preflight: preflightResult.data || [],
-        limits: { runs: 40, steps: 500, events: 800, preflight: 500 }
+        profiles: profileResult.data || [],
+        sources: sourceResult.data || [],
+        profileSources: profileSourceResult.data || [],
+        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500 }
       });
     }
 
@@ -345,6 +354,38 @@ Deno.serve(async request => {
     if (!canManage && action !== "jobs.enqueue") return jsonResponse(403, { error: "Only this company's owner or admin can change discovery sources, profiles or worker permissions." });
 
 
+
+    if (action === "orchestration.bindContext") {
+      if (!isUuid(payload.runId) || !isUuid(payload.profileId) || !isUuid(payload.sourceId)) {
+        return jsonResponse(400, { error: "A valid run, profile and source ID are required." });
+      }
+      const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : "";
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      const requiredFields = Array.isArray(payload.requiredFields)
+        ? payload.requiredFields.filter((value): value is string => typeof value === "string").map(value => value.trim())
+        : [];
+      if (purpose.length < 5 || purpose.length > 500) return jsonResponse(400, { error: "An exact profile purpose is required." });
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A context-binding reason between 10 and 1000 characters is required." });
+      if (!requiredFields.length || requiredFields.length > 40 || requiredFields.some(value => !value || value.length > 120)) {
+        return jsonResponse(400, { error: "Provide 1–40 exact required field names from the source allow-list." });
+      }
+      const { data, error } = await userClient.rpc("bind_discovery_orchestration_run_context", {
+        p_company_id: companyId,
+        p_run_id: payload.runId,
+        p_profile_id: payload.profileId,
+        p_source_id: payload.sourceId,
+        p_purpose: purpose,
+        p_required_fields: requiredFields,
+        p_reason: reason
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(200, { ok: true, eventId: data, message: "Run context bound and audited. Dispatch remains disabled." });
+    }
 
     if (action === "orchestration.decide") {
       if (!isUuid(payload.runId)) return jsonResponse(400, { error: "A valid orchestration run ID is required." });
