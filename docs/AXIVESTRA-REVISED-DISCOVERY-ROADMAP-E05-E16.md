@@ -40,6 +40,27 @@ These are already implemented as separate technical stages and must not be lost 
 - All human verification, entity acceptance, matching review and lead workflow decisions remain role-gated and auditable.
 - Never merge, deploy, apply a production migration, activate an external source/provider or enable a worker without the separate required approval.
 
+## Remaining work package estimate
+
+The current crosswalk contains approximately **12 major acceptance packages** for the full intended roadmap. This is a planning estimate, not a fixed release count; several packages can progress in parallel and some advanced capabilities can be deferred for an initial internal pilot.
+
+| Package | Remaining acceptance scope |
+|---|---|
+| 1 | **E19 verification acceptance:** current-head CI, PostgreSQL governance migration and authenticated QA fixture. |
+| 2 | **E20.4 worker identity and lease lifecycle:** bind the existing company worker grant to orchestration; atomic claim, heartbeat, expiry and release. |
+| 3 | **E20.5 adapter and scheduler:** reviewed adapters and dependency-aware bridge to existing E04–E12 queues. |
+| 4 | **E20.6 retry and recovery:** concurrency enforcement, retry/backoff, expired-lease recovery and cancellation/failure propagation. |
+| 5 | **E20.7 execution acceptance:** operational console, end-to-end observability and authenticated security/worker QA. |
+| 6 | **Revised E11 evidence operations:** dedicated all-stage evidence manager, evidence-pack review and export bundle. |
+| 7 | **Revised E12 AI matching:** model-assisted suggestions, adjudicated evaluation, error measurement, privacy/bias controls and human review gates. |
+| 8 | **Revised E15 governance experience:** DSAR portal, portable export, jurisdiction-aware rules and scheduled retention/erasure. |
+| 9 | **Technical E12 deduplication UX:** review UI, safe merge-impact workflow and broader workspace presentation; no automatic merges. |
+| 10 | **Technical E16 relationship completion:** legacy backfill, local/device sync and universal relationship editors. |
+| 11 | **Technical E18 operational reminders:** scheduler, recurring reminders and delivery controls. |
+| 12 | **E05/E06/E08/E09/E10 integration hardening:** raw-value-at-rest hardening, registry adapters, approved contact reachability, map/place workflow and independent enrichment sources. |
+
+OCR, broad personal-profile discovery, autonomous outreach and automatic merging remain deliberately out of scope unless separately approved.
+
 ## Next implementation sequence
 
 1. **Technical E19 — Verification Confidence & Workflow (revised E13):** finish CI/PostgreSQL verification, then run the authenticated QA workflow when a seeded QA company is configured.
