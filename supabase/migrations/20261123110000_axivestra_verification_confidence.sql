@@ -219,6 +219,8 @@ begin
       'Automatically opened from the first source-backed provenance event.'
     );
   elsif v_inserted_evidence is not null then
+    update public.discovery_verification_cases set updated_at=clock_timestamp()
+      where company_id=new.company_id and id=v_case_id;
     if v_previous_status in ('verified','partially_verified','disputed','rejected','insufficient_evidence') then
       update public.discovery_verification_cases
         set status='pending_review',reviewed_by=null,reviewed_at=null,updated_at=clock_timestamp()
@@ -389,7 +391,7 @@ begin
   if coalesce(v_role,'') not in ('owner','admin') then
     raise exception 'Only company owners/admins can classify verification evidence.' using errcode='42501';
   end if;
-  if p_classification not in ('supporting','contradicting','context') then
+  if coalesce(p_classification,'') not in ('supporting','contradicting','context') then
     raise exception 'Unsupported evidence classification.' using errcode='22023';
   end if;
   if p_reason is null or length(trim(p_reason))<10 or length(p_reason)>1000 then
