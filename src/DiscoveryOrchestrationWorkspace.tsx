@@ -338,10 +338,10 @@ export default function DiscoveryOrchestrationWorkspace({
           <p>Choose its exact E04–E12 stages, maximum simultaneous leases and short expiry. Readiness only: this grant does not register an adapter, enable a stage or dispatch work.</p>
         </div>
         <label>Worker key
-          <input value={workerKeyDraft} onChange={event => setWorkerKeyDraft(event.target.value)} placeholder="e05-parser-worker" disabled={Boolean(busy)}/>
+          <input value={workerKeyDraft} onChange={event => { setWorkerKeyDraft(event.target.value); setWorkerGrantConfirmed(false); }} placeholder="e05-parser-worker" disabled={Boolean(busy)}/>
         </label>
         <label>Display name
-          <input value={workerNameDraft} onChange={event => setWorkerNameDraft(event.target.value)} placeholder="Extraction QA worker" disabled={Boolean(busy)}/>
+          <input value={workerNameDraft} onChange={event => { setWorkerNameDraft(event.target.value); setWorkerGrantConfirmed(false); }} placeholder="Extraction QA worker" disabled={Boolean(busy)}/>
         </label>
         <fieldset className="discovery-orchestration-worker-scopes">
           <legend>Permitted stage scope — select only required stages</legend>
@@ -350,9 +350,12 @@ export default function DiscoveryOrchestrationWorkspace({
               <input
                 type="checkbox"
                 checked={workerStageKeys.includes(stage.stage_key)}
-                onChange={event => setWorkerStageKeys(current => event.target.checked
-                  ? [...current, stage.stage_key]
-                  : current.filter(key => key !== stage.stage_key))}
+                onChange={event => {
+                  setWorkerStageKeys(current => event.target.checked
+                    ? [...current, stage.stage_key]
+                    : current.filter(key => key !== stage.stage_key));
+                  setWorkerGrantConfirmed(false);
+                }}
                 disabled={Boolean(busy)}
               />
               <span>{stage.technical_stage} · {stage.capability_name}</span>
@@ -361,23 +364,23 @@ export default function DiscoveryOrchestrationWorkspace({
         </fieldset>
         <div className="discovery-orchestration-worker-limits">
           <label>Maximum active leases
-            <select value={workerMaxLeases} onChange={event => setWorkerMaxLeases(Number(event.target.value))} disabled={Boolean(busy)}>
+            <select value={workerMaxLeases} onChange={event => { setWorkerMaxLeases(Number(event.target.value)); setWorkerGrantConfirmed(false); }} disabled={Boolean(busy)}>
               {[1,2,3,4].map(value => <option key={value} value={value}>{value}</option>)}
             </select>
           </label>
           <label>Lease duration
-            <select value={workerLeaseSeconds} onChange={event => setWorkerLeaseSeconds(Number(event.target.value))} disabled={Boolean(busy)}>
+            <select value={workerLeaseSeconds} onChange={event => { setWorkerLeaseSeconds(Number(event.target.value)); setWorkerGrantConfirmed(false); }} disabled={Boolean(busy)}>
               {[30,60,90,120,180,300].map(value => <option key={value} value={value}>{value} seconds</option>)}
             </select>
           </label>
           <label>Grant expires after
-            <select value={workerExpiryMinutes} onChange={event => setWorkerExpiryMinutes(Number(event.target.value))} disabled={Boolean(busy)}>
+            <select value={workerExpiryMinutes} onChange={event => { setWorkerExpiryMinutes(Number(event.target.value)); setWorkerGrantConfirmed(false); }} disabled={Boolean(busy)}>
               {[5,15,30,45,60].map(value => <option key={value} value={value}>{value} minutes</option>)}
             </select>
           </label>
         </div>
         <label>Grant reason
-          <input value={workerReason} onChange={event => setWorkerReason(event.target.value)} minLength={10} maxLength={1000} disabled={Boolean(busy)}/>
+          <input value={workerReason} onChange={event => { setWorkerReason(event.target.value); setWorkerGrantConfirmed(false); }} minLength={10} maxLength={1000} disabled={Boolean(busy)}/>
         </label>
         <div className="discovery-orchestration-worker-preview" role="group" aria-label="Worker grant preview">
           <b>Grant preview</b>
