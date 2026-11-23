@@ -174,7 +174,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(workspace, /Bridge: \{contract\.bridge_enabled \? "Enabled" : "OFF · read-only mapping"\}/);
   assert.match(integration, /20261123230000_axivestra_orchestration_adapter_approvals\.sql/);
   assert.match(integration, /review_discovery_orchestration_company_adapter/);
-  assert.match(integration, /dependency_preview/);
+  assert.match(integration, /dependencyPreview/);
   assert.match(integration, /company_adapter_approved/);
   assert.match(edge, /action === "orchestration\.adapterReview"/);
   assert.match(edge, /adapterContractResult/);
