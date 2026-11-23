@@ -120,6 +120,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationContextMigration);
     const orchestrationWorkerMigration = await readFile(new URL("../../supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql", import.meta.url), "utf8");
     await pool.query(orchestrationWorkerMigration);
+    const orchestrationAdapterApprovalMigration = await readFile(new URL("../../supabase/migrations/20261123230000_axivestra_orchestration_adapter_approvals.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationAdapterApprovalMigration);
 
     // E20.4 adds only the three narrow broker RPCs consumed by the worker
     // Edge Function. Confirm the cumulative database has exactly those APIs,
@@ -492,6 +494,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.equal(plannedSteps.rows[1].depends_on_step_ids.length,1);
       assert.equal(plannedSteps.rows[2].depends_on_step_ids.length,1);
       assert.ok(plannedSteps.rows.every(row=>row.status==="planned"&&row.dispatch_state==="adapter_not_registered"));
+      const dependencyPreview=await orchestrationClient.query(
+        "select stage_key,dependency_count,unsatisfied_dependency_count,dependency_state,schedule_preview_state,dispatch_permitted from public.discovery_orchestration_dependency_schedule where company_id=$1 and run_id=$2 order by step_order",
+        [companyId,orchestrationRunId]
+      );
+      assert.deepEqual(dependencyPreview.rows.map(row=>row.dependency_state),["dependencies_satisfied","waiting_for_dependencies","waiting_for_dependencies"]);
+      assert.ok(dependencyPreview.rows.every(row=>row.schedule_preview_state==="run_approval_required"&&row.dispatch_permitted===false),"E20.5 dependency preview must stay read-only and non-dispatchable");
       const stageControls=await orchestrationClient.query(
         "select bool_and(enabled) as any_enabled,count(*)::int as count from public.discovery_orchestration_company_stage_controls where company_id=$1 and stage_key=any(array['e04_source_capture','e05_extraction','e06_entity_resolution'])",
         [companyId]
@@ -709,8 +717,36 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         "insert into public.discovery_orchestration_adapter_contracts(adapter_key,stage_key,contract_version,required_permission_class,required_policy_checks,max_attempts,lease_seconds,max_parallel_per_company,enabled,reviewed_by,reviewed_at,review_reason) values('e05-test-adapter','e05_extraction','test-v1','source_restricted',array['company_worker_grant','source_purpose','personal_data_policy'],2,60,1,true,$1,now(),'Reviewed only as an isolated PostgreSQL contract fixture; no production adapter exists.')",
         [actorId]
       );
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      await assert.rejects(
+        orchestrationClient.query(
+          "select public.review_discovery_orchestration_company_adapter($1,'e05-test-adapter','test-v1','approved','Viewer must not approve company adapter contracts.')",
+          [companyId]
+        ),
+        /Only company owners\/admins can review a company adapter contract/
+      );
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const adapterApprovalEvent=await orchestrationClient.query(
+        "select public.review_discovery_orchestration_company_adapter($1,'e05-test-adapter','test-v1','approved','Owner approved exact test adapter version for this company only.') as id",
+        [companyId]
+      );
+      assert.ok(adapterApprovalEvent.rows[0].id);
+      const adapterApproval=await orchestrationClient.query(
+        "select adapter_key,contract_version,status from public.discovery_orchestration_company_adapter_approvals where company_id=$1 and adapter_key='e05-test-adapter'",
+        [companyId]
+      );
+      assert.deepEqual(adapterApproval.rows,[{adapter_key:"e05-test-adapter",contract_version:"test-v1",status:"approved"}]);
+      const adapterApprovalHistory=await orchestrationClient.query(
+        "select event_type,new_status from public.discovery_orchestration_company_adapter_events where company_id=$1 and adapter_key='e05-test-adapter'",
+        [companyId]
+      );
+      assert.deepEqual(adapterApprovalHistory.rows,[{event_type:"approved",new_status:"approved"}]);
+      await assert.rejects(
+        pool.query("update public.discovery_orchestration_company_adapter_events set reason='tampered' where id=$1",[adapterApprovalEvent.rows[0].id]),
+        /append-only/
+      );
       await pool.query(
-        "update public.discovery_orchestration_company_stage_controls set enabled=true,changed_by=$2,changed_at=now(),reason='Isolated E20.4 test fixture only; dispatch remains blocked.' where company_id=$1 and stage_key='e05_extraction'",
+        "update public.discovery_orchestration_company_stage_controls set enabled=true,changed_by=$2,changed_at=now(),reason='Isolated E20.5 test fixture only; dispatch remains blocked.' where company_id=$1 and stage_key='e05_extraction'",
         [companyId,actorId]
       );
       const e05StepId=await pool.query(
@@ -723,10 +759,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
       const executionId=execution.rows[0].id;
       const finalPreflight=await pool.query(
-        "select dispatch_permitted,blocker_codes from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 and stage_key='e05_extraction'",
+        "select dispatch_permitted,blocker_codes,adapter_contract_platform_approved,company_adapter_approved from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 and stage_key='e05_extraction'",
         [companyId,orchestrationRunId]
       );
       assert.equal(finalPreflight.rows[0].dispatch_permitted,false);
+      assert.equal(finalPreflight.rows[0].adapter_contract_platform_approved,true);
+      assert.equal(finalPreflight.rows[0].company_adapter_approved,true);
+      assert.ok(!finalPreflight.rows[0].blocker_codes.includes("company_adapter_not_approved"));
       assert.ok(finalPreflight.rows[0].blocker_codes.includes("run_dispatch_not_configured"));
       assert.ok(finalPreflight.rows[0].blocker_codes.includes("personal_data_policy_not_checked"));
 
