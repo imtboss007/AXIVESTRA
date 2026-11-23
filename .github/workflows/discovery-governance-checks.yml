@@ -30,6 +30,7 @@ on:
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
+      - "supabase/functions/discovery-orchestration-worker/**"
       - "services/discovery-engine/**"
       - "services/discovery-worker/**"
       - "supabase/migrations/*discovery*"
@@ -122,8 +123,10 @@ jobs:
       - name: Run full regression suite
         run: npm test
 
-      - name: Type-check discovery Edge Function
-        run: deno check supabase/functions/discovery-control/index.ts
+      - name: Type-check discovery Edge Functions
+        run: |
+          deno check supabase/functions/discovery-control/index.ts
+          deno check supabase/functions/discovery-orchestration-worker/index.ts
 
       - name: Build AXIVESTRA web application
         run: npm run build
