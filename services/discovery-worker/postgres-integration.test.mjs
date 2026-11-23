@@ -446,11 +446,18 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("adapter_not_registered")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("company_worker_grant_not_checked")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("run_context_missing")));
-      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
-      const contextEvent=await orchestrationClient.query(
-        "select public.bind_discovery_orchestration_run_context($1,$2,$3,$4,$5,$6::text[],$7) as id",
-        [companyId,orchestrationRunId,profileId,sourceId,"company identity verification",["legal_name","registration_id"],"Owner bound the approved company identity source and exact field scope for this test run."]
+      const bindContextSql="select public.bind_discovery_orchestration_run_context($1,$2,$3,$4,$5,$6::text[],$7) as id";
+      const contextArgs=[companyId,orchestrationRunId,profileId,sourceId,"company identity verification",["legal_name","registration_id"],"Owner bound the approved company identity source and exact field scope for this test run."];
+      await assert.rejects(
+        orchestrationClient.query(bindContextSql,contextArgs),
+        /Only company owners\/admins can bind orchestration execution context/
       );
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      await assert.rejects(
+        orchestrationClient.query(bindContextSql,[companyId,orchestrationRunId,profileId,sourceId,"company identity verification",["unapproved_private_field"],"Owner attempted a field outside the registered source allow-list."]),
+        /outside the source field allow-list/
+      );
+      const contextEvent=await orchestrationClient.query(bindContextSql,contextArgs);
       assert.ok(contextEvent.rows[0].id);
       await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
       const boundContext=await orchestrationClient.query(
@@ -470,6 +477,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
       assert.equal(contextHistory.rows[0].count,1);
       assert.equal(contextHistory.rows[0].event_type,"run_context_bound");
+      await assert.rejects(
+        pool.query("update public.discovery_orchestration_context_events set reason='changed history' where id=$1",[contextEvent.rows[0].id]),
+        /append-only/
+      );
       const executionCatalogue=await orchestrationClient.query(
         "select count(*)::int as adapters from public.discovery_orchestration_adapter_contracts"
       );
