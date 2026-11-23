@@ -41,7 +41,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.doesNotMatch(migration, /insert into public\.discovery_jobs/);
   assert.doesNotMatch(migration, /perform .*http/i);
 
-  assert.match(preflightMigration, /create or replace view public\\.discovery_orchestration_step_preflight/);
+  assert.ok(preflightMigration.includes("create or replace view public.discovery_orchestration_step_preflight"));
   assert.match(preflightMigration, /company_worker_grant_not_checked/);
   assert.match(preflightMigration, /source_and_purpose_grants_not_checked/);
   assert.match(preflightMigration, /personal_data_policy_not_checked/);
@@ -52,13 +52,13 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
     "discovery_orchestration_executions",
     "discovery_orchestration_execution_leases",
     "discovery_orchestration_execution_events"
-  ]) assert.match(executionMigration, new RegExp("create table if not exists public\\\\." + table));
+  ]) assert.ok(executionMigration.includes("create table if not exists public." + table));
   assert.match(executionMigration, /enabled boolean not null default false/);
   assert.match(executionMigration, /max_parallel_per_company integer not null default 1/);
   assert.match(executionMigration, /max_attempts integer not null default 3/);
   assert.match(executionMigration, /lease_seconds integer not null default 120/);
   assert.match(executionMigration, /Execution events are append-only/);
-  assert.match(executionMigration, /no worker claim\\/heartbeat\\/complete\\/retry RPC/i);
+  assert.ok(executionMigration.includes("no worker claim/heartbeat/complete/retry RPC"));
   assert.doesNotMatch(executionMigration, /create or replace function public\\.(claim|heartbeat|complete|retry)_discovery_orchestration/i);
   assert.match(edge, /discovery_orchestration_step_preflight/);
   assert.match(edge, /action === "orchestration\.list"/);
