@@ -338,22 +338,25 @@ select c.id,c.company_id,c.subject_kind,c.subject_id,c.status,c.opened_at,c.upda
          else round((
            50.0*least(coalesce(t.independent_source_count,0),3)/3.0
            +30.0*coalesce(t.hashed_evidence_count,0)::numeric/nullif(t.evidence_count,0)
-           +20.0*coalesce(t.supporting_evidence_count,0)::numeric/
-             nullif(t.supporting_evidence_count+t.contradicting_evidence_count,0)
+           +20.0*case when coalesce(t.supporting_evidence_count,0)+coalesce(t.contradicting_evidence_count,0)=0
+             then 0 else t.supporting_evidence_count::numeric/
+               (t.supporting_evidence_count+t.contradicting_evidence_count) end
          ),2) end as confidence_index,
        case
          when coalesce(t.evidence_count,0)=0 then 'none'
          when (
            50.0*least(coalesce(t.independent_source_count,0),3)/3.0
            +30.0*coalesce(t.hashed_evidence_count,0)::numeric/nullif(t.evidence_count,0)
-           +20.0*coalesce(t.supporting_evidence_count,0)::numeric/
-             nullif(t.supporting_evidence_count+t.contradicting_evidence_count,0)
+           +20.0*case when coalesce(t.supporting_evidence_count,0)+coalesce(t.contradicting_evidence_count,0)=0
+             then 0 else t.supporting_evidence_count::numeric/
+               (t.supporting_evidence_count+t.contradicting_evidence_count) end
          )>=70 then 'high'
          when (
            50.0*least(coalesce(t.independent_source_count,0),3)/3.0
            +30.0*coalesce(t.hashed_evidence_count,0)::numeric/nullif(t.evidence_count,0)
-           +20.0*coalesce(t.supporting_evidence_count,0)::numeric/
-             nullif(t.supporting_evidence_count+t.contradicting_evidence_count,0)
+           +20.0*case when coalesce(t.supporting_evidence_count,0)+coalesce(t.contradicting_evidence_count,0)=0
+             then 0 else t.supporting_evidence_count::numeric/
+               (t.supporting_evidence_count+t.contradicting_evidence_count) end
          )>=40 then 'moderate'
          else 'low'
        end as confidence_band
@@ -383,7 +386,7 @@ begin
   end if;
   select role into v_role from public.company_memberships
     where company_id=p_company_id and user_id=auth.uid();
-  if v_role not in ('owner','admin') then
+  if coalesce(v_role,'') not in ('owner','admin') then
     raise exception 'Only company owners/admins can classify verification evidence.' using errcode='42501';
   end if;
   if p_classification not in ('supporting','contradicting','context') then
@@ -456,7 +459,7 @@ begin
   end if;
   select role into v_role from public.company_memberships
     where company_id=p_company_id and user_id=auth.uid();
-  if v_role not in ('owner','admin') then
+  if coalesce(v_role,'') not in ('owner','admin') then
     raise exception 'Only company owners/admins can decide verification cases.' using errcode='42501';
   end if;
   if p_decision not in (
