@@ -232,6 +232,7 @@ begin
   if p_idempotency_key is null or length(trim(p_idempotency_key))<8 or length(p_idempotency_key)>160 then
     raise exception 'An idempotency key of 8–160 characters is required.' using errcode='22023';
   end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_company_id::text||':'||trim(p_idempotency_key),0));
   select id,workflow_key into v_run_id,v_existing_workflow
     from public.discovery_orchestration_runs
     where company_id=p_company_id and idempotency_key=trim(p_idempotency_key);
