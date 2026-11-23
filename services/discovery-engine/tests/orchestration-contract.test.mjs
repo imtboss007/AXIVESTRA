@@ -6,9 +6,10 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, preflightMigration, edge, workspace, manager, integration] = await Promise.all([
+  const [migration, preflightMigration, executionMigration, edge, workspace, manager, integration] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
     read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
+    read("supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql"),
     read("supabase/functions/discovery-control/index.ts"),
     read("src/DiscoveryOrchestrationWorkspace.tsx"),
     read("src/DiscoverySourceManager.tsx"),
@@ -46,6 +47,19 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(preflightMigration, /personal_data_policy_not_checked/);
   assert.match(preflightMigration, /no_dispatcher_registered/);
   assert.match(preflightMigration, /false as dispatch_permitted/);
+  for (const table of [
+    "discovery_orchestration_adapter_contracts",
+    "discovery_orchestration_executions",
+    "discovery_orchestration_execution_leases",
+    "discovery_orchestration_execution_events"
+  ]) assert.match(executionMigration, new RegExp("create table if not exists public\\\\." + table));
+  assert.match(executionMigration, /enabled boolean not null default false/);
+  assert.match(executionMigration, /max_parallel_per_company integer not null default 1/);
+  assert.match(executionMigration, /max_attempts integer not null default 3/);
+  assert.match(executionMigration, /lease_seconds integer not null default 120/);
+  assert.match(executionMigration, /Execution events are append-only/);
+  assert.match(executionMigration, /no worker claim\\/heartbeat\\/complete\\/retry RPC/i);
+  assert.doesNotMatch(executionMigration, /create or replace function public\\.(claim|heartbeat|complete|retry)_discovery_orchestration/i);
   assert.match(edge, /discovery_orchestration_step_preflight/);
   assert.match(edge, /action === "orchestration\.list"/);
   assert.match(edge, /action === "orchestration\.request"/);
