@@ -1,74 +1,105 @@
-import { createHash, randomBytes } from "node:crypto";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const HEX_TOKEN = /^[a-f0-9]{64}$/;
 
-export function hashWorkerCredential(value) {
-  if (typeof value !== "string" || value.length < 32 || value.length > 256) {
-    throw new Error("Orchestration worker credential is missing or invalid.");
+function normalizeEndpoint(supabaseUrl) {
+  let url;
+  try { url = new URL(supabaseUrl); }
+  catch { throw new Error("A valid Supabase project URL is required."); }
+
+  const local = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+  if (url.protocol !== "https:" && !(local && url.protocol === "http:")) {
+    throw new Error("The orchestration worker broker must use HTTPS.");
   }
-  return createHash("sha256").update(value, "utf8").digest("hex");
-}
-
-function hashLeaseToken(value) {
-  return createHash("sha256").update(value, "utf8").digest("hex");
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("The Supabase project URL must not contain credentials, query strings or fragments.");
+  }
+  return new URL("/functions/v1/discovery-orchestration-worker", url).toString();
 }
 
 /**
- * Narrow service-role client for E20 orchestration lease RPCs.
- * This helper does not execute adapter code or start a worker loop.
- * Raw credentials and per-lease tokens remain in process memory only.
+ * Least-privilege E20.4 worker client.
+ * The worker process holds only its own temporary scoped token and the
+ * Supabase public API key. The service-role key and all credential hashing
+ * remain inside the discovery-orchestration-worker Edge Function.
+ *
+ * This client performs lease operations only; it never starts a polling loop
+ * or executes a discovery adapter.
  */
 export function createOrchestrationLeaseClient({
-  admin,
+  supabaseUrl,
+  publicApiKey,
   companyId,
   workerIdentityId,
-  workerToken
+  workerToken,
+  fetchImpl = globalThis.fetch
 }) {
-  if (!admin || typeof admin.rpc !== "function") {
-    throw new Error("A server-side Supabase service client is required.");
+  if (!UUID.test(companyId || "") || !UUID.test(workerIdentityId || "")) {
+    throw new Error("Valid company and scoped worker identity IDs are required.");
   }
-  if (typeof companyId !== "string" || !companyId || typeof workerIdentityId !== "string" || !workerIdentityId) {
-    throw new Error("Company and scoped worker identity IDs are required.");
+  if (typeof publicApiKey !== "string" || publicApiKey.length < 16 || publicApiKey.length > 512) {
+    throw new Error("The Supabase public API key is missing or invalid.");
   }
+  if (!HEX_TOKEN.test(workerToken || "")) {
+    throw new Error("The one-time scoped worker credential is missing or invalid.");
+  }
+  if (typeof fetchImpl !== "function") throw new Error("A fetch implementation is required.");
 
-  const workerCredentialHash = hashWorkerCredential(workerToken);
+  const endpoint = normalizeEndpoint(supabaseUrl);
   const leaseTokens = new Map();
 
-  async function rpc(name, args, description) {
-    const { data, error } = await admin.rpc(name, args);
-    if (error) throw new Error(description + ": " + String(error.message || "request failed"));
-    return data;
+  async function invoke(action, payload = {}) {
+    let response;
+    try {
+      response = await fetchImpl(endpoint, {
+        method: "POST",
+        headers: {
+          apikey: publicApiKey,
+          "x-axivestra-worker-token": workerToken,
+          "content-type": "application/json",
+          "cache-control": "no-store"
+        },
+        body: JSON.stringify({ action, companyId, workerIdentityId, ...payload }),
+        redirect: "error",
+        cache: "no-store"
+      });
+    } catch {
+      throw new Error("The orchestration worker broker could not be reached.");
+    }
+
+    let body;
+    try { body = await response.json(); }
+    catch { throw new Error("The orchestration worker broker returned an invalid response."); }
+    if (!response.ok || body?.ok !== true) {
+      const message = typeof body?.error === "string" ? body.error : "The lease request was rejected.";
+      throw new Error("Orchestration worker " + action + " failed closed: " + message);
+    }
+    return body;
   }
 
   return Object.freeze({
     async claim({ leaseSeconds = 120 } = {}) {
-      const leaseToken = randomBytes(32).toString("hex");
-      const data = await rpc("claim_discovery_orchestration_lease", {
-        p_company_id: companyId,
-        p_worker_identity_id: workerIdentityId,
-        p_worker_credential_hash: workerCredentialHash,
-        p_lease_token_hash: hashLeaseToken(leaseToken),
-        p_lease_seconds: leaseSeconds
-      }, "Orchestration lease claim failed closed");
-      const lease = Array.isArray(data) ? data[0] : data;
-      if (!lease) return null;
-      if (!lease.lease_id || !lease.execution_id) {
-        throw new Error("Orchestration claim returned an incomplete lease receipt.");
+      if (!Number.isInteger(leaseSeconds) || leaseSeconds < 15 || leaseSeconds > 300) {
+        throw new Error("Lease duration must be between 15 and 300 seconds.");
       }
-      leaseTokens.set(lease.lease_id, leaseToken);
-      return Object.freeze({ ...lease, leaseToken });
+      const result = await invoke("claim", { leaseSeconds });
+      if (result.lease === null) return null;
+      const lease = result.lease;
+      if (!lease || !UUID.test(lease.leaseId || "") || !UUID.test(lease.executionId || "")
+        || !HEX_TOKEN.test(result.leaseToken || "")) {
+        throw new Error("The orchestration worker broker returned an incomplete lease receipt.");
+      }
+      leaseTokens.set(lease.leaseId, result.leaseToken);
+      return Object.freeze({ ...lease, leaseToken: result.leaseToken });
     },
 
     async heartbeat(leaseId, { leaseSeconds = 120 } = {}) {
       const leaseToken = leaseTokens.get(leaseId);
       if (!leaseToken) return false;
-      const data = await rpc("heartbeat_discovery_orchestration_lease", {
-        p_company_id: companyId,
-        p_lease_id: leaseId,
-        p_worker_identity_id: workerIdentityId,
-        p_worker_credential_hash: workerCredentialHash,
-        p_lease_token_hash: hashLeaseToken(leaseToken),
-        p_lease_seconds: leaseSeconds
-      }, "Orchestration lease heartbeat failed closed");
-      return data === true;
+      if (!Number.isInteger(leaseSeconds) || leaseSeconds < 15 || leaseSeconds > 300) {
+        throw new Error("Lease duration must be between 15 and 300 seconds.");
+      }
+      const result = await invoke("heartbeat", { leaseId, leaseToken, leaseSeconds });
+      return result.renewed === true;
     },
 
     async release(leaseId, reason) {
@@ -77,16 +108,9 @@ export function createOrchestrationLeaseClient({
       if (typeof reason !== "string" || reason.trim().length < 10 || reason.length > 1000) {
         throw new Error("A lease release reason of 10–1000 characters is required.");
       }
-      const data = await rpc("release_discovery_orchestration_lease", {
-        p_company_id: companyId,
-        p_lease_id: leaseId,
-        p_worker_identity_id: workerIdentityId,
-        p_worker_credential_hash: workerCredentialHash,
-        p_lease_token_hash: hashLeaseToken(leaseToken),
-        p_reason: reason.trim()
-      }, "Orchestration lease release failed closed");
-      if (data === true) leaseTokens.delete(leaseId);
-      return data === true;
+      const result = await invoke("release", { leaseId, leaseToken, reason: reason.trim() });
+      if (result.released === true) leaseTokens.delete(leaseId);
+      return result.released === true;
     },
 
     forgetLease(leaseId) {
