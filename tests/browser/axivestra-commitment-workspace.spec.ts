@@ -1,4 +1,4 @@
-import { test, expect, type Locator } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 
 const env = process.env;
 const companyName = env.AXIVESTRA_E2E_COMPANY_NAME || "";
@@ -24,7 +24,7 @@ async function selectOptionContaining(select: Locator, fragment: string) {
   await select.selectOption(match!.value);
 }
 
-async function openCompanyWorkspace(page: Parameters<Parameters<typeof test.beforeEach>[0]>[0]["page"]) {
+async function openCompanyWorkspace(page: Page) {
   await page.goto("/");
   const emailField = page.getByLabel("Email address");
   if (await emailField.isVisible().catch(() => false)) {
