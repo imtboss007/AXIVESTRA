@@ -108,6 +108,33 @@ test("E20.4 fails closed on broker errors and rejects insecure or incomplete con
   await assert.rejects(expired.claim(), /claim failed closed: The worker identity, company grant, dispatch gate or lease is no longer valid/);
 });
 
+test("E20.4 discards its local lease token after a valid broker release receipt even when already released", async () => {
+  let actionCount = 0;
+  const client = createOrchestrationLeaseClient({
+    ...common,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      actionCount += 1;
+      if (body.action === "claim") {
+        return ok({
+          ok: true,
+          lease: {
+            leaseId: "77777777-7777-4777-8777-777777777777",
+            executionId: "88888888-8888-4888-8888-888888888888"
+          },
+          leaseToken: randomBytes(32).toString("hex")
+        });
+      }
+      return ok({ ok: true, released: false });
+    }
+  });
+  const lease = await client.claim();
+  assert.equal(client.activeLeaseCount(), 1);
+  assert.equal(await client.release(lease.leaseId, "Lease was already released by the control plane."), false);
+  assert.equal(client.activeLeaseCount(), 0);
+  assert.equal(actionCount, 2);
+});
+
 test("E20.4 cannot renew or release a lease after the client has forgotten its token", async () => {
   const calls = [];
   const client = createOrchestrationLeaseClient({
