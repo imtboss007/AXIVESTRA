@@ -90,6 +90,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationMigration);
     const orchestrationPreflightMigration = await readFile(new URL("../../supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql", import.meta.url), "utf8");
     await pool.query(orchestrationPreflightMigration);
+    const orchestrationExecutionMigration = await readFile(new URL("../../supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationExecutionMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -441,6 +443,20 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("stage_kill_switch_off")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("adapter_not_registered")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("company_worker_grant_not_checked")));
+      const executionCatalogue=await orchestrationClient.query(
+        "select count(*)::int as adapters from public.discovery_orchestration_adapter_contracts"
+      );
+      assert.equal(executionCatalogue.rows[0].adapters,0,"E20.2 must not silently register runnable adapters");
+      const executionGrants=await orchestrationClient.query(
+        "select has_table_privilege('authenticated','public.discovery_orchestration_executions','insert') as can_insert_execution, has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','insert') as can_insert_lease, has_table_privilege('authenticated','public.discovery_orchestration_execution_events','insert') as can_insert_event"
+      );
+      assert.equal(executionGrants.rows[0].can_insert_execution,false);
+      assert.equal(executionGrants.rows[0].can_insert_lease,false);
+      assert.equal(executionGrants.rows[0].can_insert_event,false);
+      const executionRoutines=await orchestrationClient.query(
+        "select count(*)::int as routines from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('claim_discovery_orchestration_execution','heartbeat_discovery_orchestration_lease','complete_discovery_orchestration_execution','retry_discovery_orchestration_execution')"
+      );
+      assert.equal(executionRoutines.rows[0].routines,0,"E20.2 exposes no worker execution RPCs");
       assert.equal(initialPreflight.rows[0].unsatisfied_dependency_count,0);
       assert.equal(initialPreflight.rows[1].unsatisfied_dependency_count,1);
       assert.equal(initialPreflight.rows[2].unsatisfied_dependency_count,1);
