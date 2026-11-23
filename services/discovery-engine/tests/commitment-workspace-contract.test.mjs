@@ -62,6 +62,16 @@ test("E18 overview workspace creates and manages typed commitments with saved me
   assert.match(ui,/Save date/);
   assert.match(ui,/Save status|changeAssignee/);
   assert.match(ui,/recurring reminders and message delivery are not enabled/);
+  for(const field of ["summary","relationship_id","source_task_record_key","company_deal_parties","company_records"])
+    assert.match(ui,new RegExp(field));
+  assert.match(ui,/Legacy task reconciliation/);
+  assert.match(ui,/Link \/ import selected task/);
+  assert.match(ui,/Save details/);
+  assert.match(ui,/change_reason_code:"details_updated"/);
+  assert.match(ui,/task\.done/);
+  assert.match(ui,/source_task_record_key:source\.record_key/);
+  assert.match(ui,/No active relationship for this deal and party/);
+  assert.match(ui,/unsyncedLocalTaskCount/);
 });
 
 test("E18 protects linked deals, parties and source tasks from deletion while commitments remain open",()=>{
