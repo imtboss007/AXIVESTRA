@@ -105,7 +105,7 @@ test("E20.4 fails closed on broker errors and rejects insecure or incomplete con
     ...common,
     fetchImpl: async () => fail(409, "The worker grant expired.")
   });
-  await assert.rejects(expired.claim(), /claim failed closed: The worker grant expired/);
+  await assert.rejects(expired.claim(), /claim failed closed: The worker identity, company grant, dispatch gate or lease is no longer valid/);
 });
 
 test("E20.4 cannot renew or release a lease after the client has forgotten its token", async () => {
