@@ -64,22 +64,32 @@ export default function CompanyCommitmentWorkspace({companyId,companyRole,proper
     if(!companyId||!supabase){setRows([]);setMembers([]);setRelationships([]);setLegacyTaskRows([]);return;}
     setLoading(true);setError("");
     try{
+      const readAllPages=async<T,>(readPage:(from:number,to:number)=>Promise<{data:T[]|null;error:{message:string}|null}>,pageSize=500)=>{
+        const all:T[]=[];
+        for(let from=0;;from+=pageSize){
+          const {data,error}=await readPage(from,from+pageSize-1);
+          if(error)throw error;
+          const page=data||[];
+          all.push(...page);
+          if(page.length<pageSize)break;
+          if(all.length>=50000)throw new Error("The company record list exceeds the safe E18 reconciliation limit.");
+        }
+        return all;
+      };
       const [items,people,user,links,sourceTasks]=await Promise.all([
         supabase.from("company_commitment_inbox").select("*").eq("company_id",companyId).order("due_at",{ascending:true}).limit(500),
         supabase.from("company_memberships").select("user_id,role").eq("company_id",companyId).order("role"),
         supabase.auth.getUser(),
-        supabase.from("company_deal_parties").select("id,deal_record_key,party_record_key,role_code,responsibility_code,verification_state,effective_to").eq("company_id",companyId).limit(1000),
-        supabase.from("company_records").select("record_key,payload").eq("company_id",companyId).eq("record_type","task").is("deleted_at",null).order("record_key").limit(1000)
+        readAllPages((from,to)=>supabase.from("company_deal_parties").select("id,deal_record_key,party_record_key,role_code,responsibility_code,verification_state,effective_to").eq("company_id",companyId).range(from,to)),
+        readAllPages((from,to)=>supabase.from("company_records").select("record_key,payload").eq("company_id",companyId).eq("record_type","task").is("deleted_at",null).order("record_key").range(from,to))
       ]);
       if(items.error)throw items.error;
       if(people.error)throw people.error;
-      if(links.error)throw links.error;
-      if(sourceTasks.error)throw sourceTasks.error;
       setRows((items.data||[]) as Commitment[]);
       setMembers((people.data||[]) as Member[]);
       setCurrentUserId(user.data.user?.id||"");
-      setRelationships((links.data||[]) as Relationship[]);
-      setLegacyTaskRows((sourceTasks.data||[]).map((row:{record_key:string;payload:LegacyTask})=>({record_key:row.record_key,payload:{...row.payload,id:row.record_key}})));
+      setRelationships(links as Relationship[]);
+      setLegacyTaskRows(sourceTasks.map((row:{record_key:string;payload:LegacyTask})=>({record_key:row.record_key,payload:{...row.payload,id:row.record_key}})));
     }catch(reason){setError(reason instanceof Error?reason.message:"Could not load commitments.");}
     finally{setLoading(false);}
   },[companyId]);
