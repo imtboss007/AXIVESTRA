@@ -771,10 +771,44 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           [companyId,workerIdentityId,"Owner resumed the paused worker within the active company grant."]
         );
 
-        // Disabling the existing company-wide grant pauses all scoped identities and releases leases.
+        // Shortening an active company grant must pause the scoped worker and release its lease immediately.
         const leaseThree=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"e".repeat(64)]
+        );
+        await pool.query(
+          "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        await pool.query(
+          "update public.discovery_company_worker_controls set expires_at=clock_timestamp()+interval '30 seconds',updated_at=clock_timestamp(),reason='E20.4 test shortened the active company worker grant.' where company_id=$1",
+          [companyId]
+        );
+        const shortenedPause=await pool.query(
+          "select status from public.discovery_orchestration_worker_identities where company_id=$1 and id=$2",
+          [companyId,workerIdentityId]
+        );
+        assert.equal(shortenedPause.rows[0].status,"paused","shortening a still-enabled company grant must pause scoped workers");
+        const shortenedReleasedLease=await pool.query(
+          "select l.released_at,e.state from public.discovery_orchestration_execution_leases l join public.discovery_orchestration_executions e on e.company_id=l.company_id and e.id=l.execution_id where l.company_id=$1 and l.id=$2",
+          [companyId,leaseThree.rows[0].id]
+        );
+        assert.ok(shortenedReleasedLease.rows[0].released_at);
+        assert.equal(shortenedReleasedLease.rows[0].state,"ready");
+
+        await orchestrationClient.query(
+          "select * from public.set_discovery_company_worker_grant($1,$2,true,$3)",
+          [companyId,actorId,"Re-enabled the temporary company grant after the E20.4 shortening test."]
+        );
+        await orchestrationClient.query(
+          "select * from public.set_discovery_orchestration_worker_identity_status($1,$2,'active',$3)",
+          [companyId,workerIdentityId,"Owner resumed the worker after restoring the temporary company grant."]
+        );
+
+        // Disabling the existing company-wide grant pauses all scoped identities and releases leases.
+        const leaseFour=await pool.query(
+          "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
+          [companyId,executionId,workerIdentityId,"9".repeat(64)]
         );
         await pool.query(
           "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
@@ -791,7 +825,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         assert.equal(globalPause.rows[0].status,"paused");
         const globalReleasedLease=await pool.query(
           "select l.released_at,e.state from public.discovery_orchestration_execution_leases l join public.discovery_orchestration_executions e on e.company_id=l.company_id and e.id=l.execution_id where l.company_id=$1 and l.id=$2",
-          [companyId,leaseThree.rows[0].id]
+          [companyId,leaseFour.rows[0].id]
         );
         assert.ok(globalReleasedLease.rows[0].released_at);
         assert.equal(globalReleasedLease.rows[0].state,"ready");
