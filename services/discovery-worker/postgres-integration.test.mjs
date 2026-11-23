@@ -123,6 +123,34 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     const orchestrationAdapterApprovalMigration = await readFile(new URL("../../supabase/migrations/20261123230000_axivestra_orchestration_adapter_approvals.sql", import.meta.url), "utf8");
     await pool.query(orchestrationAdapterApprovalMigration);
 
+    // E20.5 maps every existing E04–E12 stage queue without creating a second queue
+    // or enabling any bridge. E11 deliberately remains deterministic inline.
+    const stageQueueContracts=await pool.query(
+      "select stage_key,queue_mode,queue_table,enqueue_path,claim_routine,bridge_enabled from public.discovery_orchestration_stage_queue_contracts order by stage_key"
+    );
+    assert.deepEqual(stageQueueContracts.rows.map(row=>row.stage_key),[
+      "e04_source_capture","e05_extraction","e06_entity_resolution","e07_professional_roles",
+      "e08_contact_validation","e09_geo_resolution","e10_enrichment","e11_matching","e12_deduplication"
+    ]);
+    assert.ok(stageQueueContracts.rows.every(row=>row.bridge_enabled===false),"E20.5 must keep every legacy queue bridge OFF");
+    const inlineMatching=stageQueueContracts.rows.find(row=>row.stage_key==="e11_matching");
+    assert.deepEqual(
+      {mode:inlineMatching.queue_mode,table:inlineMatching.queue_table,enqueue:inlineMatching.enqueue_path,claim:inlineMatching.claim_routine},
+      {mode:"deterministic_inline",table:null,enqueue:"none",claim:null},
+      "E11 matching is deterministic inline and must not receive an invented queue"
+    );
+    const existingQueueCount=stageQueueContracts.rows.filter(row=>row.queue_mode==="existing_durable_queue").length;
+    assert.equal(existingQueueCount,8);
+    await assert.rejects(
+      pool.query("update public.discovery_orchestration_stage_queue_contracts set bridge_enabled=true where stage_key='e05_extraction'"),
+      /check constraint/
+    );
+    const stageQueueAcl=await pool.query(
+      "select has_table_privilege('authenticated','public.discovery_orchestration_stage_queue_contracts','insert') as can_insert_mapping,has_table_privilege('authenticated','public.discovery_orchestration_stage_queue_contracts','update') as can_update_mapping"
+    );
+    assert.equal(stageQueueAcl.rows[0].can_insert_mapping,false);
+    assert.equal(stageQueueAcl.rows[0].can_update_mapping,false);
+
     // E20.4 adds only the three narrow broker RPCs consumed by the worker
     // Edge Function. Confirm the cumulative database has exactly those APIs,
     // all SECURITY DEFINER, with execute granted only to service_role.
@@ -759,10 +787,14 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
       const executionId=execution.rows[0].id;
       const finalPreflight=await pool.query(
-        "select dispatch_permitted,blocker_codes,adapter_contract_platform_approved,company_adapter_approved from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 and stage_key='e05_extraction'",
+        "select dispatch_permitted,blocker_codes,adapter_contract_platform_approved,company_adapter_approved,stage_queue_mode,stage_queue_table,stage_queue_bridge_enabled from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 and stage_key='e05_extraction'",
         [companyId,orchestrationRunId]
       );
       assert.equal(finalPreflight.rows[0].dispatch_permitted,false);
+      assert.equal(finalPreflight.rows[0].stage_queue_mode,"existing_durable_queue");
+      assert.equal(finalPreflight.rows[0].stage_queue_table,"discovery_extraction_jobs");
+      assert.equal(finalPreflight.rows[0].stage_queue_bridge_enabled,false);
+      assert.ok(finalPreflight.rows[0].blocker_codes.includes("stage_queue_bridge_disabled"));
       assert.equal(finalPreflight.rows[0].adapter_contract_platform_approved,true);
       assert.equal(finalPreflight.rows[0].company_adapter_approved,true);
       assert.ok(!finalPreflight.rows[0].blocker_codes.includes("company_adapter_not_approved"));
