@@ -6405,3 +6405,22 @@ h2,h3{color:#e5f2fc}
   font-size: 11px;
 }
 .discovery-orchestration-worker-revoke .danger-button:disabled { opacity: .45; cursor: not-allowed; }
+
+
+.discovery-orchestration-worker-confirm {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(128,128,128,.25));
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.discovery-orchestration-worker-confirm input {
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+}
+.discovery-orchestration-worker-confirm span {
+  color: var(--muted, #737373);
+}
