@@ -6015,3 +6015,30 @@ h2,h3{color:#e5f2fc}
 .ax-commitment-card>p{margin:0;color:#78847a;font-size:10px;line-height:1.5}
 @media(max-width:760px){.ax-normalized-relationship-form,.ax-commitment-create{grid-template-columns:repeat(2,minmax(0,1fr))}.ax-normalized-relationship-controls,.ax-commitment-card-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.ax-commitment-create .ax-commitment-title{grid-column:1/-1}}
 @media(max-width:520px){.ax-normalized-relationship-form,.ax-commitment-create,.ax-normalized-relationship-controls,.ax-commitment-card-controls{grid-template-columns:1fr}.ax-commitment-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.ax-commitment-card-head{display:grid}}
+
+
+/* E18 detail editing and deliberate legacy-task reconciliation */
+.ax-commitment-create .ax-commitment-summary-field{grid-column:span 2}
+.ax-commitment-create textarea,.ax-commitment-detail-editor textarea,
+.ax-commitment-detail-editor input,.ax-commitment-detail-editor select,
+.ax-commitment-reconciliation select{
+  width:100%;min-width:0;padding:8px 9px;border:1px solid #dfe6dd;border-radius:8px;
+  background:#fff;color:#263b2d;font:500 10px "DM Sans",sans-serif;resize:vertical
+}
+.ax-commitment-reconciliation{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(180px,1fr) auto;align-items:end;gap:10px;padding:12px;border:1px solid #e4ebe2;border-radius:11px;background:#f9fbf8}
+.ax-commitment-reconciliation>div{min-width:0}
+.ax-commitment-reconciliation strong{display:flex;align-items:center;gap:7px;color:#314836;font-size:11px}
+.ax-commitment-reconciliation p{margin:5px 0 0;color:#78847a;font-size:9px;line-height:1.55}
+.ax-commitment-reconciliation label,.ax-commitment-detail-editor label{display:grid;gap:5px;color:#6c7a6e;font-size:9px;font-weight:700}
+.ax-commitment-reconciliation>small{grid-column:1/-1;color:#849087;font-size:9px;line-height:1.5}
+.ax-commitment-detail-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;width:100%}
+.ax-commitment-detail-editor label:first-child,.ax-commitment-detail-editor label:nth-child(2){grid-column:1/-1}
+.ax-commitment-detail-editor>div{display:flex;flex-wrap:wrap;gap:7px;grid-column:1/-1}
+.ax-commitment-details-tools{grid-column:1/-1;min-width:0}
+.ax-commitment-linked-relationship,.ax-commitment-source-task{color:#7c8d7d}
+@media(max-width:760px){
+  .ax-commitment-reconciliation{grid-template-columns:1fr}
+  .ax-commitment-reconciliation>small{grid-column:auto}
+  .ax-commitment-create .ax-commitment-summary-field{grid-column:1/-1}
+}
+@media(max-width:520px){.ax-commitment-detail-editor{grid-template-columns:1fr}.ax-commitment-detail-editor label:first-child,.ax-commitment-detail-editor label:nth-child(2){grid-column:auto}}
