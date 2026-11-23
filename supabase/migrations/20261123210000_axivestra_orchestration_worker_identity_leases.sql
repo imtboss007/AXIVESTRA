@@ -80,8 +80,8 @@ revoke all on public.discovery_orchestration_worker_identities,
   public.discovery_orchestration_worker_events from public,anon,authenticated,service_role;
 grant select on public.discovery_orchestration_worker_identities,
   public.discovery_orchestration_worker_events to service_role;
--- Authenticated reads are filtered by owner/admin RLS; needed by the invoker-security preflight view.
-grant select on public.discovery_orchestration_worker_identities to authenticated;
+-- The credential-bearing identity table is not readable directly by authenticated users.
+-- Owners/admins use the safe worker directory view; service_role retains internal access.
 grant select on public.discovery_orchestration_worker_events to authenticated;
 
 -- A directory view deliberately excludes credential_hash and the raw lease-token hash.
