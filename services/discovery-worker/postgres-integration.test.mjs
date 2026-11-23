@@ -614,11 +614,11 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         assert.equal(unchangedExecution.rows[0].attempt_count,0);
 
         // Exercise heartbeat and explicit release against a synthetic lease receipt.
-        const leaseOne=await workerServiceClient.query(
+        const leaseOne=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"c".repeat(64)]
         );
-        await workerServiceClient.query(
+        await pool.query(
           "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
           [companyId,executionId]
         );
@@ -639,12 +639,12 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         assert.equal(releasedState.rows[0].state,"ready");
         assert.ok(releasedState.rows[0].released_at);
         await assert.rejects(
-          workerServiceClient.query("update public.discovery_orchestration_execution_events set reason='tampered' where execution_id=$1",[executionId]),
+          pool.query("update public.discovery_orchestration_execution_events set reason='tampered' where execution_id=$1",[executionId]),
           /append-only/
         );
 
         // Pausing a scoped worker immediately releases its active lease.
-        const leaseTwo=await workerServiceClient.query(
+        const leaseTwo=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"d".repeat(64)]
         );
@@ -670,7 +670,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         );
 
         // Disabling the existing company-wide grant pauses all scoped identities and releases leases.
-        const leaseThree=await workerServiceClient.query(
+        const leaseThree=await pool.query(
           "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
           [companyId,executionId,workerIdentityId,"e".repeat(64)]
         );
