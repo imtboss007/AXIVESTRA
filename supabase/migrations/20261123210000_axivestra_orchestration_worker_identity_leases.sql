@@ -21,7 +21,7 @@ create table if not exists public.discovery_orchestration_worker_identities (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(company_id,id),
-  unique(company_id,worker_key),
+  constraint discovery_orchestration_worker_identity_company_worker_key unique(company_id,worker_key),
   unique(company_id,credential_hash)
 );
 create index if not exists discovery_orchestration_workers_active_idx
@@ -253,7 +253,7 @@ begin
     p_company_id,p_worker_key,trim(p_display_name),p_credential_hash,p_stage_keys,
     p_max_active_leases,p_lease_seconds,'active',p_expires_at,v_actor,v_actor,trim(p_reason)
   )
-  on conflict(company_id,worker_key) do update set
+  on conflict on constraint discovery_orchestration_worker_identity_company_worker_key do update set
     display_name=excluded.display_name,
     credential_hash=excluded.credential_hash,
     stage_keys=excluded.stage_keys,
