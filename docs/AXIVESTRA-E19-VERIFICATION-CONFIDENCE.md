@@ -41,3 +41,15 @@ E19 adds that workflow without replacing the authoritative stage-specific record
 The E19 contract suite checks automatic case creation/backfill, evidence minimisation, the confidence formula, owner/admin gates, append-only history and reopen-on-new-evidence behaviour. The PostgreSQL integration suite applies the migration after E18 and tests the live trigger, evidence classification, verification decision, audit receipts, role rejection and case reopening.
 
 A complete successful GitHub Actions governance run is required before E19 is called validated. No production migration, provider, worker or deployment is activated by this implementation.
+
+
+## Browser acceptance
+
+A dedicated authenticated Playwright spec lives at \`tests/browser/axivestra-verification-workspace.spec.ts\`. It checks that the Discovery Sources screen exposes the verification inbox and can inspect a configured company verification case without rendering raw contact values.
+
+The spec is serialized and runs only in the desktop Chromium project. It requires the existing E18 QA account/company variables:
+- \`AXIVESTRA_E2E_EMAIL\`
+- \`AXIVESTRA_E2E_PASSWORD\`
+- \`AXIVESTRA_E2E_COMPANY_NAME\`
+
+For a subject-level evidence inspection assertion, also set \`AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID\` to a dedicated QA subject UUID. The governance workflow invokes this spec alongside the E18 browser spec when the required QA account, company and Supabase build secrets are configured. No authenticated browser run is claimed until those credentials/fixtures are present and the Actions step passes.
