@@ -110,6 +110,10 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.ok(workerMigration.includes("Worker grant events are append-only"));
   assert.ok(workerMigration.includes("Company worker grant was disabled, shortened or expired"));
   assert.ok(workerMigration.includes("Shortening a still-active company grant must release leases immediately"));
+  const workerStatusStart = workerMigration.indexOf("create or replace function public.set_discovery_orchestration_worker_identity_status");
+  const statusGrantLock = workerMigration.indexOf("select * into v_control", workerStatusStart);
+  const statusWorkerLock = workerMigration.indexOf("select * into v_worker", workerStatusStart);
+  assert.ok(statusGrantLock > workerStatusStart && statusWorkerLock > statusGrantLock, "worker resume must lock company grant before worker identity");
   assert.ok(workerMigration.includes("new.expires_at>=old.expires_at"));
   assert.match(integration, /shortening a still-enabled company grant must pause scoped workers/);
   assert.ok(workerMigration.includes("Worker credential rotated; active leases were released"));
