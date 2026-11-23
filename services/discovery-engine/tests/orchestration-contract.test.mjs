@@ -34,7 +34,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(migration, /enabled boolean not null default false/);
   assert.match(migration, /dispatch_ready boolean not null default false/);
   assert.match(migration, /revoke all on public\.discovery_orchestration_stage_registry/);
-  assert.match(migration, /Only company owners\/admin can approve or control orchestration plans/);
+  assert.ok(migration.includes("Only company owners/admins can approve or control orchestration plans."));
   assert.match(migration, /Orchestration events are append-only/);
   assert.match(migration, /'full_discovery'/);
   assert.match(migration, /'company_identity'/);
