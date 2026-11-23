@@ -298,7 +298,7 @@ Deno.serve(async request => {
           .eq("company_id", companyId).order("step_order").limit(500),
         admin.from("discovery_orchestration_events").select("id,run_id,event_type,previous_status,new_status,reason,occurred_at,actor_user_id")
           .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800),
-        userClient.from("discovery_orchestration_step_preflight").select("step_id,run_id,blocker_codes,unsatisfied_dependency_count,unsatisfied_dependency_ids,dispatch_permitted,execution_context_bound,profile_id,source_id,purpose,required_fields,profile_enabled,source_status,context_snapshot_current,purpose_still_allowed,fields_still_allowed,company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available,adapter_contract_platform_approved,company_adapter_approved")
+        userClient.from("discovery_orchestration_step_preflight").select("step_id,run_id,blocker_codes,unsatisfied_dependency_count,unsatisfied_dependency_ids,dispatch_permitted,execution_context_bound,profile_id,source_id,purpose,required_fields,profile_enabled,source_status,context_snapshot_current,purpose_still_allowed,fields_still_allowed,company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available,adapter_contract_platform_approved,company_adapter_approved,stage_queue_mode,stage_queue_table,stage_queue_enqueue_path,stage_queue_claim_routine,stage_queue_bridge_enabled")
           .eq("company_id", companyId).limit(500),
         admin.from("discovery_profiles").select("id,workspace_key,discovery_mode,jurisdiction,purpose,enabled,updated_at")
           .eq("company_id", companyId).order("workspace_key").limit(200),
