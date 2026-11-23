@@ -707,12 +707,15 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       }
 
       const tokenPrivileges=await pool.query(
-        "select has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_lease_inbox','select') as safe_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as worker_table_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_directory','select') as safe_worker_directory_select"
+        "select has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_lease_inbox','select') as safe_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as worker_table_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_directory','select') as safe_worker_directory_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_attempts','select') as raw_attempt_select,has_table_privilege('authenticated','public.discovery_orchestration_attempt_inbox','select') as safe_attempt_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_inbox','select') as safe_execution_select"
       );
       assert.equal(tokenPrivileges.rows[0].raw_lease_select,false,"raw lease-token hashes must not be exposed to authenticated members");
       assert.equal(tokenPrivileges.rows[0].safe_lease_select,true,"company members can read the safe lease inspector");
       assert.equal(tokenPrivileges.rows[0].worker_table_select,false,"credential-bearing worker identity rows are never directly readable by authenticated users");
       assert.equal(tokenPrivileges.rows[0].safe_worker_directory_select,true,"owners/admins use the safe worker directory view");
+      assert.equal(tokenPrivileges.rows[0].raw_attempt_select,false,"the internal attempt table is not directly readable by authenticated members");
+      assert.equal(tokenPrivileges.rows[0].safe_attempt_select,true,"company members can read the safe attempt history view");
+      assert.equal(tokenPrivileges.rows[0].safe_execution_select,true,"company members can read the safe execution inbox");
       const workerRpcPrivileges=await pool.query(
         "select " +
         "has_function_privilege('authenticated','public.grant_discovery_orchestration_worker_identity(uuid,text,text,text,text[],integer,integer,timestamptz,text)','execute') as can_grant, " +
@@ -724,7 +727,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         "has_function_privilege('service_role','public.heartbeat_discovery_orchestration_lease(uuid,uuid,uuid,text,text,integer)','execute') as service_can_heartbeat, " +
         "has_function_privilege('anon','public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text)','execute') as anon_can_release, " +
         "has_function_privilege('authenticated','public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text)','execute') as authenticated_can_release, " +
-        "has_function_privilege('service_role','public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text)','execute') as service_can_release"
+        "has_function_privilege('service_role','public.release_discovery_orchestration_lease(uuid,uuid,uuid,text,text,text)','execute') as service_can_release, " +
+        "has_function_privilege('anon','public.record_discovery_orchestration_attempt_outcome(uuid,uuid,text,uuid,text,text,text)','execute') as anon_can_record_outcome, " +
+        "has_function_privilege('authenticated','public.record_discovery_orchestration_attempt_outcome(uuid,uuid,text,uuid,text,text,text)','execute') as authenticated_can_record_outcome, " +
+        "has_function_privilege('service_role','public.record_discovery_orchestration_attempt_outcome(uuid,uuid,text,uuid,text,text,text)','execute') as service_can_record_outcome"
       );
       assert.equal(workerRpcPrivileges.rows[0].can_grant,true,"authenticated control path is guarded by owner/admin checks");
       for (const field of ["anon_can_claim","authenticated_can_claim","anon_can_heartbeat","authenticated_can_heartbeat","anon_can_release","authenticated_can_release"]) {
@@ -733,6 +739,9 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       for (const field of ["service_can_claim","service_can_heartbeat","service_can_release"]) {
         assert.equal(workerRpcPrivileges.rows[0][field],true,field+" must be executable by the server-side service role");
       }
+      assert.equal(workerRpcPrivileges.rows[0].anon_can_record_outcome,false,"anon cannot record an execution attempt outcome");
+      assert.equal(workerRpcPrivileges.rows[0].authenticated_can_record_outcome,false,"attempt outcomes are submitted only through the server-side scoped worker broker");
+      assert.equal(workerRpcPrivileges.rows[0].service_can_record_outcome,true,"the server-side broker can submit a scoped attempt outcome");
 
       const preflightAfterGrant=await orchestrationClient.query(
         "select stage_key,worker_identity_scope_available,company_worker_grant_active,dispatch_permitted,blocker_codes from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
