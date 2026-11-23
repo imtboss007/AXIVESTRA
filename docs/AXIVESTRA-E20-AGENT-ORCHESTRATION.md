@@ -31,6 +31,18 @@ AXIVESTRA already has separate source-fetch, extraction, entity, role, contact, 
 - E20.5 adds a read-only dependency schedule preview that distinguishes satisfied prerequisites, waiting dependencies and failed/cancelled dependencies. A preview state never changes a step, creates an execution or enqueues an existing queue.
 - E20.5 adds a nine-stage contract map from the E20 registry to the existing E04–E12 queues. E04–E10 and E12 point to their actual queue table and enqueue/claim path; E11 is explicitly mapped as a deterministic inline engine with no dedicated queue. This prevents an invented duplicate queue for matching.
 - The stage-queue contract table is read-only to authenticated company users and its `bridge_enabled` field is constrained OFF. Preflight reports a missing mapping or disabled bridge. E20 does not call any legacy enqueue/claim routine and does not alter the existing E04–E12 queue workers.
+
+| E20 stage | Existing E04–E12 implementation | Queue mode |
+|---|---|---|
+| E04 source capture | `discovery_jobs`; `enqueue_discovery_job()` via `discovery-control.jobs.enqueue`; claim: `claim_discovery_job()` | Existing durable queue |
+| E05 extraction | `discovery_extraction_jobs`; evidence trigger `enqueue_discovery_extraction_for_evidence()`; claim: `claim_discovery_extraction_job()` | Existing durable queue |
+| E06 entity resolution | `discovery_entity_resolution_jobs`; extraction-run trigger `enqueue_discovery_entity_resolution_job()`; claim: `claim_discovery_entity_resolution_job()` | Existing durable queue |
+| E07 professional roles | `discovery_professional_role_jobs`; reviewed-entity assignment trigger; claim: `claim_discovery_professional_role_job()` | Existing durable queue |
+| E08 contact validation | `discovery_contact_validation_jobs`; extraction trigger; claim: `claim_discovery_contact_validation_job()` | Existing durable queue |
+| E09 geo resolution | `discovery_geo_resolution_jobs`; extraction trigger; claim: `claim_discovery_geo_resolution_job()` | Existing durable queue |
+| E10 enrichment | `discovery_enrichment_jobs`; reviewed-entity assignment trigger; claim: `claim_discovery_enrichment_job()` | Existing durable queue |
+| E11 matching | Deterministic weighted scoring engine; no dedicated stage queue | Deterministic inline |
+| E12 deduplication | `discovery_deduplication_jobs`; existing entity/contact/role triggers; claim: `claim_discovery_deduplication_job()` | Existing durable queue |
 - The Discovery Sources workspace displays the stage inventory, versioned adapter contracts, company review actions/history, dependency schedule preview, run approvals, disabled stage gates, per-step preflight blockers, context binding controls, scoped worker grant/revoke controls and separate decision/context/worker histories.
 
 ## Current boundaries
