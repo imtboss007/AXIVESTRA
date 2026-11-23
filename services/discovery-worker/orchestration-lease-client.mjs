@@ -109,7 +109,8 @@ export function createOrchestrationLeaseClient({
         throw new Error("A lease release reason of 10–1000 characters is required.");
       }
       const result = await invoke("release", { leaseId, leaseToken, reason: reason.trim() });
-      if (result.released === true) leaseTokens.delete(leaseId);
+      // Any authenticated release receipt means the server says this lease is no longer active.
+      leaseTokens.delete(leaseId);
       return result.released === true;
     },
 
