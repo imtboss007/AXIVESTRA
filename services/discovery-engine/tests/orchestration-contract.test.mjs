@@ -153,6 +153,14 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.doesNotMatch(adapterMigration, /update public\.discovery_orchestration_company_stage_controls/i);
   assert.match(retryMigration, /create table if not exists public\.discovery_orchestration_failure_policies/);
   assert.match(retryMigration, /create table if not exists public\.discovery_orchestration_execution_attempts/);
+  assert.match(retryMigration, /create or replace function public\.guard_discovery_orchestration_attempt_receipt/);
+  assert.match(retryMigration, /before update or delete on public\.discovery_orchestration_execution_attempts/);
+  assert.match(retryMigration, /A finalized orchestration attempt receipt is immutable/);
+  assert.match(retryMigration, /An attempt receipt can only transition once from started to a final outcome/);
+  assert.match(retryMigration, /attempt_number between 1 and 8/);
+  assert.match(retryMigration, /failure_class.*permanent/);
+  assert.match(retryMigration, /'INVALID_INPUT','permanent',false/);
+  assert.match(retryMigration, /'UNKNOWN_FAILURE','unknown',false/);
   assert.match(retryMigration, /WORKER_RELEASED/);
   assert.match(retryMigration, /LEASE_EXPIRED/);
   assert.match(retryMigration, /UNKNOWN_FAILURE/);
