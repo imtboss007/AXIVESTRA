@@ -208,16 +208,16 @@ begin
     raise exception 'A SHA-256 worker credential hash is required.' using errcode='22023';
   end if;
   if p_stage_keys is null or cardinality(p_stage_keys)<1 or cardinality(p_stage_keys)>9
-    or exists(select 1 from unnest(p_stage_keys) as stage_key where stage_key is null)
-    or cardinality(p_stage_keys)<>(select count(distinct stage_key) from unnest(p_stage_keys) as stage_key)
+    or exists(select 1 from unnest(p_stage_keys) as requested(stage_key) where requested.stage_key is null)
+    or cardinality(p_stage_keys)<>(select count(distinct requested.stage_key) from unnest(p_stage_keys) as requested(stage_key))
     or exists(select 1 from unnest(p_stage_keys) as requested(stage_key)
       where not exists(select 1 from public.discovery_orchestration_stage_registry r where r.stage_key=requested.stage_key)) then
     raise exception 'Select 1–9 distinct, registered orchestration stage keys.' using errcode='22023';
   end if;
-  if p_max_active_leases not between 1 and 4 then
+  if coalesce(p_max_active_leases,0) not between 1 and 4 then
     raise exception 'Maximum active leases must be between 1 and 4.' using errcode='22023';
   end if;
-  if p_lease_seconds not between 15 and 300 then
+  if coalesce(p_lease_seconds,0) not between 15 and 300 then
     raise exception 'Lease duration must be between 15 and 300 seconds.' using errcode='22023';
   end if;
   if p_reason is null or p_reason<>trim(p_reason) or length(p_reason)<10 or length(p_reason)>1000 then
@@ -298,7 +298,7 @@ begin
   if coalesce(v_role,'') not in ('owner','admin') then
     raise exception 'Only company owners/admins can control orchestration worker identity.' using errcode='42501';
   end if;
-  if p_status not in ('active','paused','revoked') then
+  if coalesce(p_status,'') not in ('active','paused','revoked') then
     raise exception 'Worker status must be active, paused or revoked.' using errcode='22023';
   end if;
   if p_reason is null or p_reason<>trim(p_reason) or length(p_reason)<10 or length(p_reason)>1000 then
@@ -349,7 +349,7 @@ begin
   if new.enabled is true and new.expires_at>clock_timestamp() then return new; end if;
   for v_worker in
     update public.discovery_orchestration_worker_identities
-      set status='paused',updated_at=clock_timestamp(),
+      set status='paused',updated_by=new.updated_by,updated_at=clock_timestamp(),
           reason='Paused automatically because the company worker grant was disabled or expired.'
       where company_id=new.company_id and status='active'
       returning id,worker_key,stage_keys
