@@ -92,6 +92,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationPreflightMigration);
     const orchestrationExecutionMigration = await readFile(new URL("../../supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql", import.meta.url), "utf8");
     await pool.query(orchestrationExecutionMigration);
+    const orchestrationContextMigration = await readFile(new URL("../../supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationContextMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -443,6 +445,31 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("stage_kill_switch_off")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("adapter_not_registered")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("company_worker_grant_not_checked")));
+      assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("run_context_missing")));
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const contextEvent=await orchestrationClient.query(
+        "select public.bind_discovery_orchestration_run_context($1,$2,$3,$4,$5,$6::text[],$7) as id",
+        [companyId,orchestrationRunId,profileId,sourceId,"company identity verification",["legal_name","registration_id"],"Owner bound the approved company identity source and exact field scope for this test run."]
+      );
+      assert.ok(contextEvent.rows[0].id);
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      const boundContext=await orchestrationClient.query(
+        "select execution_context_bound,profile_enabled,source_status,context_snapshot_current,purpose_still_allowed,fields_still_allowed from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(boundContext.rows.length,3);
+      assert.ok(boundContext.rows.every(row=>row.execution_context_bound===true));
+      assert.ok(boundContext.rows.every(row=>row.profile_enabled===true));
+      assert.ok(boundContext.rows.every(row=>row.source_status==="approved"));
+      assert.ok(boundContext.rows.every(row=>row.context_snapshot_current===true));
+      assert.ok(boundContext.rows.every(row=>row.purpose_still_allowed===true));
+      assert.ok(boundContext.rows.every(row=>row.fields_still_allowed===true));
+      const contextHistory=await orchestrationClient.query(
+        "select count(*)::int as count,event_type from public.discovery_orchestration_context_events where company_id=$1 and run_id=$2 group by event_type",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(contextHistory.rows[0].count,1);
+      assert.equal(contextHistory.rows[0].event_type,"run_context_bound");
       const executionCatalogue=await orchestrationClient.query(
         "select count(*)::int as adapters from public.discovery_orchestration_adapter_contracts"
       );
