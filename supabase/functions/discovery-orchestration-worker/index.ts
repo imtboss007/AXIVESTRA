@@ -117,8 +117,8 @@ Deno.serve(async request => {
   if (!isUuid(companyId) || !isUuid(workerIdentityId)) {
     return jsonResponse(400, { ok: false, error: "Valid company and worker identity IDs are required." });
   }
-  if (action !== "claim" && action !== "heartbeat" && action !== "release") {
-    return jsonResponse(400, { ok: false, error: "Choose claim, heartbeat or release." });
+  if (action !== "claim" && action !== "heartbeat" && action !== "release" && action !== "finish") {
+    return jsonResponse(400, { ok: false, error: "Choose claim, heartbeat, release or finish." });
   }
 
   const admin = createClient(supabaseUrl, serviceKey, {
@@ -185,6 +185,31 @@ Deno.serve(async request => {
       });
       if (error) throw error;
       return jsonResponse(200, { ok: true, renewed: data === true });
+    }
+
+    if (action === "finish") {
+      const outcome = body.outcome;
+      const errorCode = typeof body.errorCode === "string" ? body.errorCode : null;
+      if (outcome !== "succeeded" && outcome !== "failed") {
+        return jsonResponse(400, { ok: false, error: "Choose succeeded or failed for the attempt outcome." });
+      }
+      if (outcome === "succeeded" && errorCode !== null) {
+        return jsonResponse(400, { ok: false, error: "A successful outcome cannot contain an error code." });
+      }
+      if (outcome === "failed" && (!errorCode || !/^[A-Z][A-Z0-9_]{2,79}$/.test(errorCode))) {
+        return jsonResponse(400, { ok: false, error: "A registered uppercase failure code is required for a failed attempt." });
+      }
+      const { data, error } = await admin.rpc("record_discovery_orchestration_attempt_outcome", {
+        p_company_id: companyId,
+        p_worker_identity_id: workerIdentityId,
+        p_worker_credential_hash: workerCredentialHash,
+        p_lease_id: leaseId,
+        p_lease_token_hash: leaseTokenHash,
+        p_outcome: outcome,
+        p_error_code: errorCode
+      });
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, outcome: data });
     }
 
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
