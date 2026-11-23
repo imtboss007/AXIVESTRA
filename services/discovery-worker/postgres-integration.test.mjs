@@ -530,6 +530,193 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         orchestrationClient.query("update public.discovery_orchestration_events set reason='rewritten' where run_id=$1",[orchestrationRunId]),
         /append-only/
       );
+
+      // E20.4: scoped worker identity, service-role lease API, global-grant revocation.
+      await assert.rejects(
+        orchestrationClient.query(
+          "select * from public.grant_discovery_orchestration_worker_identity($1,'e20-test-worker','E20 test worker',$2,array['e05_extraction'],1,60,clock_timestamp()+interval '20 minutes','Viewer is not allowed to grant a worker identity.')",
+          [companyId,"a".repeat(64)]
+        ),
+        /Only company owners\/admins can grant orchestration worker identity/
+      );
+      await orchestrationClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const workerCredentialHash="f".repeat(64);
+      const workerGrant=await orchestrationClient.query(
+        "select * from public.grant_discovery_orchestration_worker_identity($1,'e20-test-worker','E20 test worker',$2,array['e05_extraction'],1,60,clock_timestamp()+interval '20 minutes','Temporary E20.4 integration worker restricted to extraction stage.')",
+        [companyId,workerCredentialHash]
+      );
+      assert.equal(workerGrant.rows.length,1);
+      const workerIdentityId=workerGrant.rows[0].worker_identity_id;
+      assert.equal(workerGrant.rows[0].status,"active");
+      assert.deepEqual(workerGrant.rows[0].stage_keys,["e05_extraction"]);
+      assert.ok(Date.parse(workerGrant.rows[0].expires_at)>Date.now());
+      const safeWorkerDirectory=await orchestrationClient.query(
+        "select * from public.discovery_orchestration_worker_directory where company_id=$1 and id=$2",
+        [companyId,workerIdentityId]
+      );
+      assert.equal(safeWorkerDirectory.rows.length,1);
+      assert.equal(Object.hasOwn(safeWorkerDirectory.rows[0],"credential_hash"),false);
+      const preflightAfterGrant=await orchestrationClient.query(
+        "select stage_key,worker_identity_scope_available,company_worker_grant_active,dispatch_permitted,blocker_codes from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 order by step_order",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(preflightAfterGrant.rows[0].stage_key,"e04_source_capture");
+      assert.equal(preflightAfterGrant.rows[0].worker_identity_scope_available,false);
+      assert.equal(preflightAfterGrant.rows[1].stage_key,"e05_extraction");
+      assert.equal(preflightAfterGrant.rows[1].worker_identity_scope_available,true);
+      assert.equal(preflightAfterGrant.rows[1].company_worker_grant_active,true);
+      assert.equal(preflightAfterGrant.rows[1].dispatch_permitted,false,"worker scope never overrides the hard dispatch gate");
+      assert.ok(preflightAfterGrant.rows[1].blocker_codes.includes("no_dispatcher_registered"));
+
+      // Create a ready test execution behind the still-false dispatch gate.
+      const e05Step=plannedSteps.rows[1];
+      await pool.query(
+        "update public.discovery_orchestration_stage_registry set adapter_key='e05-test-adapter',dispatch_ready=true where stage_key='e05_extraction'"
+      );
+      await pool.query(
+        "insert into public.discovery_orchestration_adapter_contracts(adapter_key,stage_key,contract_version,required_permission_class,required_policy_checks,max_attempts,lease_seconds,max_parallel_per_company,enabled,reviewed_by,reviewed_at,review_reason) values('e05-test-adapter','e05_extraction','test-v1','source_restricted',array['company_worker_grant','source_purpose','personal_data_policy'],2,60,1,true,$1,now(),'Reviewed only as an isolated PostgreSQL contract fixture; no production adapter exists.')",
+        [actorId]
+      );
+      await pool.query(
+        "update public.discovery_orchestration_company_stage_controls set enabled=true,changed_by=$3,changed_at=now(),reason='Isolated E20.4 test fixture only; dispatch remains blocked.' where company_id=$1 and stage_key='e05_extraction'",
+        [companyId,orchestrationRunId,actorId]
+      );
+      const e05StepId=await pool.query(
+        "select id from public.discovery_orchestration_steps where company_id=$1 and run_id=$2 and stage_key='e05_extraction'",
+        [companyId,orchestrationRunId]
+      );
+      const execution=await pool.query(
+        "insert into public.discovery_orchestration_executions(company_id,run_id,step_id,adapter_key,state,max_attempts) values($1,$2,$3,'e05-test-adapter','ready',2) returning id",
+        [companyId,orchestrationRunId,e05StepId.rows[0].id]
+      );
+      const executionId=execution.rows[0].id;
+      const finalPreflight=await pool.query(
+        "select dispatch_permitted,blocker_codes from public.discovery_orchestration_step_preflight where company_id=$1 and run_id=$2 and stage_key='e05_extraction'",
+        [companyId,orchestrationRunId]
+      );
+      assert.equal(finalPreflight.rows[0].dispatch_permitted,false);
+      assert.ok(finalPreflight.rows[0].blocker_codes.includes("run_dispatch_not_configured"));
+      assert.ok(finalPreflight.rows[0].blocker_codes.includes("personal_data_policy_not_checked"));
+
+      const workerServiceClient=await pool.connect();
+      try {
+        await workerServiceClient.query("set role service_role");
+        const blockedClaim=await workerServiceClient.query(
+          "select * from public.claim_discovery_orchestration_lease($1,$2,$3,$4,60)",
+          [companyId,workerIdentityId,workerCredentialHash,"b".repeat(64)]
+        );
+        assert.equal(blockedClaim.rows.length,0,"scoped worker cannot claim while preflight dispatch_permitted is false");
+        const unchangedExecution=await workerServiceClient.query(
+          "select state,attempt_count from public.discovery_orchestration_executions where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        assert.equal(unchangedExecution.rows[0].state,"ready");
+        assert.equal(unchangedExecution.rows[0].attempt_count,0);
+
+        // Exercise heartbeat and explicit release against a synthetic lease receipt.
+        const leaseOne=await workerServiceClient.query(
+          "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
+          [companyId,executionId,workerIdentityId,"c".repeat(64)]
+        );
+        await workerServiceClient.query(
+          "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        const heartbeatLease=await workerServiceClient.query(
+          "select public.heartbeat_discovery_orchestration_lease($1,$2,$3,$4,$5,45) as ok",
+          [companyId,leaseOne.rows[0].id,workerIdentityId,workerCredentialHash,"c".repeat(64)]
+        );
+        assert.equal(heartbeatLease.rows[0].ok,true);
+        const releaseLease=await workerServiceClient.query(
+          "select public.release_discovery_orchestration_lease($1,$2,$3,$4,$5,$6) as ok",
+          [companyId,leaseOne.rows[0].id,workerIdentityId,workerCredentialHash,"c".repeat(64),"Worker completed an isolated heartbeat and lease-release lifecycle test."]
+        );
+        assert.equal(releaseLease.rows[0].ok,true);
+        const releasedState=await workerServiceClient.query(
+          "select e.state,l.released_at from public.discovery_orchestration_executions e join public.discovery_orchestration_execution_leases l on l.company_id=e.company_id and l.execution_id=e.id where e.company_id=$1 and e.id=$2 and l.id=$3",
+          [companyId,executionId,leaseOne.rows[0].id]
+        );
+        assert.equal(releasedState.rows[0].state,"ready");
+        assert.ok(releasedState.rows[0].released_at);
+        await assert.rejects(
+          workerServiceClient.query("update public.discovery_orchestration_execution_events set reason='tampered' where execution_id=$1",[executionId]),
+          /append-only/
+        );
+
+        // Pausing a scoped worker immediately releases its active lease.
+        const leaseTwo=await workerServiceClient.query(
+          "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
+          [companyId,executionId,workerIdentityId,"d".repeat(64)]
+        );
+        await workerServiceClient.query(
+          "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        const pausedWorker=await orchestrationClient.query(
+          "select * from public.set_discovery_orchestration_worker_identity_status($1,$2,'paused',$3)",
+          [companyId,workerIdentityId,"Owner paused the scoped worker to release its active test lease immediately."]
+        );
+        assert.equal(pausedWorker.rows[0].status,"paused");
+        assert.equal(pausedWorker.rows[0].released_leases,1);
+        const pausedLease=await workerServiceClient.query(
+          "select l.released_at,e.state from public.discovery_orchestration_execution_leases l join public.discovery_orchestration_executions e on e.company_id=l.company_id and e.id=l.execution_id where l.company_id=$1 and l.id=$2",
+          [companyId,leaseTwo.rows[0].id]
+        );
+        assert.ok(pausedLease.rows[0].released_at);
+        assert.equal(pausedLease.rows[0].state,"ready");
+        await orchestrationClient.query(
+          "select * from public.set_discovery_orchestration_worker_identity_status($1,$2,'active',$3)",
+          [companyId,workerIdentityId,"Owner resumed the paused worker within the active company grant."]
+        );
+
+        // Disabling the existing company-wide grant pauses all scoped identities and releases leases.
+        const leaseThree=await workerServiceClient.query(
+          "insert into public.discovery_orchestration_execution_leases(company_id,execution_id,worker_identity_id,lease_token_hash,worker_identity,leased_at,expires_at,heartbeat_at) values($1,$2,$3,$4,'e20-test-worker',clock_timestamp(),clock_timestamp()+interval '120 seconds',clock_timestamp()) returning id",
+          [companyId,executionId,workerIdentityId,"e".repeat(64)]
+        );
+        await workerServiceClient.query(
+          "update public.discovery_orchestration_executions set state='leased' where company_id=$1 and id=$2",
+          [companyId,executionId]
+        );
+        await orchestrationClient.query(
+          "select * from public.set_discovery_company_worker_grant($1,$2,false,$3)",
+          [companyId,actorId,"E20.4 integration test for global company grant revocation."]
+        );
+        const globalPause=await pool.query(
+          "select status from public.discovery_orchestration_worker_identities where company_id=$1 and id=$2",
+          [companyId,workerIdentityId]
+        );
+        assert.equal(globalPause.rows[0].status,"paused");
+        const globalReleasedLease=await pool.query(
+          "select l.released_at,e.state from public.discovery_orchestration_execution_leases l join public.discovery_orchestration_executions e on e.company_id=l.company_id and e.id=l.execution_id where l.company_id=$1 and l.id=$2",
+          [companyId,leaseThree.rows[0].id]
+        );
+        assert.ok(globalReleasedLease.rows[0].released_at);
+        assert.equal(globalReleasedLease.rows[0].state,"ready");
+
+        await orchestrationClient.query(
+          "select * from public.set_discovery_company_worker_grant($1,$2,true,$3)",
+          [companyId,actorId,"Re-enabled the temporary company grant after the E20.4 revocation test."]
+        );
+        await orchestrationClient.query(
+          "select * from public.set_discovery_orchestration_worker_identity_status($1,$2,'active',$3)",
+          [companyId,workerIdentityId,"Owner resumed the worker after restoring the temporary company grant."]
+        );
+        const revokedWorker=await orchestrationClient.query(
+          "select * from public.set_discovery_orchestration_worker_identity_status($1,$2,'revoked',$3)",
+          [companyId,workerIdentityId,"Owner permanently revoked the test worker identity after lifecycle assertions."]
+        );
+        assert.equal(revokedWorker.rows[0].status,"revoked");
+        assert.equal(revokedWorker.rows[0].released_leases,0);
+        const workerHistory=await pool.query(
+          "select count(*)::int as count from public.discovery_orchestration_worker_events where company_id=$1 and worker_identity_id=$2",
+          [companyId,workerIdentityId]
+        );
+        assert.ok(workerHistory.rows[0].count>=7);
+      } finally {
+        await workerServiceClient.query("reset role");
+        workerServiceClient.release();
+      }
     } finally { orchestrationClient.release(); }
     // E16: normalized deal-specific party links use stable record keys and retain history.
     const partyClient=await pool.connect();
