@@ -158,6 +158,87 @@ revoke all on function public.review_discovery_orchestration_company_adapter(uui
 grant execute on function public.review_discovery_orchestration_company_adapter(uuid,text,text,text,text)
   to authenticated;
 
+-- Declarative map of the existing E04–E12 stage queues. This catalogue is descriptive:
+-- it never calls an enqueue/claim routine or enables a bridge.
+create table if not exists public.discovery_orchestration_stage_queue_contracts (
+  stage_key text primary key references public.discovery_orchestration_stage_registry(stage_key) on delete restrict,
+  mapping_version text not null check(length(trim(mapping_version)) between 1 and 80),
+  queue_mode text not null check(queue_mode in ('existing_durable_queue','deterministic_inline')),
+  queue_table text,
+  enqueue_path text not null check(length(trim(enqueue_path)) between 3 and 1000),
+  claim_routine text,
+  source_migration text not null check(length(trim(source_migration)) between 5 and 200),
+  mapping_notes text not null check(length(trim(mapping_notes)) between 10 and 1000),
+  bridge_enabled boolean not null default false check(bridge_enabled=false),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check(
+    (queue_mode='existing_durable_queue' and queue_table is not null and claim_routine is not null)
+    or
+    (queue_mode='deterministic_inline' and queue_table is null and claim_routine is null and enqueue_path='none')
+  )
+);
+alter table public.discovery_orchestration_stage_queue_contracts enable row level security;
+drop policy if exists discovery_orchestration_stage_queue_contracts_read
+  on public.discovery_orchestration_stage_queue_contracts;
+create policy discovery_orchestration_stage_queue_contracts_read
+  on public.discovery_orchestration_stage_queue_contracts for select to authenticated using(true);
+revoke all on public.discovery_orchestration_stage_queue_contracts from public,anon,authenticated,service_role;
+grant select on public.discovery_orchestration_stage_queue_contracts to authenticated,service_role;
+
+insert into public.discovery_orchestration_stage_queue_contracts(
+  stage_key,mapping_version,queue_mode,queue_table,enqueue_path,claim_routine,
+  source_migration,mapping_notes,bridge_enabled
+) values
+  ('e04_source_capture','e20.5-map-v1','existing_durable_queue','discovery_jobs',
+   'discovery-control.jobs.enqueue (governed company/profile/source admission)',
+   'claim_discovery_job','20261122170000_discovery_durable_queue.sql',
+   'E04 source capture uses the existing discovery_jobs queue; E20 does not call its enqueue or claim paths.',false),
+  ('e05_extraction','e20.5-map-v1','existing_durable_queue','discovery_extraction_jobs',
+   'discovery_evidence_enqueue_extraction trigger → enqueue_discovery_extraction_for_evidence()',
+   'claim_discovery_extraction_job','20261122190000_discovery_extraction.sql',
+   'E05 is queued from captured evidence by its database trigger; E20 does not duplicate evidence enqueue.',false),
+  ('e06_entity_resolution','e20.5-map-v1','existing_durable_queue','discovery_entity_resolution_jobs',
+   'discovery_extraction_enqueue_entity_resolution trigger → enqueue_discovery_entity_resolution_job()',
+   'claim_discovery_entity_resolution_job','20261122200000_discovery_entity_intelligence.sql',
+   'E06 is queued from completed extraction runs; E20 does not duplicate entity-resolution enqueue.',false),
+  ('e07_professional_roles','e20.5-map-v1','existing_durable_queue','discovery_professional_role_jobs',
+   'discovery_entity_assignment_enqueue_professional_roles trigger → enqueue_discovery_professional_role_job()',
+   'claim_discovery_professional_role_job','20261122210000_discovery_professional_roles.sql',
+   'E07 role extraction is triggered by reviewed entity assignment and remains protected by the existing personal-data controls.',false),
+  ('e08_contact_validation','e20.5-map-v1','existing_durable_queue','discovery_contact_validation_jobs',
+   'discovery_extraction_enqueue_contact_validation trigger → enqueue_discovery_contact_validation_job()',
+   'claim_discovery_contact_validation_job','20261122220000_discovery_contact_validation.sql',
+   'E08 contact validation is queued from extraction and remains subject to source and personal-data policy.',false),
+  ('e09_geo_resolution','e20.5-map-v1','existing_durable_queue','discovery_geo_resolution_jobs',
+   'discovery_extraction_enqueue_geo_resolution trigger → enqueue_discovery_geo_resolution_job()',
+   'claim_discovery_geo_resolution_job','20261122230000_discovery_geo_resolution.sql',
+   'E09 place resolution is queued from extraction; no second geography crawler or duplicate queue is introduced.',false),
+  ('e10_enrichment','e20.5-map-v1','existing_durable_queue','discovery_enrichment_jobs',
+   'discovery_entity_assignment_enqueue_enrichment trigger → enqueue_discovery_enrichment_job()',
+   'claim_discovery_enrichment_job','20261122240000_discovery_enrichment.sql',
+   'E10 enrichment is queued from reviewed entity assignment and still requires separate approved source/purpose/field checks.',false),
+  ('e11_matching','e20.5-map-v1','deterministic_inline',null,'none',null,
+   'docs/AXIVESTRA-DISCOVERY-E11-MATCHING.md',
+   'E11 is a deterministic scoring engine without a dedicated durable queue; E20 must not invent a queue for it.',false),
+  ('e12_deduplication','e20.5-map-v1','existing_durable_queue','discovery_deduplication_jobs',
+   'enqueue_discovery_deduplication_job() via canonical/entity/contact/role triggers',
+   'claim_discovery_deduplication_job','20261122270000_discovery_deduplication_queue.sql',
+   'E12 generates duplicate candidates through its existing queue; candidate merges remain human-reviewed.',false)
+on conflict(stage_key) do update set
+  mapping_version=excluded.mapping_version,
+  queue_mode=excluded.queue_mode,
+  queue_table=excluded.queue_table,
+  enqueue_path=excluded.enqueue_path,
+  claim_routine=excluded.claim_routine,
+  source_migration=excluded.source_migration,
+  mapping_notes=excluded.mapping_notes,
+  bridge_enabled=false,
+  updated_at=clock_timestamp();
+
+comment on table public.discovery_orchestration_stage_queue_contracts is
+  'E20.5 descriptive map from E04–E12 orchestration stages to their existing queue or deterministic inline engine. bridge_enabled is constrained false; this table never enqueues or claims work.';
+
 -- Read-only preview of dependency state. "dependencies_satisfied" is not a runnable
 -- state: approval, adapter readiness, company review, worker, source and privacy gates
 -- continue to block execution independently.
@@ -214,6 +295,8 @@ select
     case when r.dispatch_state<>'ready_for_adapter_review' then 'run_dispatch_not_configured' end,
     case when not coalesce(c.enabled,false) then 'stage_kill_switch_off' end,
     case when not coalesce(g.dispatch_ready,false) or g.adapter_key is null then 'adapter_not_registered' end,
+    case when q.stage_key is null then 'stage_queue_mapping_missing' end,
+    case when q.stage_key is not null and q.bridge_enabled is not true then 'stage_queue_bridge_disabled' end,
     case when g.adapter_key is not null and (ac.adapter_key is null or ac.enabled is not true or ac.reviewed_by is null or ac.reviewed_at is null or length(trim(coalesce(ac.review_reason,'')))<10) then 'adapter_contract_not_platform_approved' end,
     case when g.adapter_key is not null and (aa.status is distinct from 'approved' or aa.contract_version is distinct from ac.contract_version) then 'company_adapter_not_approved' end,
     case when coalesce(dep.unsatisfied_dependency_count,0)>0 then 'dependencies_not_satisfied' end,
@@ -240,7 +323,12 @@ select
   wg.expires_at as company_worker_grant_expires_at,
   coalesce(ws.active,false) as worker_identity_scope_available,
   coalesce(ac.enabled and ac.reviewed_by is not null and ac.reviewed_at is not null and length(trim(coalesce(ac.review_reason,'')))>=10,false) as adapter_contract_platform_approved,
-  coalesce(aa.status='approved' and aa.contract_version=ac.contract_version,false) as company_adapter_approved
+  coalesce(aa.status='approved' and aa.contract_version=ac.contract_version,false) as company_adapter_approved,
+  q.queue_mode as stage_queue_mode,
+  q.queue_table as stage_queue_table,
+  q.enqueue_path as stage_queue_enqueue_path,
+  q.claim_routine as stage_queue_claim_routine,
+  coalesce(q.bridge_enabled,false) as stage_queue_bridge_enabled
 from public.discovery_orchestration_steps s
 join public.discovery_orchestration_runs r
   on r.company_id=s.company_id and r.id=s.run_id
@@ -251,6 +339,8 @@ left join public.discovery_orchestration_adapter_contracts ac
   on ac.adapter_key=g.adapter_key
 left join public.discovery_orchestration_company_adapter_approvals aa
   on aa.company_id=s.company_id and aa.adapter_key=g.adapter_key
+left join public.discovery_orchestration_stage_queue_contracts q
+  on q.stage_key=s.stage_key
 left join public.discovery_orchestration_run_context_status ctx
   on ctx.company_id=s.company_id and ctx.run_id=s.run_id
 left join public.discovery_orchestration_company_worker_gate wg
@@ -269,6 +359,8 @@ left join lateral (
 
 grant select on public.discovery_orchestration_step_preflight to authenticated,service_role;
 
+comment on table public.discovery_orchestration_stage_queue_contracts is
+  'E20.5 descriptive E04–E12 queue map. All bridge_enabled values are constrained false; no existing queue is invoked by E20.';
 comment on table public.discovery_orchestration_company_adapter_approvals is
   'E20.5 company-specific approval of one exact, platform-reviewed adapter contract version. Approval does not enable the stage kill switch or dispatch.';
 comment on table public.discovery_orchestration_company_adapter_events is
