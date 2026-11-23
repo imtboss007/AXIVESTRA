@@ -180,6 +180,8 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(integration, /duplicateFailureOutcome/);
   assert.match(integration, /LEASE_EXPIRED/);
   assert.match(integration, /attempt_count,2/);
+  assert.match(integration, /downstreamSchedule/);
+  assert.match(integration, /blocked_by_failed_dependency/);
   assert.match(workerEdge, /action !== "finish"/);
   assert.match(workerEdge, /action === "finish"/);
   assert.match(workerEdge, /record_discovery_orchestration_attempt_outcome/);
