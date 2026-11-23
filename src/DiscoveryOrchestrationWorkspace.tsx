@@ -10,9 +10,12 @@ type Profile = { id: string; workspace_key: string; discovery_mode: string; juri
 type Source = { id: string; name: string; status: string; allowed_purposes: string[]; allowed_fields: string[] };
 type ProfileSource = { profile_id: string; source_id: string };
 type ContextEvent = { id: string; run_id: string; event_type: string; profile_id: string; source_id: string; purpose: string; required_fields: string[]; reason: string; occurred_at: string; actor_user_id: string | null };
+type WorkerIdentity = { id: string; worker_key: string; display_name: string; stage_keys: string[]; max_active_leases: number; lease_seconds: number; status: "active" | "paused" | "revoked"; expires_at: string; last_used_at: string | null; reason: string };
+type WorkerEvent = { id: string; worker_identity_id: string; event_type: string; worker_key_snapshot: string; stage_keys_snapshot: string[]; reason: string; occurred_at: string; details: Record<string, unknown> };
+type CompanyWorkerGrant = { enabled: boolean; expires_at: string; updated_at: string; reason: string };
 type Event = { id: string; run_id: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type Run = { id: string; workflow_key: string; workflow_label: string; status: string; dispatch_state: string; requested_by: string; approved_by: string | null; approved_at: string | null; decision_reason: string | null; stage_count: number; unavailable_adapter_count: number; disabled_stage_count: number; all_stage_gates_ready: boolean; created_at: string };
-type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; runId?: string };
+type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "The orchestration request failed.";
@@ -44,6 +47,19 @@ export default function DiscoveryOrchestrationWorkspace({
   const [sources, setSources] = useState<Source[]>([]);
   const [profileSources, setProfileSources] = useState<ProfileSource[]>([]);
   const [contextEvents, setContextEvents] = useState<ContextEvent[]>([]);
+  const [workerIdentities, setWorkerIdentities] = useState<WorkerIdentity[]>([]);
+  const [workerEvents, setWorkerEvents] = useState<WorkerEvent[]>([]);
+  const [companyWorkerGrant, setCompanyWorkerGrant] = useState<CompanyWorkerGrant | null>(null);
+  const [workerKeyDraft, setWorkerKeyDraft] = useState("");
+  const [workerNameDraft, setWorkerNameDraft] = useState("");
+  const [workerStageKeys, setWorkerStageKeys] = useState<string[]>([]);
+  const [workerMaxLeases, setWorkerMaxLeases] = useState(1);
+  const [workerLeaseSeconds, setWorkerLeaseSeconds] = useState(120);
+  const [workerExpiryMinutes, setWorkerExpiryMinutes] = useState(30);
+  const [workerReason, setWorkerReason] = useState("Temporary worker scope for reviewed orchestration stages.");
+  const [workerToken, setWorkerToken] = useState("");
+  const [workerTokenKey, setWorkerTokenKey] = useState("");
+  const [revokeConfirm, setRevokeConfirm] = useState<Record<string, string>>({});
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [requiredFieldNames, setRequiredFieldNames] = useState("");
@@ -81,6 +97,9 @@ export default function DiscoveryOrchestrationWorkspace({
       setSources(result.sources || []);
       setProfileSources(result.profileSources || []);
       setContextEvents(result.contextEvents || []);
+      setWorkerIdentities(result.workerIdentities || []);
+      setWorkerEvents(result.workerEvents || []);
+      setCompanyWorkerGrant(result.companyWorkerGrant || null);
       const enabledProfiles = (result.profiles || []).filter(profile => profile.enabled);
       const chosenProfile = enabledProfiles.find(profile => profile.id === selectedProfileId) || enabledProfiles[0];
       if ((chosenProfile?.id || "") !== selectedProfileId) setSelectedProfileId(chosenProfile?.id || "");
@@ -114,6 +133,78 @@ export default function DiscoveryOrchestrationWorkspace({
       if (result.runId) {
         document.getElementById("ax-e20-run-" + result.runId)?.scrollIntoView({ behavior: "smooth", block: "center" });
       }
+    } catch (reason) {
+      setError(readableError(reason));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const grantWorker = async () => {
+    const workerKey = workerKeyDraft.trim();
+    const displayName = workerNameDraft.trim();
+    if (!/^[a-z0-9][a-z0-9._-]{2,79}$/.test(workerKey)) {
+      setError("Use a worker key with 3–80 lowercase letters, digits, dot, underscore or dash.");
+      return;
+    }
+    if (displayName.length < 3 || !workerStageKeys.length) {
+      setError("Enter a display name and explicitly select at least one stage scope.");
+      return;
+    }
+    if (!companyWorkerGrant?.enabled || Date.parse(companyWorkerGrant.expires_at) <= Date.now()) {
+      setError("The temporary company worker grant must be active before a scoped orchestration worker can be granted.");
+      return;
+    }
+    setBusy("worker-grant");
+    setError("");
+    setNotice("");
+    setWorkerToken("");
+    setWorkerTokenKey("");
+    try {
+      const result = await invoke("orchestration.workerGrant", {
+        workerKey,
+        displayName,
+        stageKeys: workerStageKeys,
+        maxActiveLeases: workerMaxLeases,
+        leaseSeconds: workerLeaseSeconds,
+        expiresMinutes: workerExpiryMinutes,
+        reason: workerReason.trim()
+      });
+      setWorkerToken(result.workerToken || "");
+      setWorkerTokenKey(workerKey);
+      setNotice("Temporary worker identity granted. Its credential is shown once; no orchestration work can start while dispatch is disabled.");
+      setWorkerKeyDraft("");
+      setWorkerNameDraft("");
+      setWorkerStageKeys([]);
+      await refresh();
+    } catch (reason) {
+      setError(readableError(reason));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const controlWorker = async (worker: WorkerIdentity, status: "active" | "paused" | "revoked") => {
+    if (status === "revoked" && revokeConfirm[worker.id] !== worker.worker_key) {
+      setError("Type the exact worker key before revoking this identity.");
+      return;
+    }
+    setBusy(worker.id + ":" + status);
+    setError("");
+    setNotice("");
+    try {
+      await invoke("orchestration.workerControl", {
+        workerIdentityId: worker.id,
+        status,
+        reason: status === "revoked"
+          ? "Owner/admin revoked this worker identity after typing its exact key. Active leases are released."
+          : status === "paused"
+            ? "Owner/admin paused this worker identity. Active leases are released."
+            : "Owner/admin resumed this paused worker identity within its original expiry."
+      });
+      setRevokeConfirm(current => ({ ...current, [worker.id]: "" }));
+      setNotice(status === "revoked" ? "Worker identity revoked; active leases were released immediately." : status === "paused" ? "Worker identity paused; active leases were released immediately." : "Worker identity resumed. Its original expiry still applies.");
+      await refresh();
     } catch (reason) {
       setError(readableError(reason));
     } finally {
@@ -223,6 +314,116 @@ export default function DiscoveryOrchestrationWorkspace({
       <article><strong>{runs.filter(run => run.status === "approved_not_dispatched").length}</strong><span>Approved · not dispatched</span></article>
       <article><strong>{stages.length}</strong><span>Registered stages</span></article>
     </div>
+
+    <section className="discovery-orchestration-worker-panel" aria-label="Scoped orchestration worker grants">
+      <div className="discovery-orchestration-section-head">
+        <div><span className="section-kicker">WORKER AUTHORITY</span><h3>Scoped worker identities</h3></div>
+        <small>Temporary · stage-scoped · revocable</small>
+      </div>
+      <div className="discovery-orchestration-worker-gate">
+        <ShieldCheck size={15}/>
+        {companyWorkerGrant?.enabled && Date.parse(companyWorkerGrant.expires_at) > Date.now()
+          ? <span>Company worker grant active until {formatDate(companyWorkerGrant.expires_at)}. Each identity below has a narrower scope and cannot extend that expiry.</span>
+          : <span>Company worker grant is inactive or expired. A company owner/admin must enable the existing temporary company grant before adding a scoped identity.</span>}
+      </div>
+      {canManage && <div className="discovery-orchestration-worker-form">
+        <div className="discovery-orchestration-worker-intro">
+          <b>Grant a worker identity</b>
+          <p>Choose its exact E04–E12 stages, maximum simultaneous leases and short expiry. Readiness only: this grant does not register an adapter, enable a stage or dispatch work.</p>
+        </div>
+        <label>Worker key
+          <input value={workerKeyDraft} onChange={event => setWorkerKeyDraft(event.target.value)} placeholder="e05-parser-worker" disabled={Boolean(busy)}/>
+        </label>
+        <label>Display name
+          <input value={workerNameDraft} onChange={event => setWorkerNameDraft(event.target.value)} placeholder="Extraction QA worker" disabled={Boolean(busy)}/>
+        </label>
+        <fieldset className="discovery-orchestration-worker-scopes">
+          <legend>Permitted stage scope — select only required stages</legend>
+          <div>
+            {stages.map(stage => <label key={stage.stage_key}>
+              <input
+                type="checkbox"
+                checked={workerStageKeys.includes(stage.stage_key)}
+                onChange={event => setWorkerStageKeys(current => event.target.checked
+                  ? [...current, stage.stage_key]
+                  : current.filter(key => key !== stage.stage_key))}
+                disabled={Boolean(busy)}
+              />
+              <span>{stage.technical_stage} · {stage.capability_name}</span>
+            </label>)}
+          </div>
+        </fieldset>
+        <div className="discovery-orchestration-worker-limits">
+          <label>Maximum active leases
+            <select value={workerMaxLeases} onChange={event => setWorkerMaxLeases(Number(event.target.value))} disabled={Boolean(busy)}>
+              {[1,2,3,4].map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <label>Lease duration
+            <select value={workerLeaseSeconds} onChange={event => setWorkerLeaseSeconds(Number(event.target.value))} disabled={Boolean(busy)}>
+              {[30,60,90,120,180,300].map(value => <option key={value} value={value}>{value} seconds</option>)}
+            </select>
+          </label>
+          <label>Grant expires after
+            <select value={workerExpiryMinutes} onChange={event => setWorkerExpiryMinutes(Number(event.target.value))} disabled={Boolean(busy)}>
+              {[5,15,30,45,60].map(value => <option key={value} value={value}>{value} minutes</option>)}
+            </select>
+          </label>
+        </div>
+        <label>Grant reason
+          <input value={workerReason} onChange={event => setWorkerReason(event.target.value)} minLength={10} maxLength={1000} disabled={Boolean(busy)}/>
+        </label>
+        <div className="discovery-orchestration-worker-preview" role="group" aria-label="Worker grant preview">
+          **Grant preview**
+          <span>Identity: {workerKeyDraft || "Not named"} · Stages: {workerStageKeys.length ? workerStageKeys.map(key => stages.find(stage => stage.stage_key === key)?.technical_stage || key).join(", ") : "None selected"}</span>
+          <span>Concurrency: {workerMaxLeases} active lease(s) · Lease: {workerLeaseSeconds}s · Expiry: {workerExpiryMinutes} min (never beyond company grant)</span>
+        </div>
+        <button type="button" className="primary-button" onClick={() => void grantWorker()}
+          disabled={Boolean(busy) || loading || !workerStageKeys.length || !companyWorkerGrant?.enabled || Date.parse(companyWorkerGrant.expires_at) <= Date.now()}>
+          {busy === "worker-grant" ? <LoaderCircle size={14} className="spin"/> : <ShieldCheck size={14}/>}Grant temporary worker identity
+        </button>
+      </div>}
+      {workerToken && <div className="discovery-orchestration-worker-token" role="group" aria-label="One-time worker credential">
+        <div><b>One-time credential for {workerTokenKey}</b><small>This value is shown once and is not stored in AXIVESTRA logs or audit history. Copy it to the worker's secret environment now. Do not paste it into chat or source code.</small></div>
+        <code>{workerToken}</code>
+        <div className="discovery-orchestration-worker-token-actions">
+          <button type="button" className="secondary-button" onClick={() => {
+            void navigator.clipboard.writeText(workerToken).then(
+              () => setNotice("Worker credential copied. Store it in the worker's secret environment."),
+              () => setError("Clipboard access was unavailable. Copy the one-time credential manually.")
+            );
+          }}><Activity size={14}/>Copy one-time credential</button>
+          <button type="button" className="secondary-button" onClick={() => { setWorkerToken(""); setWorkerTokenKey(""); }}>Hide credential</button>
+        </div>
+      </div>}
+      <div className="discovery-orchestration-worker-list">
+        {workerIdentities.map(worker => {
+          const expired = Date.parse(worker.expires_at) <= Date.now();
+          return <article key={worker.id}>
+            <div><b>{worker.display_name}</b><small>{worker.worker_key} · {worker.id}</small></div>
+            <span className={"discovery-orchestration-worker-status status-" + (expired ? "expired" : worker.status)}>{expired ? "expired" : worker.status}</span>
+            <p>Stages: {worker.stage_keys.map(key => stages.find(stage => stage.stage_key === key)?.technical_stage || key).join(", ")}</p>
+            <p>{worker.max_active_leases} simultaneous lease(s) · {worker.lease_seconds}s lease · expires {formatDate(worker.expires_at)}</p>
+            <small>Last used: {formatDate(worker.last_used_at)} · {worker.reason}</small>
+            {canManage && <div className="discovery-orchestration-worker-actions">
+              {worker.status === "active" && !expired && <button type="button" className="secondary-button" onClick={() => void controlWorker(worker,"paused")} disabled={Boolean(busy)}>Pause worker</button>}
+              {worker.status === "paused" && !expired && <button type="button" className="secondary-button" onClick={() => void controlWorker(worker,"active")} disabled={Boolean(busy)}>Resume worker</button>}
+              {worker.status !== "revoked" && <div className="discovery-orchestration-worker-revoke">
+                <label>Type {worker.worker_key} to revoke
+                  <input value={revokeConfirm[worker.id] || ""} onChange={event => setRevokeConfirm(current => ({ ...current,[worker.id]:event.target.value }))} disabled={Boolean(busy)}/>
+                </label>
+                <button type="button" className="danger-button" onClick={() => void controlWorker(worker,"revoked")} disabled={Boolean(busy) || revokeConfirm[worker.id] !== worker.worker_key}>Revoke permanently</button>
+              </div>}
+            </div>}
+          </article>;
+        })}
+        {!workerIdentities.length && <p className="discovery-empty-inline">No scoped orchestration worker identities have been granted.</p>}
+      </div>
+      <details className="discovery-orchestration-history">
+        <summary><Clock3 size={13}/>Worker grant history ({workerEvents.length})</summary>
+        {workerEvents.map(event => <div key={event.id}><b>{statusLabel(event.event_type)}</b><small>{event.worker_key_snapshot} · {formatDate(event.occurred_at)}</small><p>Stages: {event.stage_keys_snapshot.join(", ")} · {event.reason}</p></div>)}
+      </details>
+    </section>
 
     <div className="discovery-orchestration-stage-list">
       <div className="discovery-orchestration-section-head"><div><span className="section-kicker">STAGE REGISTRY</span><h3>Existing worker-stage inventory</h3></div><small>All dispatch adapters unavailable</small></div>
