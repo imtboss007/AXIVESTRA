@@ -125,7 +125,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(integration, /heartbeat_discovery_orchestration_lease/);
   assert.match(integration, /release_discovery_orchestration_lease/);
   assert.match(integration, /set_discovery_orchestration_worker_identity_status/);
-  assert.match(integration, /company worker grant revocation/);
+  assert.ok(integration.includes("E20.4 integration test for global company grant revocation."));
   assert.match(edge, /action === "orchestration\.workerGrant"/);
   assert.match(edge, /action === "orchestration\.workerControl"/);
   assert.match(edge, /crypto\.getRandomValues/);
