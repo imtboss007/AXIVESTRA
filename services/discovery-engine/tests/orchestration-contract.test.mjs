@@ -143,7 +143,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(leaseClient, /leaseTokens = new Map/);
   assert.match(leaseClientTest, /E20\.4 hashes worker credentials/);
   assert.match(leaseClientTest, /fails closed/);
-  assert.match(leaseClientTest, /forget its token/);
+  assert.match(leaseClientTest, /forgotten its token/);
 
 
   assert.doesNotMatch(executionMigration, /create or replace function public[.](claim|heartbeat|complete|retry)_discovery_orchestration/i);
