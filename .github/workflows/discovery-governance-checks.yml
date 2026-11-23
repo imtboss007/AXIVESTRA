@@ -35,6 +35,11 @@ on:
       - "supabase/migrations/*discovery*"
       - "services/discovery-engine/tests/**"
       - "services/discovery-worker/**"
+      - "src/App.tsx"
+      - "src/CompanyCommitmentWorkspace.tsx"
+      - "src/styles.css"
+      - "tests/browser/axivestra-commitment-workspace.spec.ts"
+      - "docs/AXIVESTRA-E18-COMMITMENTS-WORKSPACE.md"
       - "package.json"
       - ".github/workflows/discovery-governance-checks.yml"
 
@@ -109,3 +114,20 @@ jobs:
 
       - name: Build AXIVESTRA web application
         run: npm run build
+
+      - name: Run authenticated E18 browser acceptance when QA secrets are configured
+        if: ${{ secrets.AXIVESTRA_E2E_SUPABASE_URL != '' && secrets.AXIVESTRA_E2E_SUPABASE_PUBLISHABLE_KEY != '' && secrets.AXIVESTRA_E2E_EMAIL != '' && secrets.AXIVESTRA_E2E_PASSWORD != '' && secrets.AXIVESTRA_E2E_COMPANY_NAME != '' && secrets.AXIVESTRA_E2E_DEAL_TITLE != '' && secrets.AXIVESTRA_E2E_PARTY_NAME != '' }}
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.AXIVESTRA_E2E_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AXIVESTRA_E2E_SUPABASE_PUBLISHABLE_KEY }}
+          AXIVESTRA_E2E_EMAIL: ${{ secrets.AXIVESTRA_E2E_EMAIL }}
+          AXIVESTRA_E2E_PASSWORD: ${{ secrets.AXIVESTRA_E2E_PASSWORD }}
+          AXIVESTRA_E2E_COMPANY_NAME: ${{ secrets.AXIVESTRA_E2E_COMPANY_NAME }}
+          AXIVESTRA_E2E_DEAL_TITLE: ${{ secrets.AXIVESTRA_E2E_DEAL_TITLE }}
+          AXIVESTRA_E2E_PARTY_NAME: ${{ secrets.AXIVESTRA_E2E_PARTY_NAME }}
+          AXIVESTRA_E2E_RELATIONSHIP_LABEL: ${{ secrets.AXIVESTRA_E2E_RELATIONSHIP_LABEL }}
+          AXIVESTRA_E2E_LEGACY_TASK_TITLE: ${{ secrets.AXIVESTRA_E2E_LEGACY_TASK_TITLE }}
+        run: |
+          npm run build
+          npx playwright install --with-deps chromium
+          npm run test:e2e -- tests/browser/axivestra-commitment-workspace.spec.ts --project=desktop-chromium
