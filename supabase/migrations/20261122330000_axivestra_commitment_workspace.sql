@@ -160,6 +160,12 @@ begin
     raise exception 'Deleted contact records cannot receive active commitments.';
   end if;
 
+  if new.source_task_record_key is not null and exists(select 1 from public.company_records r
+    where r.company_id=new.company_id and r.record_type='task'
+      and r.record_key=new.source_task_record_key and r.deleted_at is not null) then
+    raise exception 'Deleted source task records cannot receive active commitments.';
+  end if;
+
   if tg_op='INSERT' then
     new.created_by:=auth.uid();
     new.updated_by:=auth.uid();
