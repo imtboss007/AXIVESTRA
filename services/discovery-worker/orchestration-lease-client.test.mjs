@@ -166,3 +166,100 @@ test("E20.4 does not preserve a token when the broker response is incomplete", a
   await assert.rejects(client.claim(), /incomplete lease receipt/);
   assert.equal(client.activeLeaseCount(), 0);
 });
+
+
+test("E20.6 worker client records a successful attempt with its in-memory lease token", async () => {
+  const calls = [];
+  const leaseId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const client = createOrchestrationLeaseClient({
+    ...common,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push({ body, headers: init.headers });
+      if (body.action === "claim") {
+        return ok({
+          ok: true,
+          lease: {
+            leaseId,
+            executionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          },
+          leaseToken: randomBytes(32).toString("hex")
+        });
+      }
+      return ok({
+        ok: true,
+        outcome: {
+          executionState: "succeeded",
+          attemptStatus: "succeeded",
+          attemptNumber: 1,
+          idempotent: false
+        }
+      });
+    }
+  });
+  await client.claim();
+  const outcome = await client.finish(leaseId, { outcome: "succeeded" });
+  assert.equal(outcome.executionState, "succeeded");
+  assert.equal(outcome.attemptStatus, "succeeded");
+  assert.equal(client.activeLeaseCount(), 0);
+  assert.equal(calls[1].body.action, "finish");
+  assert.equal(calls[1].body.outcome, "succeeded");
+  assert.equal(calls[1].body.errorCode, null);
+  assert.equal(calls[1].headers["x-axivestra-worker-token"], workerToken);
+  assert.ok(calls[1].body.leaseToken);
+  assert.equal(Object.hasOwn(calls[1].body, "workerToken"), false);
+  assert.equal(Object.hasOwn(calls[1].body, "workerCredentialHash"), false);
+});
+
+test("E20.6 worker client submits only registered error-code shaped failures and keeps the token on broker errors", async () => {
+  const calls = [];
+  const leaseId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const leaseToken = randomBytes(32).toString("hex");
+  const client = createOrchestrationLeaseClient({
+    ...common,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push(body);
+      if (body.action === "claim") {
+        return ok({
+          ok: true,
+          lease: {
+            leaseId,
+            executionId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+          },
+          leaseToken
+        });
+      }
+      if (body.errorCode === "ERROR_TEXT_FROM_WORKER") {
+        return fail(400, "Choose an enabled error code from the approved failure classification catalogue.");
+      }
+      return ok({
+        ok: true,
+        outcome: {
+          executionState: "retry_wait",
+          attemptStatus: "failed",
+          attemptNumber: 2,
+          errorCode: "REMOTE_5XX",
+          failureClass: "transient",
+          retryable: true,
+          nextRetryAt: "2026-11-23T17:30:00.000Z",
+          idempotent: false
+        }
+      });
+    }
+  });
+  await client.claim();
+  await assert.rejects(
+    client.finish(leaseId, { outcome: "failed", errorCode: "ERROR_TEXT_FROM_WORKER" }),
+    /finish failed closed/
+  );
+  assert.equal(client.activeLeaseCount(), 1, "a transport/rejection failure must preserve the lease token for safe retry");
+  const outcome = await client.finish(leaseId, { outcome: "failed", errorCode: "REMOTE_5XX" });
+  assert.equal(outcome.executionState, "retry_wait");
+  assert.equal(outcome.failureClass, "transient");
+  assert.equal(outcome.retryable, true);
+  assert.equal(client.activeLeaseCount(), 0);
+  assert.equal(calls[1].leaseToken, leaseToken);
+  assert.equal(calls[1].errorCode, "ERROR_TEXT_FROM_WORKER");
+  assert.equal(calls[2].errorCode, "REMOTE_5XX");
+});
