@@ -146,7 +146,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(workerEdge, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(workerEdge, /subtle\.digest\("SHA-256"/);
   assert.match(workerEdge, /crypto\.getRandomValues/);
-  assert.match(workerEdge, /never include input, authorization headers, hashes or tokens in error logs/);
+  assert.match(workerEdge, /never include input, authorization headers, hashes or tokens in error logs/i);
   assert.match(config, /\[functions\.discovery-orchestration-worker\]\nverify_jwt = false/);
   assert.match(leaseClient, /createOrchestrationLeaseClient/);
   assert.match(leaseClient, /fetchImpl/);
