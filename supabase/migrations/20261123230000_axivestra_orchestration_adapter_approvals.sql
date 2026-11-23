@@ -296,7 +296,7 @@ select
     case when not coalesce(c.enabled,false) then 'stage_kill_switch_off' end,
     case when not coalesce(g.dispatch_ready,false) or g.adapter_key is null then 'adapter_not_registered' end,
     case when q.stage_key is null then 'stage_queue_mapping_missing' end,
-    case when q.stage_key is not null and q.bridge_enabled is not true then 'stage_queue_bridge_disabled' end,
+    case when q.queue_mode='existing_durable_queue' and q.bridge_enabled is not true then 'stage_queue_bridge_disabled' end,
     case when g.adapter_key is not null and (ac.adapter_key is null or ac.enabled is not true or ac.reviewed_by is null or ac.reviewed_at is null or length(trim(coalesce(ac.review_reason,'')))<10) then 'adapter_contract_not_platform_approved' end,
     case when g.adapter_key is not null and (aa.status is distinct from 'approved' or aa.contract_version is distinct from ac.contract_version) then 'company_adapter_not_approved' end,
     case when coalesce(dep.unsatisfied_dependency_count,0)>0 then 'dependencies_not_satisfied' end,
