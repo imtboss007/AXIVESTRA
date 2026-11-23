@@ -374,7 +374,7 @@ export default function DiscoveryOrchestrationWorkspace({
           <input value={workerReason} onChange={event => setWorkerReason(event.target.value)} minLength={10} maxLength={1000} disabled={Boolean(busy)}/>
         </label>
         <div className="discovery-orchestration-worker-preview" role="group" aria-label="Worker grant preview">
-          **Grant preview**
+          <b>Grant preview</b>
           <span>Identity: {workerKeyDraft || "Not named"} · Stages: {workerStageKeys.length ? workerStageKeys.map(key => stages.find(stage => stage.stage_key === key)?.technical_stage || key).join(", ") : "None selected"}</span>
           <span>Concurrency: {workerMaxLeases} active lease(s) · Lease: {workerLeaseSeconds}s · Expiry: {workerExpiryMinutes} min (never beyond company grant)</span>
         </div>
