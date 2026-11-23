@@ -24,7 +24,7 @@ insert into public.discovery_orchestration_failure_policies(
   ('PROVIDER_UNAVAILABLE','transient',true,30,600,6,'The approved provider was temporarily unavailable.'),
   ('RATE_LIMITED','rate_limited',true,60,1800,5,'The approved source rate limit was reached.'),
   ('LEASE_EXPIRED','transient',true,15,240,5,'The worker lease expired before an outcome was recorded.'),
-  ('WORKER_RELEASED','transient',true,15,120,4,'The worker released the lease without completing the attempt.'),
+  ('WORKER_RELEASED','transient',true,15,120,8,'The worker released the lease without completing the attempt.'),
   ('WORKER_LOST','transient',true,30,300,4,'The worker stopped responding before completing the attempt.'),
   ('INVALID_INPUT','permanent',false,0,0,1,'The adapter rejected the input contract.'),
   ('SCHEMA_MISMATCH','permanent',false,0,0,1,'The adapter output did not satisfy its registered schema.'),
