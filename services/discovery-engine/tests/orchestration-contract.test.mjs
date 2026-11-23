@@ -140,8 +140,6 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(edge, /action === "orchestration\.workerControl"/);
   assert.match(edge, /userClient\.from\("discovery_orchestration_step_preflight"\)/);
   assert.match(edge, /company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available/);
-  assert.match(edge, /userClient\.from\("discovery_orchestration_step_preflight"\)/);
-  assert.match(edge, /company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available/);
   assert.match(edge, /crypto\.getRandomValues/);
   assert.match(edge, /crypto\.subtle\.digest\("SHA-256"/);
   assert.match(workspace, /Grant temporary worker identity/);
