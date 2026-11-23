@@ -6042,3 +6042,59 @@ h2,h3{color:#e5f2fc}
   .ax-commitment-create .ax-commitment-summary-field{grid-column:1/-1}
 }
 @media(max-width:520px){.ax-commitment-detail-editor{grid-template-columns:1fr}.ax-commitment-detail-editor label:first-child,.ax-commitment-detail-editor label:nth-child(2){grid-column:auto}}
+
+
+/* E19 — cross-stage verification and confidence review */
+.discovery-verification{display:grid;gap:14px;min-width:0}
+.discovery-verification-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(180px,1.2fr);gap:8px;align-items:end}
+.discovery-verification-toolbar>div{display:grid;gap:4px;padding:10px;border:1px solid #e4ebe2;border-radius:9px;background:#f9fbf8}
+.discovery-verification-toolbar strong{font-size:18px;color:#263b2d}
+.discovery-verification-toolbar small{font-size:9px;color:#7d897f}
+.discovery-verification-toolbar label,.discovery-verification-review label,.discovery-verification-classify label{display:grid;gap:5px;min-width:0;color:#6c7a6e;font-size:9px;font-weight:700}
+.discovery-verification-toolbar select,.discovery-verification-review select,.discovery-verification-review textarea,
+.discovery-verification-classify select,.discovery-verification-classify input{
+  width:100%;min-width:0;padding:8px 9px;border:1px solid #dfe6dd;border-radius:8px;background:#fff;
+  color:#263b2d;font:500 10px "DM Sans",sans-serif
+}
+.discovery-verification-list{display:grid;gap:10px}
+.discovery-verification-card{display:grid;gap:11px;padding:13px;border:1px solid #e4ebe2;border-radius:12px;background:#fff;min-width:0}
+.discovery-verification-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.discovery-verification-card-head>div{min-width:0}
+.discovery-verification-card-head strong{display:block;color:#263b2d;font-size:12px;overflow-wrap:anywhere}
+.discovery-verification-card-head small{display:block;margin-top:4px;color:#7d897f;font-size:9px}
+.discovery-verification-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.discovery-verification-metrics>div{display:grid;gap:4px;padding:9px;border-radius:8px;background:#f8faf7}
+.discovery-verification-metrics strong{color:#263b2d;font-size:16px}
+.discovery-verification-metrics small{color:#7d897f;font-size:9px;line-height:1.4}
+.discovery-verification-evidence{border-top:1px solid #edf0eb;padding-top:9px}
+.discovery-verification-evidence summary{display:flex;align-items:center;gap:7px;cursor:pointer;color:#4f6654;font-size:10px;font-weight:700;list-style:none}
+.discovery-verification-evidence summary::-webkit-details-marker{display:none}
+.discovery-verification-evidence-row{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(220px,1fr);gap:12px;padding:10px 0;border-bottom:1px solid #f0f2ee}
+.discovery-verification-evidence-row>div:first-child{min-width:0}
+.discovery-verification-evidence-row strong{display:block;color:#334a37;font-size:10px;overflow-wrap:anywhere}
+.discovery-verification-evidence-row small{display:block;margin-top:4px;color:#849087;font-size:9px;overflow-wrap:anywhere}
+.discovery-verification-classification{display:inline-flex;margin-top:7px;padding:4px 7px;border-radius:6px;background:#f1f5ef;color:#5c735f;font-size:9px}
+.discovery-verification-classification.classification-contradicting{background:#fff1ee;color:#a14e3a}
+.discovery-verification-classification.classification-context{background:#f3f4f2;color:#788078}
+.discovery-verification-classify{display:grid;grid-template-columns:1fr 1.5fr auto;align-items:end;gap:7px}
+.discovery-verification-classify button,.discovery-verification-review button{min-height:32px;padding:7px 10px;font-size:9px}
+.discovery-verification-review{display:grid;grid-template-columns:minmax(160px,.65fr) minmax(240px,1.6fr) auto;align-items:end;gap:9px;padding-top:10px;border-top:1px solid #edf0eb}
+.discovery-verification-review textarea{resize:vertical}
+.discovery-verification-history{display:grid;gap:4px;padding-top:8px;border-top:1px solid #edf0eb}
+.discovery-verification-history b{color:#6c7a6e;font-size:9px}
+.discovery-verification-history span{color:#8a958b;font-size:9px}
+@media(max-width:760px){
+  .discovery-verification-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .discovery-verification-toolbar label{grid-column:1/-1}
+  .discovery-verification-evidence-row{grid-template-columns:1fr}
+  .discovery-verification-classify{grid-template-columns:1fr 1fr}
+  .discovery-verification-classify button{grid-column:1/-1}
+  .discovery-verification-review{grid-template-columns:1fr 1fr}
+  .discovery-verification-review label:nth-child(2){grid-column:1/-1}
+}
+@media(max-width:520px){
+  .discovery-verification-card-head{display:grid}
+  .discovery-verification-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .discovery-verification-classify,.discovery-verification-review{grid-template-columns:1fr}
+  .discovery-verification-classify button,.discovery-verification-review label:nth-child(2){grid-column:auto}
+}
