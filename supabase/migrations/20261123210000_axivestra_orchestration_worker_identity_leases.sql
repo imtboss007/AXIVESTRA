@@ -80,6 +80,8 @@ revoke all on public.discovery_orchestration_worker_identities,
   public.discovery_orchestration_worker_events from public,anon,authenticated,service_role;
 grant select on public.discovery_orchestration_worker_identities,
   public.discovery_orchestration_worker_events to service_role;
+-- Authenticated reads are filtered by owner/admin RLS; needed by the invoker-security preflight view.
+grant select on public.discovery_orchestration_worker_identities to authenticated;
 grant select on public.discovery_orchestration_worker_events to authenticated;
 
 -- A directory view deliberately excludes credential_hash and the raw lease-token hash.
@@ -235,6 +237,11 @@ begin
   select * into v_worker from public.discovery_orchestration_worker_identities
     where company_id=p_company_id and worker_key=p_worker_key for update;
   v_event_type:=case when not found then 'worker_granted' else 'worker_token_rotated' end;
+  if found and v_worker.credential_hash<>p_credential_hash then
+    perform public.release_discovery_orchestration_worker_leases(
+      p_company_id,v_worker.id,'Worker credential rotated; active leases were released for re-authentication.',v_actor
+    );
+  end if;
 
   insert into public.discovery_orchestration_worker_identities(
     company_id,worker_key,display_name,credential_hash,stage_keys,
