@@ -222,10 +222,11 @@ begin
   end;
 
   if v_attempt.status<>'started' then
-    if (v_effective_outcome='succeeded' and v_attempt.status='succeeded' and v_attempt.error_code is null)
-      or (v_effective_outcome='failed' and v_attempt.status='failed' and v_attempt.error_code=v_error_code)
-      or (v_effective_outcome='expired' and v_attempt.status='expired' and v_attempt.error_code='LEASE_EXPIRED')
-      or (v_effective_outcome='released' and v_attempt.status='released' and v_attempt.error_code='WORKER_RELEASED') then
+    if (p_outcome='succeeded' and v_attempt.status='succeeded' and v_attempt.error_code is null)
+      or (p_outcome='failed' and v_attempt.status='failed' and v_attempt.error_code=p_error_code)
+      or (p_outcome='expired' and v_attempt.status='expired' and v_attempt.error_code='LEASE_EXPIRED')
+      or (p_outcome='released' and v_attempt.status='released' and v_attempt.error_code='WORKER_RELEASED')
+      or (p_outcome='released' and v_attempt.status='expired' and v_attempt.error_code='LEASE_EXPIRED') then
       return jsonb_build_object(
         'executionState',v_execution.state,'attemptStatus',v_attempt.status,
         'attemptNumber',v_attempt.attempt_number,'nextRetryAt',v_attempt.next_retry_at,
