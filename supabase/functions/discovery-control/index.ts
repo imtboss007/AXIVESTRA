@@ -287,7 +287,7 @@ Deno.serve(async request => {
 
 
     if (action === "orchestration.list") {
-      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult] = await Promise.all([
+      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult] = await Promise.all([
         admin.from("discovery_orchestration_workflows").select("workflow_key,label,description,stage_keys")
           .eq("active", true).order("label"),
         admin.from("discovery_orchestration_stage_registry").select("stage_key,technical_stage,capability_name,description,dependency_stage_keys,permission_class,adapter_key,dispatch_ready,enabled_by_default")
@@ -305,9 +305,11 @@ Deno.serve(async request => {
         admin.from("discovery_source_registry").select("id,name,status,allowed_purposes,allowed_fields,updated_at")
           .eq("company_id", companyId).order("name").limit(300),
         admin.from("discovery_profile_sources").select("profile_id,source_id")
-          .eq("company_id", companyId).limit(500)
+          .eq("company_id", companyId).limit(500),
+        admin.from("discovery_orchestration_context_events").select("id,run_id,event_type,profile_id,source_id,purpose,required_fields,reason,occurred_at,actor_user_id")
+          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800)
       ]);
-      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult]) {
+      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult]) {
         if (result.error) throw result.error;
       }
       return jsonResponse(200, {
@@ -321,7 +323,8 @@ Deno.serve(async request => {
         profiles: profileResult.data || [],
         sources: sourceResult.data || [],
         profileSources: profileSourceResult.data || [],
-        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500 }
+        contextEvents: contextEventResult.data || [],
+        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500, contextEvents: 800 }
       });
     }
 
