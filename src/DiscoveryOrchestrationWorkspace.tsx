@@ -11,6 +11,9 @@ type AdapterApproval = { adapter_key: string; contract_version: string; status: 
 type AdapterEvent = { id: string; adapter_key: string; contract_version: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type SchedulePreview = { run_id: string; step_id: string; stage_key: string; step_order: number; dependency_count: number; unsatisfied_dependency_count: number; failed_dependency_count: number; dependency_state: string; schedule_preview_state: string; dispatch_permitted: false };
 type StageQueueContract = { stage_key: string; mapping_version: string; queue_mode: "existing_durable_queue" | "deterministic_inline"; queue_table: string | null; enqueue_path: string; claim_routine: string | null; source_migration: string; mapping_notes: string; bridge_enabled: false };
+type ExecutionRecord = { execution_id: string; run_id: string; step_id: string; stage_key: string; adapter_key: string; state: string; attempt_count: number; max_attempts: number; available_at: string; last_error_code: string | null; last_error_summary: string | null; updated_at: string };
+type AttemptRecord = { attempt_id: string; execution_id: string; attempt_number: number; status: string; error_code: string | null; failure_class: string | null; retryable: boolean; started_at: string; finished_at: string | null; next_retry_at: string | null; run_id: string; step_id: string; stage_key: string; adapter_key: string };
+type FailurePolicy = { error_code: string; failure_class: string; retryable: boolean; base_delay_seconds: number; max_delay_seconds: number; max_attempts: number; safe_summary: string };
 type Profile = { id: string; workspace_key: string; discovery_mode: string; jurisdiction: string; purpose: string; enabled: boolean };
 type Source = { id: string; name: string; status: string; allowed_purposes: string[]; allowed_fields: string[] };
 type ProfileSource = { profile_id: string; source_id: string };
@@ -20,7 +23,7 @@ type WorkerEvent = { id: string; worker_identity_id: string; event_type: string;
 type CompanyWorkerGrant = { enabled: boolean; expires_at: string; updated_at: string; reason: string };
 type Event = { id: string; run_id: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type Run = { id: string; workflow_key: string; workflow_label: string; status: string; dispatch_state: string; requested_by: string; approved_by: string | null; approved_at: string | null; decision_reason: string | null; stage_count: number; unavailable_adapter_count: number; disabled_stage_count: number; all_stage_gates_ready: boolean; created_at: string };
-type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; adapterContracts?: AdapterContract[]; adapterApprovals?: AdapterApproval[]; adapterEvents?: AdapterEvent[]; schedulePreview?: SchedulePreview[]; stageQueueContracts?: StageQueueContract[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
+type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; adapterContracts?: AdapterContract[]; adapterApprovals?: AdapterApproval[]; adapterEvents?: AdapterEvent[]; schedulePreview?: SchedulePreview[]; stageQueueContracts?: StageQueueContract[]; executions?: ExecutionRecord[]; attempts?: AttemptRecord[]; failurePolicies?: FailurePolicy[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "The orchestration request failed.";
@@ -57,6 +60,9 @@ export default function DiscoveryOrchestrationWorkspace({
   const [adapterEvents, setAdapterEvents] = useState<AdapterEvent[]>([]);
   const [schedulePreview, setSchedulePreview] = useState<SchedulePreview[]>([]);
   const [stageQueueContracts, setStageQueueContracts] = useState<StageQueueContract[]>([]);
+  const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
+  const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
+  const [failurePolicies, setFailurePolicies] = useState<FailurePolicy[]>([]);
   const [adapterReviewReason, setAdapterReviewReason] = useState("Reviewed exact adapter version, permission class and source/purpose/personal-data checks for this company.");
   const [workerIdentities, setWorkerIdentities] = useState<WorkerIdentity[]>([]);
   const [workerEvents, setWorkerEvents] = useState<WorkerEvent[]>([]);
@@ -114,6 +120,9 @@ export default function DiscoveryOrchestrationWorkspace({
       setAdapterEvents(result.adapterEvents || []);
       setSchedulePreview(result.schedulePreview || []);
       setStageQueueContracts(result.stageQueueContracts || []);
+      setExecutions(result.executions || []);
+      setAttempts(result.attempts || []);
+      setFailurePolicies(result.failurePolicies || []);
       setWorkerIdentities(result.workerIdentities || []);
       setWorkerEvents(result.workerEvents || []);
       setCompanyWorkerGrant(result.companyWorkerGrant || null);
@@ -555,6 +564,52 @@ export default function DiscoveryOrchestrationWorkspace({
         })}
         {!stageQueueContracts.length && <p className="discovery-empty-inline">Stage queue mappings are not available.</p>}
       </div>
+    </section>
+
+    <section className="discovery-orchestration-worker-panel" aria-label="Retry and recovery execution history">
+      <div className="discovery-orchestration-section-head">
+        <div><span className="section-kicker">E20.6 · ATTEMPT RECOVERY</span><h3>Execution attempts and retry status</h3></div>
+        <small>{attempts.length} recent attempt receipts</small>
+      </div>
+      <p>Each issued lease consumes one bounded attempt. Failures are classified only by the platform error-code catalogue; retryable failures use capped exponential backoff. Unknown codes are not retried. This is a read-only operational view.</p>
+      <div className="discovery-orchestration-summary">
+        <article><strong>{executions.filter(item => item.state === "retry_wait").length}</strong><span>Waiting to retry</span></article>
+        <article><strong>{executions.filter(item => item.state === "failed").length}</strong><span>Failed terminally</span></article>
+        <article><strong>{executions.filter(item => item.state === "succeeded").length}</strong><span>Succeeded</span></article>
+        <article><strong>{executions.reduce((sum,item) => sum + item.attempt_count,0)}</strong><span>Attempts consumed</span></article>
+      </div>
+      <div className="discovery-orchestration-stage-grid">
+        {executions.map(execution => <article key={execution.execution_id}>
+          <div><b>{stages.find(item => item.stage_key === execution.stage_key)?.technical_stage || execution.stage_key} · {execution.stage_key}</b><span>{statusLabel(execution.state)}</span></div>
+          <small>{execution.adapter_key} · {execution.attempt_count}/{execution.max_attempts} attempts</small>
+          {execution.last_error_code && <small>{execution.last_error_code} · {execution.last_error_summary || "No summary"}</small>}
+          {execution.state === "retry_wait" && <span className="discovery-orchestration-off">Next eligible retry after {formatDate(execution.available_at)}</span>}
+          <small>Updated {formatDate(execution.updated_at)} · run {execution.run_id}</small>
+        </article>)}
+        {!executions.length && <p className="discovery-empty-inline">No orchestration execution records exist. Plans remain un-dispatched until the separately approved release gate.</p>}
+      </div>
+      <details className="discovery-orchestration-history">
+        <summary><Clock3 size={13}/>Attempt receipt history ({attempts.length})</summary>
+        {attempts.map(attempt => <div key={attempt.attempt_id}>
+          <b>{attempt.stage_key} · attempt {attempt.attempt_number} · {statusLabel(attempt.status)}</b>
+          <small>{attempt.error_code || "No error"} · {attempt.failure_class || "No failure class"} · {attempt.retryable ? "retryable" : "not retryable"}</small>
+          <small>Started {formatDate(attempt.started_at)} · finished {formatDate(attempt.finished_at)}</small>
+          {attempt.next_retry_at && <small>Retry not before {formatDate(attempt.next_retry_at)}</small>}
+          <small>{attempt.adapter_key} · execution {attempt.execution_id}</small>
+        </div>)}
+        {!attempts.length && <p>No attempt receipts have been recorded.</p>}
+      </details>
+      <details className="discovery-orchestration-history">
+        <summary><ShieldCheck size={13}/>Approved failure classification catalogue ({failurePolicies.length})</summary>
+        {failurePolicies.map(policy => <div key={policy.error_code}>
+          <b>{policy.error_code} · {statusLabel(policy.failure_class)}</b>
+          <small>{policy.retryable ? "Retryable" : "Terminal"} · max attempts {policy.max_attempts}</small>
+          <small>{policy.retryable ? "Backoff " + policy.base_delay_seconds + "s, capped at " + policy.max_delay_seconds + "s" : "No retry delay"}</small>
+          <p>{policy.safe_summary}</p>
+        </div>)}
+        {!failurePolicies.length && <p>Failure policies are not available.</p>}
+      </details>
+      <div className="discovery-orchestration-preflight-banner"><ShieldCheck size={13}/>The retry scheduler does not turn on dispatch. The E20 preflight hard gate and all nine legacy queue bridges remain OFF.</div>
     </section>
 
     <section className="discovery-orchestration-worker-panel" aria-label="Dependency schedule preview">
