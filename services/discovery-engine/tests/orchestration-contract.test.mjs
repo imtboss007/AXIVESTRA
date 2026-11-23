@@ -138,6 +138,11 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(workspace, /maxActiveLeases/);
   assert.match(workspace, /Type \{worker\.worker_key\} to revoke/);
   assert.match(workspace, /Worker grant history/);
+  assert.match(workspace, /I reviewed this exact stage scope/);
+  assert.match(workspace, /workerGrantConfirmed/);
+  assert.match(workerMigration, /Re-check live execution gates on every heartbeat/);
+  assert.match(workerMigration, /pf\.dispatch_permitted=true/);
+  assert.match(integration, /heartbeat must fail closed while E20 preflight dispatch_permitted remains false/);
   assert.ok(!workspace.includes("localStorage.setItem(workerToken"));
   assert.match(workerEdge, /x-axivestra-worker-token/);
   assert.match(workerEdge, /claim_discovery_orchestration_lease/);
@@ -145,6 +150,8 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(workerEdge, /release_discovery_orchestration_lease/);
   assert.match(workerEdge, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(workerEdge, /configuredPublicKeys/);
+  assert.match(workerEdge, /function defaultKeyFromJson/);
+  assert.match(workerEdge, /SUPABASE_SECRET_KEYS/);
   assert.match(workerEdge, /x-axivestra-worker-token/);
   assert.match(workerEdge, /Cache-Control/);
   assert.doesNotMatch(workerEdge, /console\\.(?:log|error)\\([^)]*(?:rawWorkerToken|leaseToken|leaseTokenHash|workerCredentialHash)/i);
