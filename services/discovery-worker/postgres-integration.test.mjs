@@ -94,6 +94,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationExecutionMigration);
     const orchestrationContextMigration = await readFile(new URL("../../supabase/migrations/20261123190000_axivestra_orchestration_context_binding.sql", import.meta.url), "utf8");
     await pool.query(orchestrationContextMigration);
+    const orchestrationWorkerMigration = await readFile(new URL("../../supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationWorkerMigration);
 
 
     const companyId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -444,7 +446,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("run_not_approved")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("stage_kill_switch_off")));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("adapter_not_registered")));
-      assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("company_worker_grant_not_checked")));
+      assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("worker_identity_scope_missing")));
+      assert.ok(initialPreflight.rows.every(row=>row.company_worker_grant_active===true));
       assert.ok(initialPreflight.rows.every(row=>row.blocker_codes.includes("run_context_missing")));
       const bindContextSql="select public.bind_discovery_orchestration_run_context($1,$2,$3,$4,$5,$6::text[],$7) as id";
       const contextArgs=[companyId,orchestrationRunId,profileId,sourceId,"company identity verification",["legal_name","registration_id"],"Owner bound the approved company identity source and exact field scope for this test run."];
