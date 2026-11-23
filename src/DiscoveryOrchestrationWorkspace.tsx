@@ -83,11 +83,11 @@ export default function DiscoveryOrchestrationWorkspace({
       setContextEvents(result.contextEvents || []);
       const enabledProfiles = (result.profiles || []).filter(profile => profile.enabled);
       const chosenProfile = enabledProfiles.find(profile => profile.id === selectedProfileId) || enabledProfiles[0];
-      if (chosenProfile && chosenProfile.id !== selectedProfileId) setSelectedProfileId(chosenProfile.id);
+      if ((chosenProfile?.id || "") !== selectedProfileId) setSelectedProfileId(chosenProfile?.id || "");
       const attachedSourceIds = (result.profileSources || []).filter(link => link.profile_id === chosenProfile?.id).map(link => link.source_id);
       const eligibleSources = (result.sources || []).filter(source => source.status === "approved" && attachedSourceIds.includes(source.id));
       const chosenSource = eligibleSources.find(source => source.id === selectedSourceId) || eligibleSources[0];
-      if (chosenSource && chosenSource.id !== selectedSourceId) setSelectedSourceId(chosenSource.id);
+      if ((chosenSource?.id || "") !== selectedSourceId) setSelectedSourceId(chosenSource?.id || "");
       if (result.workflows?.length && !result.workflows.some(item => item.workflow_key === selectedWorkflow)) {
         setSelectedWorkflow(result.workflows[0].workflow_key);
       }
@@ -96,7 +96,7 @@ export default function DiscoveryOrchestrationWorkspace({
     } finally {
       setLoading(false);
     }
-  }, [companyId, invoke, selectedWorkflow]);
+  }, [companyId, invoke, selectedWorkflow, selectedProfileId, selectedSourceId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
