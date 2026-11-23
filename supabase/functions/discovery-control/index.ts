@@ -315,8 +315,7 @@ Deno.serve(async request => {
         admin.from("discovery_orchestration_company_adapter_events").select("id,adapter_key,contract_version,event_type,previous_status,new_status,reason,occurred_at,actor_user_id")
           .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(500),
         userClient.from("discovery_orchestration_dependency_schedule").select("run_id,step_id,stage_key,step_order,dependency_count,unsatisfied_dependency_count,failed_dependency_count,dependency_state,schedule_preview_state,dispatch_permitted")
-          .eq("company_id", companyId).order("step_order").limit(500)
-,
+          .eq("company_id", companyId).order("step_order").limit(500),
         admin.from("discovery_orchestration_stage_queue_contracts").select("stage_key,mapping_version,queue_mode,queue_table,enqueue_path,claim_routine,source_migration,mapping_notes,bridge_enabled")
           .order("stage_key")
       ]);
