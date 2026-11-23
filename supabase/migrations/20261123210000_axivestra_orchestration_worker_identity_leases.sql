@@ -466,13 +466,14 @@ begin
     for share;
   if not found then return; end if;
 
-  perform public.expire_discovery_orchestration_leases(p_company_id,100);
-
+  -- Lock the scoped worker before lease rows. Pause/revoke uses the same worker→lease order.
   select * into v_worker from public.discovery_orchestration_worker_identities
     where company_id=p_company_id and id=p_worker_identity_id
       and status='active' and expires_at>v_now and credential_hash=p_worker_credential_hash
     for update;
   if not found then return; end if;
+
+  perform public.expire_discovery_orchestration_leases(p_company_id,100);
 
   select count(*)::integer into v_active
     from public.discovery_orchestration_execution_leases l
