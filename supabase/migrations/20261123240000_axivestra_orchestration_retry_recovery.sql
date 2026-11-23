@@ -196,6 +196,7 @@ declare
   v_event_type text;
   v_reason text;
   v_final_error_code text;
+  v_effective_outcome text;
 begin
   if p_outcome is null or p_outcome not in ('succeeded','failed','expired','released') then
     raise exception 'The attempt outcome is not supported.' using errcode='22023';
@@ -204,6 +205,7 @@ begin
     where l.company_id=p_company_id and l.id=p_lease_id
     for update;
   if not found then raise exception 'The orchestration lease was not found.' using errcode='P0002'; end if;
+  v_effective_outcome:=case when p_outcome='released' and v_lease.expires_at<=v_now then 'expired' else p_outcome end;
   select a.* into v_attempt from public.discovery_orchestration_execution_attempts a
     where a.company_id=p_company_id and a.lease_id=p_lease_id
     for update;
@@ -213,17 +215,17 @@ begin
     for update;
   if not found then raise exception 'The execution was not found.' using errcode='P0002'; end if;
 
-  v_error_code:=case p_outcome
+  v_error_code:=case v_effective_outcome
     when 'expired' then 'LEASE_EXPIRED'
     when 'released' then 'WORKER_RELEASED'
     else p_error_code
   end;
 
   if v_attempt.status<>'started' then
-    if (p_outcome='succeeded' and v_attempt.status='succeeded' and v_attempt.error_code is null)
-      or (p_outcome='failed' and v_attempt.status='failed' and v_attempt.error_code=v_error_code)
-      or (p_outcome='expired' and v_attempt.status='expired' and v_attempt.error_code='LEASE_EXPIRED')
-      or (p_outcome='released' and v_attempt.status='released' and v_attempt.error_code='WORKER_RELEASED') then
+    if (v_effective_outcome='succeeded' and v_attempt.status='succeeded' and v_attempt.error_code is null)
+      or (v_effective_outcome='failed' and v_attempt.status='failed' and v_attempt.error_code=v_error_code)
+      or (v_effective_outcome='expired' and v_attempt.status='expired' and v_attempt.error_code='LEASE_EXPIRED')
+      or (v_effective_outcome='released' and v_attempt.status='released' and v_attempt.error_code='WORKER_RELEASED') then
       return jsonb_build_object(
         'executionState',v_execution.state,'attemptStatus',v_attempt.status,
         'attemptNumber',v_attempt.attempt_number,'nextRetryAt',v_attempt.next_retry_at,
@@ -233,13 +235,13 @@ begin
     raise exception 'This lease already has a different final attempt outcome.' using errcode='23505';
   end if;
 
-  if p_outcome in ('succeeded','failed') and (v_lease.released_at is not null or v_lease.expires_at<=v_now) then
+  if v_effective_outcome in ('succeeded','failed') and (v_lease.released_at is not null or v_lease.expires_at<=v_now) then
     raise exception 'The lease is no longer active; expired or released attempts cannot be completed.' using errcode='55000';
   end if;
-  if p_outcome='expired' and v_lease.expires_at>v_now then
+  if v_effective_outcome='expired' and v_lease.expires_at>v_now then
     raise exception 'The lease has not expired.' using errcode='55000';
   end if;
-  if p_outcome='succeeded' then
+  if v_effective_outcome='succeeded' then
     if p_error_code is not null then
       raise exception 'A successful attempt cannot include an error code.' using errcode='22023';
     end if;
@@ -290,9 +292,9 @@ begin
   else
     v_next_state:='failed';
   end if;
-  v_status:=case p_outcome when 'expired' then 'expired' when 'released' then 'released' else 'failed' end;
-  v_event_type:=case p_outcome when 'expired' then 'lease_expired' when 'released' then 'lease_released' else 'attempt_failed' end;
-  v_reason:=case p_outcome
+  v_status:=case v_effective_outcome when 'expired' then 'expired' when 'released' then 'released' else 'failed' end;
+  v_event_type:=case v_effective_outcome when 'expired' then 'lease_expired' when 'released' then 'lease_released' else 'attempt_failed' end;
+  v_reason:=case v_effective_outcome
     when 'expired' then 'The worker lease expired; the attempt was classified by the bounded retry policy.'
     when 'released' then 'The worker released its attempt; the bounded retry policy determined the next state.'
     else 'The worker reported a failure using an approved error code; the bounded retry policy determined the next state.'
