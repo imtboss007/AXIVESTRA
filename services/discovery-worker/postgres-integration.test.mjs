@@ -1915,7 +1915,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
 
       // New provenance reopens a verified case instead of leaving a stale approval in place.
       await verificationClient.query(
-        "insert into public.discovery_provenance_events(company_id,subject_kind,subject_id,event_type,source_id,evidence_content_hash,source_name_snapshot,source_domain_snapshot,origin_table,origin_record_id,actor_user_id,event_metadata) values($1,'canonical_entity',$2,'source_observed',$3,$4,'Example registry second observation','registry.example.gov.in','discovery_audit_events','99999999-9999-4999-8999-999999999991',$5,'{"verification_fixture":true}'::jsonb)",
+        "insert into public.discovery_provenance_events(company_id,subject_kind,subject_id,event_type,source_id,evidence_content_hash,source_name_snapshot,source_domain_snapshot,origin_table,origin_record_id,actor_user_id,event_metadata) values($1,'canonical_entity',$2,'source_observed',$3,$4,'Example registry second observation','registry.example.gov.in','discovery_audit_events','99999999-9999-4999-8999-999999999991',$5,'{\"verification_fixture\":true}'::jsonb)",
         [companyId,canonical.rows[0].id,sourceId,"d".repeat(64),actorId]
       );
       const reopenedCase=await verificationClient.query(
