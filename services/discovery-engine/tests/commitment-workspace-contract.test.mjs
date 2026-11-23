@@ -72,6 +72,9 @@ test("E18 overview workspace creates and manages typed commitments with saved me
   assert.match(ui,/source_task_record_key:source\.record_key/);
   assert.match(ui,/No active relationship for this deal and party/);
   assert.match(ui,/unsyncedLocalTaskCount/);
+  assert.match(ui,/readAllPages\(\(from,to\)=>client\.from\("company_commitment_inbox"\)/);
+  assert.match(ui,/readAllPages\(\(from,to\)=>client\.from\("company_records"\)/);
+  assert.doesNotMatch(ui,/from\("company_records"\)\.update/);
 });
 
 test("E18 protects linked deals, parties and source tasks from deletion while commitments remain open",()=>{
