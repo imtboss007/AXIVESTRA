@@ -234,8 +234,8 @@ begin
     raise exception 'Worker identity expiry must be future and no later than the company worker grant (maximum one hour).' using errcode='22023';
   end if;
 
-  select * into v_worker from public.discovery_orchestration_worker_identities
-    where company_id=p_company_id and worker_key=p_worker_key for update;
+  select wi.* into v_worker from public.discovery_orchestration_worker_identities as wi
+    where wi.company_id=p_company_id and wi.worker_key=p_worker_key for update;
   v_event_type:=case when not found then 'worker_granted' else 'worker_token_rotated' end;
   if found and v_worker.credential_hash=p_credential_hash then
     raise exception 'A new random worker credential is required when re-granting or rotating an identity.' using errcode='22023';
