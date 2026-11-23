@@ -57,8 +57,8 @@ test("E19 UI is surfaced inside the company Discovery workspace with owner/admin
   assert.match(ui,/discovery_verification_inbox/);
   assert.match(ui,/record_discovery_verification_review/);
   assert.match(ui,/record_discovery_verification_evidence_classification/);
-  assert.match(ui,/companyRole === "owner" \|\| companyRole === "admin"/);
-  assert.match(ui,/Supporting/);
-  assert.match(ui,/Contradicting/);
+  assert.match(ui,/companyRole==="owner"\|\|companyRole==="admin"/);
+  assert.match(ui,/supporting/);
+  assert.match(ui,/contradicting/);
   assert.match(ui,/Confidence index/);
 });
