@@ -89,7 +89,7 @@ export function createOrchestrationLeaseClient({
         throw new Error("The orchestration worker broker returned an incomplete lease receipt.");
       }
       leaseTokens.set(lease.leaseId, result.leaseToken);
-      return Object.freeze({ ...lease, leaseToken: result.leaseToken });
+      return Object.freeze({ ...lease });
     },
 
     async heartbeat(leaseId, { leaseSeconds = 120 } = {}) {
