@@ -40,6 +40,13 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.doesNotMatch(migration, /insert into public\.discovery_jobs/);
   assert.doesNotMatch(migration, /perform .*http/i);
 
+  assert.match(preflightMigration, /create or replace view public\\.discovery_orchestration_step_preflight/);
+  assert.match(preflightMigration, /company_worker_grant_not_checked/);
+  assert.match(preflightMigration, /source_and_purpose_grants_not_checked/);
+  assert.match(preflightMigration, /personal_data_policy_not_checked/);
+  assert.match(preflightMigration, /no_dispatcher_registered/);
+  assert.match(preflightMigration, /false as dispatch_permitted/);
+  assert.match(edge, /discovery_orchestration_step_preflight/);
   assert.match(edge, /action === "orchestration\.list"/);
   assert.match(edge, /action === "orchestration\.request"/);
   assert.match(edge, /action === "orchestration\.decide"/);
