@@ -6,7 +6,7 @@
 
 ## Delivered
 
-E18 adds a structured company-scoped register for four types of operational records: task, promise, obligation and milestone. Each record has a title, summary, status, priority, controlled next-action code, due date, responsible company member and optional links to a deal, party, E16 relationship and legacy task record.
+E18 adds a structured company-scoped register for four types of operational records: task, promise, obligation and milestone. Each record has a title, editable summary, status, priority, controlled next-action code, due date, responsible company member and optional links to a deal, party, matching E16 relationship and legacy task record. The workspace supports editing title, summary, next action and matching relationship with immutable detail-change history.
 
 - Deal and party links use company-scoped stable record keys.
 - A supplied relationship ID must be the E16 edge connecting the same deal and party.
@@ -19,7 +19,7 @@ E18 adds a structured company-scoped register for four types of operational reco
 
 ## Relationship to existing tasks
 
-Existing local task collections and their device-sync behaviour remain unchanged. E18 is an additive cloud structured-commitment register. A legacy task can be linked by a stable source_task_record_key, but E18 does not automatically copy, migrate or delete legacy tasks. Explicit reconciliation/import and a UI workflow are separate acceptance steps.
+Existing local task collections and their device-sync behaviour remain unchanged. E18 is an additive cloud structured-commitment register. A legacy task can be linked by a stable source_task_record_key. The E18 workspace now exposes an explicit per-task reconciliation/import action for company-cloud task records. It copies the task title, notes, due date, priority and next-action code into a structured commitment and retains the original task unchanged. Completed source tasks are explicitly transitioned to completed after creation. Already-linked records are filtered from the candidate list and the database uniqueness constraint prevents duplicate source-task links. Device-local tasks not yet synced into the company cloud register are counted and identified as needing sync before linking. No automatic copy, migration or deletion takes place.
 
 ## Security and data boundaries
 
@@ -27,4 +27,4 @@ Company membership is enforced in RLS and in the database write guard. Composite
 
 ## Verification
 
-The PostgreSQL integration test verifies commitment creation, overdue projection, status completion, company scoping, relationship consistency and immutable event history. Contract tests cover role gates, lifecycle constraints, derived due states and the additive boundary.
+The PostgreSQL integration test verifies commitment creation, overdue projection, status completion, company scoping, relationship consistency, source-task integrity and immutable event history. Contract tests also verify that the UI exposes summary/detail editing, matching relationship selection, and explicit legacy-task linking without changing the source task. A live authenticated browser acceptance run still requires a dedicated company test account and seeded company dataset; the existing general browser suite does not create an authenticated company session.
