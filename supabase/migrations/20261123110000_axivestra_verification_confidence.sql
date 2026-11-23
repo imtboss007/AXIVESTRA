@@ -22,6 +22,8 @@ alter table public.discovery_audit_events
     'privacy_policy_recorded','privacy_request_created','privacy_request_verified',
     'privacy_subject_restricted','privacy_subject_erased','privacy_subject_retained',
     'privacy_request_fulfilled','privacy_retention_queued','privacy_retention_processed',
+    'discovery_match_review_recorded','discovery_lead_created','discovery_lead_assigned',
+    'discovery_lead_status_changed','discovery_lead_priority_changed','discovery_lead_next_action_set',
     'verification_case_opened','verification_evidence_classified',
     'verification_review_recorded','verification_case_reopened'
   ));
@@ -34,7 +36,8 @@ alter table public.discovery_audit_events
     'entity_relationship','professional_role_candidate','professional_person',
     'contact_point','place_candidate','enrichment_observation','enrichment_conflict',
     'match_result','deduplication_candidate','privacy_policy','privacy_request',
-    'privacy_subject','privacy_retention_job','verification_case'
+    'privacy_subject','privacy_retention_job','discovery_match_review','discovery_lead',
+    'verification_case'
   ));
 
 create table if not exists public.discovery_verification_cases (
