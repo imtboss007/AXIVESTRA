@@ -287,7 +287,7 @@ Deno.serve(async request => {
 
 
     if (action === "orchestration.list") {
-      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult] = await Promise.all([
+      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult, adapterContractResult, adapterApprovalResult, adapterEventResult, schedulePreviewResult] = await Promise.all([
         admin.from("discovery_orchestration_workflows").select("workflow_key,label,description,stage_keys")
           .eq("active", true).order("label"),
         admin.from("discovery_orchestration_stage_registry").select("stage_key,technical_stage,capability_name,description,dependency_stage_keys,permission_class,adapter_key,dispatch_ready,enabled_by_default")
@@ -298,7 +298,7 @@ Deno.serve(async request => {
           .eq("company_id", companyId).order("step_order").limit(500),
         admin.from("discovery_orchestration_events").select("id,run_id,event_type,previous_status,new_status,reason,occurred_at,actor_user_id")
           .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800),
-        userClient.from("discovery_orchestration_step_preflight").select("step_id,run_id,blocker_codes,unsatisfied_dependency_count,unsatisfied_dependency_ids,dispatch_permitted,execution_context_bound,profile_id,source_id,purpose,required_fields,profile_enabled,source_status,context_snapshot_current,purpose_still_allowed,fields_still_allowed,company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available")
+        userClient.from("discovery_orchestration_step_preflight").select("step_id,run_id,blocker_codes,unsatisfied_dependency_count,unsatisfied_dependency_ids,dispatch_permitted,execution_context_bound,profile_id,source_id,purpose,required_fields,profile_enabled,source_status,context_snapshot_current,purpose_still_allowed,fields_still_allowed,company_worker_grant_active,company_worker_grant_expires_at,worker_identity_scope_available,adapter_contract_platform_approved,company_adapter_approved")
           .eq("company_id", companyId).limit(500),
         admin.from("discovery_profiles").select("id,workspace_key,discovery_mode,jurisdiction,purpose,enabled,updated_at")
           .eq("company_id", companyId).order("workspace_key").limit(200),
@@ -307,9 +307,17 @@ Deno.serve(async request => {
         admin.from("discovery_profile_sources").select("profile_id,source_id")
           .eq("company_id", companyId).limit(500),
         admin.from("discovery_orchestration_context_events").select("id,run_id,event_type,profile_id,source_id,purpose,required_fields,reason,occurred_at,actor_user_id")
-          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800)
+          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(800),
+        admin.from("discovery_orchestration_adapter_contracts").select("adapter_key,stage_key,contract_version,required_permission_class,required_policy_checks,max_attempts,lease_seconds,max_parallel_per_company,enabled,reviewed_at,review_reason")
+          .order("stage_key").order("contract_version").limit(200),
+        admin.from("discovery_orchestration_company_adapter_approvals").select("adapter_key,contract_version,status,reviewed_at,review_reason,updated_at")
+          .eq("company_id", companyId).order("updated_at", { ascending: false }).limit(200),
+        admin.from("discovery_orchestration_company_adapter_events").select("id,adapter_key,contract_version,event_type,previous_status,new_status,reason,occurred_at,actor_user_id")
+          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(500),
+        userClient.from("discovery_orchestration_dependency_schedule").select("run_id,step_id,stage_key,step_order,dependency_count,unsatisfied_dependency_count,failed_dependency_count,dependency_state,schedule_preview_state,dispatch_permitted")
+          .eq("company_id", companyId).order("step_order").limit(500)
       ]);
-      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult]) {
+      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult, adapterContractResult, adapterApprovalResult, adapterEventResult, schedulePreviewResult]) {
         if (result.error) throw result.error;
       }
       let workerIdentities: Record<string, unknown>[] = [];
@@ -345,10 +353,14 @@ Deno.serve(async request => {
         sources: sourceResult.data || [],
         profileSources: profileSourceResult.data || [],
         contextEvents: contextEventResult.data || [],
+        adapterContracts: adapterContractResult.data || [],
+        adapterApprovals: adapterApprovalResult.data || [],
+        adapterEvents: adapterEventResult.data || [],
+        schedulePreview: schedulePreviewResult.data || [],
         workerIdentities,
         workerEvents,
         companyWorkerGrant,
-        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500, contextEvents: 800, workerIdentities: 100, workerEvents: 300 }
+        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500, contextEvents: 800, adapterContracts: 200, adapterApprovals: 200, adapterEvents: 500, schedulePreview: 500, workerIdentities: 100, workerEvents: 300 }
       });
     }
 
@@ -412,6 +424,36 @@ Deno.serve(async request => {
         throw error;
       }
       return jsonResponse(200, { ok: true, eventId: data, message: "Run context bound and audited. Dispatch remains disabled." });
+    }
+
+    if (action === "orchestration.adapterReview") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can review company adapter contracts." });
+      const adapterKey = typeof payload.adapterKey === "string" ? payload.adapterKey.trim() : "";
+      const contractVersion = typeof payload.contractVersion === "string" ? payload.contractVersion.trim() : "";
+      const decision = typeof payload.decision === "string" ? payload.decision : "";
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (!/^[a-z0-9][a-z0-9._-]{2,119}$/.test(adapterKey)) return jsonResponse(400, { error: "A valid registered adapter key is required." });
+      if (!contractVersion || contractVersion.length > 80) return jsonResponse(400, { error: "An exact registered contract version is required." });
+      if (!["approved","rejected","suspended"].includes(decision)) return jsonResponse(400, { error: "Choose approved, rejected or suspended." });
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A review reason of 10–1000 characters is required." });
+      const { data, error } = await userClient.rpc("review_discovery_orchestration_company_adapter", {
+        p_company_id: companyId,
+        p_adapter_key: adapterKey,
+        p_contract_version: contractVersion,
+        p_decision: decision,
+        p_reason: reason
+      });
+      if (error) {
+        if (error.code === "42501") return jsonResponse(403, { error: error.message });
+        if (error.code === "P0002") return jsonResponse(404, { error: error.message });
+        if (error.code === "22023") return jsonResponse(400, { error: error.message });
+        throw error;
+      }
+      return jsonResponse(200, {
+        ok: true,
+        eventId: data,
+        message: "Company adapter contract review recorded. It does not enable a stage gate or dispatch work."
+      });
     }
 
     if (action === "orchestration.workerGrant") {
