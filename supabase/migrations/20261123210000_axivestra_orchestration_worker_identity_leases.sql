@@ -292,6 +292,7 @@ declare
   v_actor uuid:=auth.uid();
   v_role text;
   v_worker public.discovery_orchestration_worker_identities%rowtype;
+  v_control public.discovery_company_worker_controls%rowtype;
   v_released integer:=0;
   v_event text;
 begin
@@ -314,10 +315,12 @@ begin
     if v_worker.status='revoked' then
       raise exception 'Revoked identities must be re-granted with a newly issued credential.' using errcode='22023';
     end if;
-    if not exists(select 1 from public.discovery_company_worker_controls c
-      where c.company_id=p_company_id and c.enabled=true and c.expires_at>clock_timestamp())
-      or v_worker.expires_at<=clock_timestamp() then
-      raise exception 'An active, unexpired company worker grant and identity expiry are required.' using errcode='42501';
+    select * into v_control from public.discovery_company_worker_controls c
+      where c.company_id=p_company_id and c.enabled=true and c.expires_at>clock_timestamp()
+      for share;
+    if not found or v_worker.expires_at<=clock_timestamp()
+      or v_worker.expires_at>v_control.expires_at then
+      raise exception 'An active company grant and an identity expiry no later than that grant are required.' using errcode='42501';
     end if;
     v_event:='worker_resumed';
   else
@@ -349,17 +352,23 @@ set search_path=public,pg_temp
 as $trigger$
 declare v_worker record;
 begin
-  if new.enabled is true and new.expires_at>clock_timestamp() then return new; end if;
+  if new.enabled is true and new.expires_at>clock_timestamp() then
+    if tg_op<>'UPDATE' or old.enabled is not true or new.expires_at>=old.expires_at then
+      return new;
+    end if;
+    -- Shortening a still-active company grant must release leases immediately;
+    -- otherwise an old lease could outlive the newly shortened authority.
+  end if;
   for v_worker in
     update public.discovery_orchestration_worker_identities
       set status='paused',updated_by=new.updated_by,updated_at=clock_timestamp(),
-          reason='Paused automatically because the company worker grant was disabled or expired.'
+          reason='Paused automatically because the company worker grant was disabled, shortened or expired.'
       where company_id=new.company_id and status='active'
       returning id,worker_key,stage_keys
   loop
     perform public.release_discovery_orchestration_worker_leases(
       new.company_id,v_worker.id,
-      'Company worker grant was disabled or expired; active orchestration leases were released.',
+      'Company worker grant was disabled, shortened or expired; active orchestration leases were released.',
       new.updated_by
     );
     insert into public.discovery_orchestration_worker_events(
@@ -367,8 +376,8 @@ begin
       stage_keys_snapshot,reason,details
     ) values(
       new.company_id,v_worker.id,new.updated_by,'worker_paused',v_worker.worker_key,v_worker.stage_keys,
-      'Company worker grant was disabled or expired; worker identity paused immediately.',
-      jsonb_build_object('source','company_worker_grant')
+      'Company worker grant was disabled, shortened or expired; worker identity paused immediately.',
+      jsonb_build_object('source','company_worker_grant','newExpiresAt',new.expires_at)
     );
   end loop;
   return new;
