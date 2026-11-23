@@ -43,6 +43,7 @@ on:
       - "src/styles.css"
       - "supabase/migrations/*axivestra_verification*"
       - "supabase/migrations/*axivestra_agent_orchestration*"
+      - "supabase/migrations/*axivestra_orchestration_preflight*"
       - "tests/browser/axivestra-commitment-workspace.spec.ts"
       - "tests/browser/axivestra-verification-workspace.spec.ts"
       - "docs/AXIVESTRA-E18-COMMITMENTS-WORKSPACE.md"
