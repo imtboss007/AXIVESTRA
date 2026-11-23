@@ -10,6 +10,7 @@ type AdapterContract = { adapter_key: string; stage_key: string; contract_versio
 type AdapterApproval = { adapter_key: string; contract_version: string; status: "approved" | "rejected" | "suspended"; reviewed_at: string; review_reason: string; updated_at: string };
 type AdapterEvent = { id: string; adapter_key: string; contract_version: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type SchedulePreview = { run_id: string; step_id: string; stage_key: string; step_order: number; dependency_count: number; unsatisfied_dependency_count: number; failed_dependency_count: number; dependency_state: string; schedule_preview_state: string; dispatch_permitted: false };
+type StageQueueContract = { stage_key: string; mapping_version: string; queue_mode: "existing_durable_queue" | "deterministic_inline"; queue_table: string | null; enqueue_path: string; claim_routine: string | null; source_migration: string; mapping_notes: string; bridge_enabled: false };
 type Profile = { id: string; workspace_key: string; discovery_mode: string; jurisdiction: string; purpose: string; enabled: boolean };
 type Source = { id: string; name: string; status: string; allowed_purposes: string[]; allowed_fields: string[] };
 type ProfileSource = { profile_id: string; source_id: string };
@@ -19,7 +20,7 @@ type WorkerEvent = { id: string; worker_identity_id: string; event_type: string;
 type CompanyWorkerGrant = { enabled: boolean; expires_at: string; updated_at: string; reason: string };
 type Event = { id: string; run_id: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type Run = { id: string; workflow_key: string; workflow_label: string; status: string; dispatch_state: string; requested_by: string; approved_by: string | null; approved_at: string | null; decision_reason: string | null; stage_count: number; unavailable_adapter_count: number; disabled_stage_count: number; all_stage_gates_ready: boolean; created_at: string };
-type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; adapterContracts?: AdapterContract[]; adapterApprovals?: AdapterApproval[]; adapterEvents?: AdapterEvent[]; schedulePreview?: SchedulePreview[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
+type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; adapterContracts?: AdapterContract[]; adapterApprovals?: AdapterApproval[]; adapterEvents?: AdapterEvent[]; schedulePreview?: SchedulePreview[]; stageQueueContracts?: StageQueueContract[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "The orchestration request failed.";
@@ -55,6 +56,7 @@ export default function DiscoveryOrchestrationWorkspace({
   const [adapterApprovals, setAdapterApprovals] = useState<AdapterApproval[]>([]);
   const [adapterEvents, setAdapterEvents] = useState<AdapterEvent[]>([]);
   const [schedulePreview, setSchedulePreview] = useState<SchedulePreview[]>([]);
+  const [stageQueueContracts, setStageQueueContracts] = useState<StageQueueContract[]>([]);
   const [adapterReviewReason, setAdapterReviewReason] = useState("Reviewed exact adapter version, permission class and source/purpose/personal-data checks for this company.");
   const [workerIdentities, setWorkerIdentities] = useState<WorkerIdentity[]>([]);
   const [workerEvents, setWorkerEvents] = useState<WorkerEvent[]>([]);
@@ -111,6 +113,7 @@ export default function DiscoveryOrchestrationWorkspace({
       setAdapterApprovals(result.adapterApprovals || []);
       setAdapterEvents(result.adapterEvents || []);
       setSchedulePreview(result.schedulePreview || []);
+      setStageQueueContracts(result.stageQueueContracts || []);
       setWorkerIdentities(result.workerIdentities || []);
       setWorkerEvents(result.workerEvents || []);
       setCompanyWorkerGrant(result.companyWorkerGrant || null);
@@ -529,6 +532,29 @@ export default function DiscoveryOrchestrationWorkspace({
         {adapterEvents.map(event => <div key={event.id}><b>{event.adapter_key} · {event.contract_version} · {statusLabel(event.event_type)}</b><small>{formatDate(event.occurred_at)} · {event.actor_user_id || "system"}</small><p>{event.reason}</p></div>)}
         {!adapterEvents.length && <p>No company adapter review events have been recorded.</p>}
       </details>
+    </section>
+
+    <section className="discovery-orchestration-worker-panel" aria-label="Existing E04 through E12 queue map">
+      <div className="discovery-orchestration-section-head">
+        <div><span className="section-kicker">E20.5 · LEGACY QUEUE CONTRACTS</span><h3>Existing stage queue map</h3></div>
+        <small>{stageQueueContracts.length}/9 stages mapped</small>
+      </div>
+      <p>This maps orchestration stages onto the queue systems already in AXIVESTRA. It does not create duplicate queues, call enqueue/claim functions or turn on a queue bridge.</p>
+      <div className="discovery-orchestration-stage-grid">
+        {stageQueueContracts.map(contract => {
+          const stage = stages.find(item => item.stage_key === contract.stage_key);
+          return <article key={contract.stage_key}>
+            <div><b>{stage?.technical_stage || contract.stage_key}</b><span>{stage?.capability_name || contract.stage_key}</span></div>
+            <small>Mode: {statusLabel(contract.queue_mode)} · Queue: {contract.queue_table || "No dedicated queue — deterministic inline engine"}</small>
+            <small>Enqueue: {contract.enqueue_path}</small>
+            <small>Claim: {contract.claim_routine || "Not applicable"}</small>
+            <small>Defined by: {contract.source_migration}</small>
+            <p>{contract.mapping_notes}</p>
+            <span className="discovery-orchestration-off">Bridge: {contract.bridge_enabled ? "Enabled" : "OFF · read-only mapping"}</span>
+          </article>;
+        })}
+        {!stageQueueContracts.length && <p className="discovery-empty-inline">Stage queue mappings are not available.</p>}
+      </div>
     </section>
 
     <section className="discovery-orchestration-worker-panel" aria-label="Dependency schedule preview">
