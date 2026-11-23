@@ -6160,3 +6160,10 @@ h2,h3{color:#e5f2fc}
 .discovery-orchestration-footnote{margin:0;padding-top:9px;border-top:1px solid #edf0eb;color:#849087;font-size:9px;line-height:1.65}
 @media(max-width:760px){.discovery-orchestration-builder{grid-template-columns:1fr 1fr}.discovery-orchestration-builder>div{grid-column:1/-1}.discovery-orchestration-builder button{grid-column:1/-1}.discovery-orchestration-stage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.discovery-orchestration{padding:13px;border-radius:13px}.discovery-orchestration-head{display:grid}.discovery-orchestration-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.discovery-orchestration-stage-grid{grid-template-columns:1fr}.discovery-orchestration-builder{grid-template-columns:1fr}.discovery-orchestration-builder>div,.discovery-orchestration-builder button{grid-column:auto}.discovery-orchestration-run-head{display:grid}.discovery-orchestration-step{grid-template-columns:24px minmax(0,1fr)}.discovery-orchestration-step em{grid-column:2}}
+
+/* E20.1 — read-only preflight blocker detail */
+.discovery-orchestration-preflight-banner{display:flex;align-items:flex-start;gap:7px;padding:9px 10px;border:1px solid #e8e4d8;border-radius:8px;background:#faf9f4;color:#776b4d;font-size:8px;line-height:1.55}
+.discovery-orchestration-preflight-banner svg{flex:none;margin-top:1px}
+.discovery-orchestration-preflight{grid-column:2/-1;display:grid;gap:3px;margin-top:1px;padding:6px 8px;border-left:2px solid #d8b87b;background:#fcfaf5}
+.discovery-orchestration-preflight strong{color:#89652e;font-size:8px;text-transform:uppercase}
+.discovery-orchestration-preflight span{color:#8b8068;font-size:8px;line-height:1.5;overflow-wrap:anywhere}
