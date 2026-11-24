@@ -10,6 +10,7 @@ import DiscoveryVerificationWorkspace from "./DiscoveryVerificationWorkspace";
 import DiscoveryOrchestrationWorkspace from "./DiscoveryOrchestrationWorkspace";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import { getDefaultWorkspaceCriteria, validateWorkspaceCriteria } from "./lib/discovery-profiles.mjs";
+import { OFFICIAL_SOURCE_STARTERS, toSourceDraft } from "./lib/discovery-source-catalogue.mjs";
 
 type SourceStatus = "pending" | "approved" | "paused" | "rejected";
 type Source = {
@@ -183,6 +184,12 @@ export default function DiscoverySourceManager({
   const purposeOptions = useMemo(() => [...new Set(
     sources.filter(source => source.status === "approved").flatMap(source => source.allowed_purposes || [])
   )].sort((a, b) => a.localeCompare(b)), [sources]);
+
+  const loadSourceStarter = (starter: (typeof OFFICIAL_SOURCE_STARTERS)[number]) => {
+    setSourceDraft(toSourceDraft(starter));
+    setNotice("Loaded " + starter.name + " as a pending source draft. Add and verify the official terms URL before any approval; this did not register or fetch the source.");
+    setError("");
+  };
 
   const addSource = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -410,6 +417,18 @@ export default function DiscoverySourceManager({
           <Globe size={20}/>
         </div>
         {!canManage && <p className="discovery-readonly">Your company role is read-only for source governance. An owner or admin must register and approve sources.</p>}
+        <div className="discovery-source-starters">
+          <div><span className="section-kicker">E03 · CONTROLLED SOURCE STARTERS</span><h3>Official India directories</h3><p>Start with identified RBI, NHB and MCA sources. Loading a starter only fills the pending registration form; it does not approve, search or fetch it.</p></div>
+          <div className="discovery-source-starter-grid">
+            {OFFICIAL_SOURCE_STARTERS.map(starter => <article key={starter.id} className="discovery-source-starter">
+              <span className="section-kicker">{starter.category}</span>
+              <strong>{starter.name}</strong>
+              <small>{starter.description}</small>
+              <a href={starter.canonicalUrl} target="_blank" rel="noreferrer">Open official source</a>
+              <button type="button" className="secondary-button" onClick={() => loadSourceStarter(starter)} disabled={!canManage || busyKey === "add-source"}>Use as pending draft</button>
+            </article>)}
+          </div>
+        </div>
         <form className="discovery-form" onSubmit={addSource}>
           <label>Source name<input required maxLength={160} value={sourceDraft.name} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, name: event.target.value })} placeholder="e.g. Official company registry"/></label>
           <label>Canonical HTTPS URL<input required type="url" value={sourceDraft.canonicalUrl} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, canonicalUrl: event.target.value })} placeholder="https://registry.example.in/api"/></label>
