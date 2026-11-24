@@ -19,15 +19,15 @@ E11 scores fit against workspace-specific LENDER or CUSTOMER criteria: geography
 
 ## Input contract
 
-`candidate` contains E10-reviewed candidate facts. `criteria` is workspace-owned configuration. For ordinary criteria use `{ value, weight, required? }`; for ticket use `{ value: { min?, max? }, weight, required? }`; for freshness use `{ maxAgeDays, weight, required? }`. `evidence` contains source/evidence IDs and publication or capture timestamps.
+`candidate` contains E10-reviewed candidate facts. `criteria` is workspace-owned configuration. For ordinary criteria use `{ value, weight, required? }`; for ticket use `{ value: { min?, max?, currencyCode }, weight, required? }` with a required three-letter currency code; for freshness use `{ maxAgeDays, weight, required? }`. `evidence` contains source/evidence IDs and publication or capture timestamps.
 
 ## Score and confidence
 
 Score is the sum of weights for matching criteria divided by the total configured weight, expressed 0–100. Mismatches and unknowns earn zero. Confidence is weighted known-criteria coverage multiplied by a source-evidence coverage factor; it is not a probability of investment success. Required mismatches set `eligible=false` even if the numeric score remains high.
 
-## Not activated
+## Persisted review and activation boundary
 
-No workspace database schema, scoring queue, AI provider, automatic lead approval or investment execution is introduced in this first E11 engine slice. Persisted review workflow remains an E15 gate; E16 should evaluate synthetic cases and false-match rates before any model suggestion is considered.
+E11 persists deterministic scores, criterion components and an audit receipt through a server-side owner/admin-only database function. The resulting match remains `pending_review`; the existing E15 review desk is still required before a lead is created. No automatic lead approval, investment execution, underwriting or outreach is introduced. The migration and Edge Function must be deployed to a non-production environment and tested before authenticated use. Production migration, source activation, worker activation, deployment and merge remain separately gated.
 
 ## Workspace profile and persisted scoring workflow
 
