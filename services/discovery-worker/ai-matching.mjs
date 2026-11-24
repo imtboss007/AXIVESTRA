@@ -78,10 +78,15 @@ export function buildAiMatchingRequest({
   criteria = {},
   evidence = [],
   deterministicResult,
+  candidateFactsReviewed = false,
+  workspaceCriteriaApproved = false,
   workspaceKey = "default"
 } = {}) {
   if (!isRecord(candidate) || !isRecord(criteria) || !Array.isArray(evidence)) {
     throw new TypeError("E22 candidate, criteria and evidence have invalid shapes.");
+  }
+  if (candidateFactsReviewed !== true || workspaceCriteriaApproved !== true) {
+    throw new TypeError("E22 requires reviewed candidate facts and approved workspace criteria.");
   }
   if (!isRecord(deterministicResult) ||
       deterministicResult.method !== "deterministic_weighted_rules_v1" ||
