@@ -178,6 +178,18 @@ test("server refuses protected Litigation and Investor Relations lender profiles
   }
 });
 
+test("restricted profile modes cannot attach sources even when a legacy row is marked enabled", () => {
+  const source = approvedSource();
+  for (const workspaceKey of ["litigation", "investor_relations"]) {
+    assert.throws(() => assertSourceCanBeAttached({
+      workspace_key: workspaceKey,
+      discovery_mode: "LENDER",
+      purpose,
+      criteria: { disabledByPolicy: true }
+    }, source), /disabled by discovery policy/);
+  }
+});
+
 test("personal-loan customer discovery cannot be enabled or attached to internet sources", () => {
   assert.throws(() => normalizeProfile({ workspaceKey: "personal_loan", discoveryMode: "CUSTOMER", purpose: "Find borrowers", enabled: true }, 2), /cannot scrape or harvest individuals/);
   assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external person-discovery/);
