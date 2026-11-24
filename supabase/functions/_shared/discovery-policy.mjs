@@ -237,7 +237,7 @@ function validateProfileMatchCriteria(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Workspace matchCriteria must be a JSON object.");
   }
-  const allowed = new Set(["geography","type","ticket","instrument","collateral","stage","mandate","evidence_freshness"]);
+  const allowed = new Set(["geography","type","sector","ticket","instrument","collateral","stage","mandate","evidence_freshness"]);
   const result = {};
   for (const [key, rule] of Object.entries(value)) {
     if (!allowed.has(key)) throw new Error("Unsupported E11 match criterion: " + key + ".");
