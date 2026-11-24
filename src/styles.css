@@ -5913,3 +5913,52 @@ h2,h3{color:#e5f2fc}
 @media (prefers-reduced-motion: reduce) {
   .ax-theme-studio *, .ax-theme-studio *::before, .ax-theme-studio *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; }
 }
+
+
+/* Automatic WCAG AA contrast fallbacks: chosen HEX values remain unchanged. */
+.ax-modern-shell[data-ax-theme] { color:var(--ax-theme-readable-text-background,var(--ax-theme-text)) !important; }
+.ax-modern-shell[data-ax-theme] .main-panel,
+.ax-modern-shell[data-ax-theme] .content { color:var(--ax-theme-readable-text-background,var(--ax-theme-text)) !important; }
+.ax-modern-shell[data-ax-theme] .sidebar { color:var(--ax-theme-readable-text-sidebar,var(--ax-theme-text)) !important; }
+.ax-modern-shell[data-ax-theme] .sidebar .nav-item,
+.ax-modern-shell[data-ax-theme] .sidebar .workspace-label { color:var(--ax-theme-readable-muted-sidebar,var(--ax-theme-muted)) !important; }
+.ax-modern-shell[data-ax-theme] .sidebar .nav-item.active,
+.ax-modern-shell[data-ax-theme] .sidebar .ax-sidebar-module.active { color:var(--ax-theme-readable-primary-surface,var(--ax-theme-primary)) !important; }
+.ax-modern-shell[data-ax-theme] .data-panel,
+.ax-modern-shell[data-ax-theme] .panel-card,
+.ax-modern-shell[data-ax-theme] .settings-card,
+.ax-modern-shell[data-ax-theme] .record-card,
+.ax-modern-shell[data-ax-theme] .task-row,
+.ax-modern-shell[data-ax-theme] .finance-summary > div,
+.ax-modern-shell[data-ax-theme] .module-card,
+.ax-modern-shell[data-ax-theme] .stat-card,
+.ax-modern-shell[data-ax-theme] .control-strip,
+.ax-modern-shell[data-ax-theme] .form-card,
+.ax-modern-shell[data-ax-theme] .hero-card,
+.ax-modern-shell[data-ax-theme] .modal,
+.ax-modern-shell[data-ax-theme] .modal-card { color:var(--ax-theme-readable-text-surface,var(--ax-theme-text)) !important; }
+.ax-modern-shell[data-ax-theme] .data-panel p,
+.ax-modern-shell[data-ax-theme] .data-panel small,
+.ax-modern-shell[data-ax-theme] .panel-card p,
+.ax-modern-shell[data-ax-theme] .panel-card small,
+.ax-modern-shell[data-ax-theme] .settings-card p,
+.ax-modern-shell[data-ax-theme] .settings-card small,
+.ax-modern-shell[data-ax-theme] .record-card p,
+.ax-modern-shell[data-ax-theme] .record-card small,
+.ax-modern-shell[data-ax-theme] .task-row small,
+.ax-modern-shell[data-ax-theme] .form-card small { color:var(--ax-theme-readable-muted-surface,var(--ax-theme-muted)) !important; }
+.ax-modern-shell[data-ax-theme] .primary-button { color:var(--ax-theme-readable-button-text,var(--ax-theme-button-text)) !important; }
+.ax-modern-shell[data-ax-theme] .secondary-button,
+.ax-modern-shell[data-ax-theme] .text-button,
+.ax-modern-shell[data-ax-theme] .icon-button { color:var(--ax-theme-readable-primary-surface,var(--ax-theme-primary)) !important; }
+.ax-modern-shell[data-ax-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+.ax-modern-shell[data-ax-theme] select,
+.ax-modern-shell[data-ax-theme] textarea { color:var(--ax-theme-readable-text-raised,var(--ax-theme-text)) !important; }
+.ax-modern-shell[data-ax-theme] input::placeholder,
+.ax-modern-shell[data-ax-theme] textarea::placeholder { color:var(--ax-theme-readable-muted-raised,var(--ax-theme-muted)) !important; }
+.ax-modern-shell[data-ax-theme] .ax-theme-studio { color:var(--ax-theme-readable-text-panel,var(--ax-theme-text)); }
+.ax-modern-shell[data-ax-theme] .ax-theme-studio p,
+.ax-modern-shell[data-ax-theme] .ax-theme-studio small,
+.ax-modern-shell[data-ax-theme] .ax-theme-studio__section-head>span { color:var(--ax-theme-readable-muted-panel,var(--ax-theme-muted)) !important; }
+.ax-theme-studio__contrast-note { margin-top:14px; padding:10px 12px; border:1px solid var(--ax-theme-border,#29485f); border-radius:9px; background:var(--ax-theme-surface,#0b1b29); color:var(--ax-theme-readable-muted-surface,var(--ax-theme-muted)); font-size:10px; line-height:1.55; }
+.ax-theme-studio__contrast-note strong { color:var(--ax-theme-readable-text-surface,var(--ax-theme-text)); }
