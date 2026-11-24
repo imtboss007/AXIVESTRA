@@ -6033,13 +6033,13 @@ h2,h3{color:#e5f2fc}
 /* Record-level cross-workspace navigation: actual saved links only. */
 .ax-module-related-records { margin:16px 0 0; padding:14px; border:1px solid var(--border); border-radius:13px; background:var(--surface); }
 .ax-module-related-records__heading { display:grid; gap:4px; margin-bottom:10px; }
-.ax-module-related-records__heading strong { color:var(--text); font-size:12px; }
+.ax-module-related-records__heading strong { color:var(--ax-theme-text, #24352b); font-size:12px; }
 .ax-module-related-records__heading small,.ax-module-related-records__empty { color:var(--muted); font-size:10px; line-height:1.5; }
 .ax-module-related-records__groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-.ax-module-related-records__groups button { display:grid; gap:4px; min-width:0; padding:10px; text-align:left; border:1px solid var(--border); border-radius:9px; background:var(--bg-raised); color:var(--text); cursor:pointer; }
+.ax-module-related-records__groups button { display:grid; gap:4px; min-width:0; padding:10px; text-align:left; border:1px solid var(--border); border-radius:9px; background:var(--surface-alt, #f7f9fc); color:var(--ax-theme-text, #24352b); cursor:pointer; }
 .ax-module-related-records__groups button:hover,.ax-module-related-records__groups button:focus-visible { border-color:var(--green); outline:none; }
 .ax-module-related-records__groups button span { color:var(--green); font-size:8px; font-weight:800; letter-spacing:.7px; }
-.ax-module-related-records__groups button strong { overflow-wrap:anywhere; color:var(--text); font-size:11px; }
-.ax-module-related-records__groups button small { color:var(--muted); font-size:9px; }
+.ax-module-related-records__groups button strong { overflow-wrap:anywhere; color:var(--ax-theme-text, #24352b); font-size:11px; }
+.ax-module-related-records__groups button small { color:var(--ax-theme-muted, var(--muted, #718197)); font-size:9px; }
 .ax-module-related-records__empty { margin:4px 0; }
 @media(max-width:640px) { .ax-module-related-records__groups { grid-template-columns:minmax(0,1fr); } }
