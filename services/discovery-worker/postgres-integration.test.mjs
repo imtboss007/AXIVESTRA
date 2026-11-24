@@ -35,6 +35,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       returns uuid language sql stable as $auth_uid$
         select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
       $auth_uid$;
+      create or replace function auth.role()
+      returns text language sql stable as $auth_role$
+        select nullif(current_setting('request.jwt.claim.role',true),'')
+      $auth_role$;
       create table if not exists public.company_memberships(
         company_id uuid not null references public.companies(id),
         user_id uuid not null references auth.users(id),
@@ -128,6 +132,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationExecutionConsoleMigration);
     const evidencePackManagementMigration = await readFile(new URL("../../supabase/migrations/20261123260000_axivestra_evidence_pack_management.sql", import.meta.url), "utf8");
     await pool.query(evidencePackManagementMigration);
+    const aiMatchingReviewMigration = await readFile(new URL("../../supabase/migrations/20261123270000_axivestra_e22_ai_matching_review.sql", import.meta.url), "utf8");
+    await pool.query(aiMatchingReviewMigration);
     const executionConsoleAcl=await pool.query(
       "select has_table_privilege('authenticated','public.discovery_orchestration_operations_inbox','select') as safe_console_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as raw_worker_select"
     );
@@ -1665,6 +1671,119 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       await e21EvidencePackClient.query("select set_config('request.jwt.claim.sub','',false)");
       e21EvidencePackClient.release();
     }
+
+    // E22: persist only validated advisory output, then require a reasoned owner/admin review.
+    const e22MatchResult = await pool.query(
+      `insert into public.discovery_match_results(
+        company_id,canonical_entity_id,workspace_key,criteria_version,criteria_snapshot,candidate_snapshot,
+        score,confidence,eligible,method,positive_factors,negative_factors,unknown_criteria,blockers,created_by
+      ) values($1,$2,'startup','integration-v1','{"type":{"value":"manufacturing"}}'::jsonb,
+        '{"legal_name":"Acme Holdings Pvt Ltd","jurisdiction":"IN"}'::jsonb,
+        75,0.8,true,'deterministic_weighted_rules_v1','[]'::jsonb,'[]'::jsonb,'[]'::jsonb,'[]'::jsonb,$3)
+      returning id`,
+      [companyId,canonical.rows[0].id,actorId]
+    );
+    const e22MatchResultId=e22MatchResult.rows[0].id;
+    const e22RequestHash="a".repeat(64);
+    const e22Suggestion={
+      schemaVersion:"axivestra.ai-match-suggestion.v1",
+      policyVersion:"e22_advisory_matching_v1",
+      requestHash:e22RequestHash,
+      recommendation:"possible_match",
+      advisoryScore:82,
+      reasons:[{criterion:"type",code:"aligned",evidenceIds:[evidenceId]}],
+      requiresHumanReview:true,
+      automaticDecisionAllowed:false,
+      canonicalMutationAllowed:false,
+      leadPromotionAllowed:false
+    };
+    const e22ServiceClient=await pool.connect();
+    try{
+      await e22ServiceClient.query("set role service_role");
+      await e22ServiceClient.query("select set_config('request.jwt.claim.role','service_role',false)");
+      const e22Args=[companyId,e22MatchResultId,e22RequestHash,"test-adapter","fixture-1",JSON.stringify(e22Suggestion),JSON.stringify([evidenceId]),"Validated synthetic E22 suggestion for persistence contract test."];
+      const recordedE22=await e22ServiceClient.query(
+        "select public.record_discovery_ai_match_suggestion($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8) as id",e22Args
+      );
+      const duplicateE22=await e22ServiceClient.query(
+        "select public.record_discovery_ai_match_suggestion($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8) as id",e22Args
+      );
+      const e22SuggestionId=recordedE22.rows[0].id;
+      assert.equal(duplicateE22.rows[0].id,e22SuggestionId,"same company, E11 result, request hash and model version are idempotent");
+      const initialE22Events=await e22ServiceClient.query(
+        "select count(*)::int as count from public.discovery_ai_match_suggestion_events where company_id=$1 and suggestion_id=$2",
+        [companyId,e22SuggestionId]
+      );
+      assert.equal(initialE22Events.rows[0].count,1,"duplicate persistence must not append a duplicate creation event");
+      await assert.rejects(
+        e22ServiceClient.query(
+          "select public.record_discovery_ai_match_suggestion($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)",
+          [companyId,e22MatchResultId,"b".repeat(64),"test-adapter","fixture-1",JSON.stringify({...e22Suggestion,requestHash:"b".repeat(64),advisoryScore:82.5}),JSON.stringify([evidenceId]),"Invalid fractional advisory score."]
+        ),
+        /invalid/
+      );
+    } finally {
+      await e22ServiceClient.query("reset role");
+      await e22ServiceClient.query("select set_config('request.jwt.claim.role','',false)");
+      e22ServiceClient.release();
+    }
+    const e22ReviewClient=await pool.connect();
+    try{
+      await e22ReviewClient.query("set role authenticated");
+      await e22ReviewClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const e22Inbox=await e22ReviewClient.query(
+        "select candidate_label,workspace_key,deterministic_score,advisory_score,review_state from public.discovery_ai_match_suggestion_inbox where company_id=$1 and id=$2",
+        [companyId,e22SuggestionId]
+      );
+      assert.deepEqual(e22Inbox.rows,[{
+        candidate_label:"Acme Holdings Pvt Ltd",workspace_key:"startup",deterministic_score:"75.00",
+        advisory_score:82,review_state:"pending_review"
+      }]);
+      await e22ReviewClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      await assert.rejects(
+        e22ReviewClient.query(
+          "select public.review_discovery_ai_match_suggestion($1,$2,'rejected','Viewer cannot review AI suggestions.')",
+          [companyId,e22SuggestionId]
+        ),
+        /Only company owners\/admins can review E22 suggestions/
+      );
+      await e22ReviewClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const e22Review=await e22ReviewClient.query(
+        "select public.review_discovery_ai_match_suggestion($1,$2,'accepted_for_review','Owner accepted this advisory output for further human review only.') as id",
+        [companyId,e22SuggestionId]
+      );
+      assert.ok(e22Review.rows[0].id);
+      const e22Reviewed=await e22ReviewClient.query(
+        "select review_state,reviewed_by,review_reason from public.discovery_ai_match_suggestion_inbox where company_id=$1 and id=$2",
+        [companyId,e22SuggestionId]
+      );
+      assert.equal(e22Reviewed.rows[0].review_state,"accepted_for_review");
+      assert.equal(e22Reviewed.rows[0].reviewed_by,actorId);
+      assert.match(e22Reviewed.rows[0].review_reason,/further human review only/);
+      const e22E11Baseline=await e22ReviewClient.query(
+        "select review_state,score from public.discovery_match_results where company_id=$1 and id=$2",
+        [companyId,e22MatchResultId]
+      );
+      assert.equal(e22E11Baseline.rows[0].review_state,"pending_review","E22 review must not alter the E11 decision state");
+      assert.equal(e22E11Baseline.rows[0].score,"75.00");
+      const e22History=await e22ReviewClient.query(
+        "select event_type,decision from public.discovery_ai_match_suggestion_events where company_id=$1 and suggestion_id=$2 order by occurred_at",
+        [companyId,e22SuggestionId]
+      );
+      assert.deepEqual(e22History.rows,[{event_type:"suggestion_recorded",decision:null},{event_type:"reviewed",decision:"accepted_for_review"}]);
+      await assert.rejects(
+        pool.query("update public.discovery_ai_match_suggestion_events set reason='tampered' where id=$1",[e22Review.rows[0].id]),
+        /append-only/
+      );
+    } finally {
+      await e22ReviewClient.query("reset role");
+      await e22ReviewClient.query("select set_config('request.jwt.claim.sub','',false)");
+      e22ReviewClient.release();
+    }
+    const e22Acl=await pool.query(
+      "select has_function_privilege('authenticated','public.record_discovery_ai_match_suggestion(uuid,uuid,text,text,text,jsonb,jsonb,text)','execute') as user_can_record,has_function_privilege('service_role','public.record_discovery_ai_match_suggestion(uuid,uuid,text,text,text,jsonb,jsonb,text)','execute') as service_can_record,has_function_privilege('authenticated','public.review_discovery_ai_match_suggestion(uuid,uuid,text,text)','execute') as user_can_review,has_function_privilege('service_role','public.review_discovery_ai_match_suggestion(uuid,uuid,text,text)','execute') as service_can_review"
+    );
+    assert.deepEqual(e22Acl.rows,[{user_can_record:false,service_can_record:true,user_can_review:true,service_can_review:false}]);
 
     const roleClaim = await pool.query(
       "select * from public.claim_discovery_professional_role_job($1,90)",
