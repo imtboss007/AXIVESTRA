@@ -369,7 +369,11 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "pepStatus", label: "PEP screening", placeholder: "Not run / negative / potential match" },
     { key: "riskRating", label: "Counterparty risk rating", placeholder: "Low / medium / high / critical" },
     { key: "reviewDueDate", label: "Next KYC review date", placeholder: "Date", type: "date" },
-    { key: "evidenceStatus", label: "Evidence checklist", placeholder: "ID, registration, BO, source of funds…" }
+    { key: "evidenceStatus", label: "Evidence checklist", placeholder: "ID, registration, BO, source of funds…" },
+    { key: "screeningSource", label: "Sanctions / PEP screening source", placeholder: "Provider / official list / source reference" },
+    { key: "lastScreenedDate", label: "Last screening date", placeholder: "Date", type: "date" },
+    { key: "reviewerRationale", label: "Reviewer rationale / match disposition", placeholder: "Reasoned review; distinguish false positive from confirmed match" },
+    { key: "remediationAction", label: "Remediation / outstanding requirement", placeholder: "Document, correction or review action" }
   ]
 };
 type ModuleContactField = { key: string; label: string };
@@ -378,11 +382,7 @@ const moduleContactFields: Record<string, ModuleContactField[]> = {
     { key: "__contact_seller", label: "Seller / property owner" },
     { key: "__contact_buyer", label: "Buyer" },
     { key: "__contact_broker", label: "Broker / agent" },
-    { key: "__contact_legalCounsel", label: "Lawyer / conveyance" },
-    { key: "screeningSource", label: "Sanctions / PEP screening source", placeholder: "Provider / official list / source reference" },
-    { key: "lastScreenedDate", label: "Last screening date", placeholder: "Date", type: "date" },
-    { key: "reviewerRationale", label: "Reviewer rationale / match disposition", placeholder: "Reasoned review; distinguish false positive from confirmed match" },
-    { key: "remediationAction", label: "Remediation / outstanding requirement", placeholder: "Document, correction or review action" }
+    { key: "__contact_legalCounsel", label: "Lawyer / conveyance" }
   ],
   "Property Loans": [
     { key: "__contact_borrower", label: "Borrower / applicant" },
