@@ -342,7 +342,7 @@ export function validateE11MatchCriteria(value) {
           !Object.keys(criterionValue).length ||
           Object.values(criterionValue).some(part => typeof part !== "number" || !Number.isFinite(part) || part < 0) ||
           (criterionValue.min !== undefined && criterionValue.max !== undefined && criterionValue.min > criterionValue.max) ||
-          (criterionValue.currencyCode !== undefined && (typeof criterionValue.currencyCode !== "string" || !/^[A-Z]{3}$/.test(criterionValue.currencyCode)))) {
+          (typeof criterionValue.currencyCode !== "string" || !/^[A-Z]{3}$/.test(criterionValue.currencyCode))) {
         throw new Error("E11 ticket.value must be a non-negative min/max range.");
       }
     } else {
