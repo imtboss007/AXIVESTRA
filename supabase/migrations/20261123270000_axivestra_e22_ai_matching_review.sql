@@ -22,7 +22,7 @@ create table if not exists public.discovery_ai_match_suggestions (
   reviewed_at timestamptz,
   review_reason text check (review_reason is null or length(review_reason)<=1000),
   unique(company_id,id),
-  unique(company_id,match_result_id,request_hash),
+  unique(company_id,match_result_id,request_hash,provider_id,model_version),
   foreign key(company_id,match_result_id)
     references public.discovery_match_results(company_id,id) on delete restrict,
   check ((reviewed_by is null and reviewed_at is null and review_reason is null)
@@ -178,11 +178,12 @@ begin
     trim(p_provider_id),trim(p_model_version),p_suggestion->>'recommendation',
     (p_suggestion->>'advisoryScore')::integer,p_suggestion->'reasons',p_evidence_ids,null
   )
-  on conflict(company_id,match_result_id,request_hash) do nothing
+  on conflict(company_id,match_result_id,request_hash,provider_id,model_version) do nothing
   returning id into v_id;
   if v_id is null then
     select id into v_id from public.discovery_ai_match_suggestions
-      where company_id=p_company_id and match_result_id=p_match_result_id and request_hash=p_request_hash;
+      where company_id=p_company_id and match_result_id=p_match_result_id and request_hash=p_request_hash
+        and provider_id=trim(p_provider_id) and model_version=trim(p_model_version);
     return v_id;
   end if;
 
