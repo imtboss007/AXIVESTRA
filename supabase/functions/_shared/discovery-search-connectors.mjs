@@ -13,6 +13,8 @@ function isPublicSearchHost(hostname) {
   const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
   if (!host || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") ||
       host.endsWith(".home") || host.includes(":")) return false;
+  const blockedSocialDomains = ["linkedin.com", "facebook.com", "instagram.com", "twitter.com", "x.com", "tiktok.com"];
+  if (blockedSocialDomains.some(domain => host === domain || host.endsWith("." + domain))) return false;
   // IP literals are intentionally excluded; source approval is based on HTTPS hostnames.
   if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return false;
   return true;
