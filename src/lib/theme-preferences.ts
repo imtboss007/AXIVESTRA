@@ -180,7 +180,10 @@ const readableVariables: Array<[string,keyof ThemePalette,keyof ThemePalette]> =
   ["--ax-theme-readable-muted-sidebar","muted","sidebar"],
   ["--ax-theme-readable-button-text","buttonText","primary"],
   ["--ax-theme-readable-primary-surface","primary","surface"],
-  ["--ax-theme-readable-accent-surface","accent","surface"]
+  ["--ax-theme-readable-primary-active","primary","active"],
+  ["--ax-theme-readable-primary-raised","primary","raised"],
+  ["--ax-theme-readable-accent-surface","accent","surface"],
+  ["--ax-theme-readable-accent-panel","accent","panel"]
 ];
 
 export function applyThemePreferences(preferences: ThemePreferences, target?: HTMLElement | null): "dark" | "light" | null {
