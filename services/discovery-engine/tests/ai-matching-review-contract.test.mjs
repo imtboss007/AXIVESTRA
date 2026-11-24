@@ -25,7 +25,7 @@ test("only the isolated service role can persist validated suggestions", async (
 
 test("owner/admin review is reasoned, bounded and append-only", async () => {
   const sql = await read("supabase/migrations/20261123270000_axivestra_e22_ai_matching_review.sql");
-  assert.match(sql, /coalesce\(v_role,' '\) not in \('owner','admin'\)/i);
+  assert.match(sql, /coalesce\\(v_role,''\\) not in \('owner','admin'\)/i);
   assert.match(sql, /accepted_for_review','rejected','needs_more_evidence/i);
   assert.match(sql, /10–1000 characters/i);
   assert.match(sql, /before update or delete on public\.discovery_ai_match_suggestion_events/i);
