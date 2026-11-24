@@ -62,8 +62,8 @@ create policy discovery_ai_match_suggestion_events_company_read on public.discov
 revoke all on public.discovery_ai_match_suggestions,public.discovery_ai_match_suggestion_events
   from public,anon,authenticated,service_role;
 grant select on public.discovery_ai_match_suggestions,public.discovery_ai_match_suggestion_events to authenticated;
-grant select,insert,update on public.discovery_ai_match_suggestions to service_role;
-grant select,insert on public.discovery_ai_match_suggestion_events to service_role;
+grant select,insert on public.discovery_ai_match_suggestions to service_role;
+grant select on public.discovery_ai_match_suggestion_events to service_role;
 
 create or replace function public.prevent_discovery_ai_match_event_mutation()
 returns trigger language plpgsql
