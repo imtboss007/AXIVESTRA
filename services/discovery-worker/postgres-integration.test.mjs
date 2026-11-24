@@ -1697,6 +1697,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       canonicalMutationAllowed:false,
       leadPromotionAllowed:false
     };
+    let e22SuggestionId;
     const e22ServiceClient=await pool.connect();
     try{
       await e22ServiceClient.query("set role service_role");
@@ -1708,7 +1709,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       const duplicateE22=await e22ServiceClient.query(
         "select public.record_discovery_ai_match_suggestion($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8) as id",e22Args
       );
-      const e22SuggestionId=recordedE22.rows[0].id;
+      e22SuggestionId=recordedE22.rows[0].id;
       assert.equal(duplicateE22.rows[0].id,e22SuggestionId,"same company, E11 result, request hash and model version are idempotent");
       const initialE22Events=await e22ServiceClient.query(
         "select count(*)::int as count from public.discovery_ai_match_suggestion_events where company_id=$1 and suggestion_id=$2",
