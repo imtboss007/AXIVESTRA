@@ -90,7 +90,7 @@ test("E21 authenticated browser acceptance is gated to a dedicated QA provenance
   assert.match(browserAcceptance, /Submit for review/);
   assert.match(browserAcceptance, /Approve pack/);
   assert.match(browserAcceptance, /Export SHA-256 hashed manifest/);
-  assert.match(browserAcceptance, /does not alter|does not copy/i);
+  assert.match(browserAcceptance, /leaves the approved QA pack and its immutable history/i);
   assert.match(workflow, /tests\/browser\/axivestra-evidence-pack-workspace\.spec\.ts/);
   assert.match(workflow, /AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID/);
   assert.match(workflow, /Validate authenticated browser acceptance test discovery/);
