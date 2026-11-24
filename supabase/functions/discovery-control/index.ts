@@ -344,7 +344,7 @@ Deno.serve(async request => {
       if (reviewsError) throw reviewsError;
       if (evidenceError) throw evidenceError;
       return jsonResponse(200, {
-        ok: true, runs: runs || [], facts: facts || [], entities: entities || [], reviews: reviews || [], evidence: evidence || [],
+        ok: true, runs: runs || [], facts: redactExtractedFacts(facts || []), entities: entities || [], reviews: reviews || [], evidence: evidence || [],
         limits: { runs: 25, facts: 1000, entities: 500, reviews: 1000, evidence: 25 }
       });
     }
