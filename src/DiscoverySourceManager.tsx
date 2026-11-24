@@ -537,7 +537,7 @@ export default function DiscoverySourceManager({
       </form>
       <section className="discovery-profile-coverage" aria-label="Workspace profile coverage">
         <div className="discovery-profile-coverage-head">
-          <div><span className="section-kicker">16 WORKSPACES · 2 MODES</span><h3>Discovery coverage</h3><p>{profiles.length} of 32 profiles configured · {profiles.filter(profile => profile.enabled).length} enabled · {WORKSPACES.filter(([key]) => ["personal_loan","litigation"].some(disabled => getDefaultWorkspaceCriteria(key,"LENDER").disabledByPolicy || getDefaultWorkspaceCriteria(key,"CUSTOMER").disabledByPolicy)).length} workspaces contain a policy-restricted mode.</p></div>
+          <div><span className="section-kicker">16 WORKSPACES · 2 MODES</span><h3>Discovery coverage</h3><p>{profiles.length} of 32 profiles configured · {profiles.filter(profile => profile.enabled).length} enabled · {WORKSPACES.filter(([key]) => getDefaultWorkspaceCriteria(key,"LENDER").disabledByPolicy || getDefaultWorkspaceCriteria(key,"CUSTOMER").disabledByPolicy).length} workspaces contain a policy-restricted mode.</p></div>
         </div>
         <div className="discovery-profile-coverage-scroll">
           <table className="discovery-profile-coverage-table">
@@ -554,7 +554,7 @@ export default function DiscoverySourceManager({
                 const stateLabel = restricted ? "Policy restricted" : profile?.enabled ? "Enabled" : profile ? "Configured · disabled" : "Not configured";
                 return <td key={mode}>
                   <span className={"discovery-coverage-state " + (restricted ? "is-restricted" : profile?.enabled ? "is-enabled" : profile ? "is-configured" : "is-missing")}>{stateLabel}</span>
-                  {profile && <small>{attached.length} source(s) · {enrichmentSources} E10-enabled</small>}
+                  {profile && <small>{attached.length} source(s) · {enrichmentSources} enrichment-purpose</small>}
                   {!profile && !restricted && <small>Choose purpose and create profile below</small>}
                   {restricted && <small>{mode === "CUSTOMER" && workspaceKey === "personal_loan" ? "Inbound / referral / consented intake only" : "Requires a separately governed workflow"}</small>}
                 </td>;
