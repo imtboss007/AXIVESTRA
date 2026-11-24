@@ -152,12 +152,13 @@ test("server profile normalization enforces the explicit E11 match criteria cont
       disabledByPolicy: false,
       matchCriteria: {
         geography: { value: ["Karnataka"], weight: 2 },
-        ticket: { value: { min: 1000000, max: 50000000 }, weight: 3, required: true },
+        ticket: { value: { min: 1000000, max: 50000000, currencyCode: "INR" }, weight: 3, required: true },
         evidence_freshness: { maxAgeDays: 90, weight: 1 }
       }
     }
   });
   assert.equal(profile.criteria.matchCriteria.ticket.required, true);
+  assert.equal(profile.criteria.matchCriteria.ticket.value.currencyCode, "INR");
   assert.equal(profile.criteria.matchCriteria.evidence_freshness.maxAgeDays, 90);
   assert.throws(() => normalizeProfile({
     workspaceKey: "property_loans", discoveryMode: "LENDER", purpose, enabled: false,
