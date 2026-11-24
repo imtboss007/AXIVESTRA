@@ -128,7 +128,8 @@ async function executeJob(admin, job, workerId, signal, contactKeys) {
     bytes,
     contentType: evidence.content_type,
     source,
-    contentHash: evidence.content_hash
+    contentHash: evidence.content_hash,
+    htmlParserBackend: process.env.AXIVESTRA_HTML_PARSER_BACKEND === "scrapling" ? "scrapling" : "htmlparser2"
   });
   throwIfAborted(signal);
 
@@ -213,7 +214,8 @@ export async function runExtractionWorker() {
   let stopping = false;
   process.once("SIGINT", () => { stopping = true; });
   process.once("SIGTERM", () => { stopping = true; });
-  console.info("AXIVESTRA deterministic extraction worker started with " + concurrency + " bounded slot(s). It performs no network access and no LLM calls.");
+  const htmlParserBackend = process.env.AXIVESTRA_HTML_PARSER_BACKEND === "scrapling" ? "scrapling" : "htmlparser2";
+  console.info("AXIVESTRA deterministic extraction worker started with " + concurrency + " bounded slot(s); HTML parser=" + htmlParserBackend + ". It performs no network access and no LLM calls.");
   while (!stopping) {
     const outcomes = await Promise.all(workerSlots.map(async slotId => {
       try {
