@@ -22,8 +22,14 @@ assert.match(app,/applyThemePreferences\(savedTheme\)/,"Saved appearance must lo
 assert.match(helper,/THEME_STORAGE_KEY\s*=\s*"axivestra\.themePreferences\.v1"/,"Theme preferences must have a stable local key.");
 assert.match(helper,/localStorage\.setItem/,"Theme preferences must persist locally.");
 assert.match(helper,/data-ax-theme-mode/,"Light/dark/system mode must be applied to the actual app shell.");
+assert.match(helper,/export function getContrastRatio/,"Theme contrast must be calculated from selected colours.");
+assert.match(helper,/export function getReadableForeground/,"Theme must derive a readable foreground when contrast is too low.");
+assert.match(helper,/getReadableForeground\(palette\[foregroundField\],palette\[backgroundField\]\)/,"Every text/background pairing must be guarded.");
+assert.match(studio,/4\.5:1/,"Theme Studio must explain its AA contrast guard.");
 assert.match(helper,/^export function clearThemeApplication/m,"Cancel must be able to restore the unthemed current application.");
 assert.match(studio,/aria-pressed/,"Theme choices must expose selected state accessibly.");
+assert.match(studio,/STYLE PREVIEW · SAMPLE ONLY/,"Theme preview must not present invented figures as live business data.");
+assert.doesNotMatch(studio,/₹2\.45 Cr|Open actions<\/small><strong>08/,"Theme preview must not display fabricated business metrics.");
 assert.match(studio,/type="color"/,"The palette must include a colour picker.");
 assert.match(studio,/type="text" value=\{palette\[key\]\.toUpperCase\(\)\}/,"The palette must include editable HEX values.");
 assert.match(css,/\.ax-modern-shell\[data-ax-theme\]/,"Theme values must style the existing application shell.");
