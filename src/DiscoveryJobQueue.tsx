@@ -264,7 +264,7 @@ export default function DiscoveryJobQueue({
             <b>Target classes</b><small>{Array.isArray(selectedProfile.criteria?.targetClasses) ? selectedProfile.criteria.targetClasses.join(" · ") : "Configure profile criteria first."}</small>
             <b>Suggested research queries</b><small>{queryHints.length ? queryHints.slice(0, 8).join(" · ") : "No query hints available."}</small>
             <small>These are deterministic research hints. Use the separate public-directory search below to retrieve unverified result links.</small>
-          </div>
+          </div>}
           <div className="discovery-search-preview">
             <div className="section-kicker">E03 · PUBLIC DIRECTORY SEARCH</div>
             <div className="discovery-search-filter-grid">
