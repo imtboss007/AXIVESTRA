@@ -4,7 +4,7 @@ export type E11MatchRule =
   | { value: { min?: number; max?: number; currencyCode?: string }; weight?: number; required?: boolean };
 export type E11FreshnessRule = { maxAgeDays: number; weight?: number; required?: boolean };
 export type E11MatchCriteria = Partial<Record<
-  "geography" | "type" | "ticket" | "instrument" | "collateral" | "stage" | "mandate",
+  "geography" | "type" | "sector" | "ticket" | "instrument" | "collateral" | "stage" | "mandate",
   E11MatchRule
 > & { evidence_freshness: E11FreshnessRule }>;
 
