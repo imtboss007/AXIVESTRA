@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactExtractedFacts } from "../_shared/discovery-contact-redaction.mjs";
+import { buildSearxngQueries, searchSearxng } from "../_shared/discovery-search-connectors.mjs";
 import {
   normalizeSourceRegistration,
   normalizeSourceReview,
@@ -115,6 +116,89 @@ Deno.serve(async request => {
         .select("profile_id,source_id,created_at").eq("company_id", companyId);
       if (linkError) throw linkError;
       return jsonResponse(200, { ok: true, profiles: profiles || [], sourceLinks: links || [] });
+    }
+
+    if (action === "search.preview") {
+      if (!isUuid(payload.profileId)) return jsonResponse(400, { error: "A valid workspace discovery profile is required." });
+      if (Deno.env.get("DISCOVERY_SEARXNG_ENABLED") !== "true") {
+        return jsonResponse(503, { error: "The optional self-hosted search connector is disabled. Configure and enable the SearXNG service before searching." });
+      }
+      const searchBaseUrl = Deno.env.get("DISCOVERY_SEARXNG_URL") || "";
+      const searchBearerToken = Deno.env.get("DISCOVERY_SEARXNG_BEARER_TOKEN") || "";
+      if (!searchBaseUrl) return jsonResponse(503, { error: "The self-hosted SearXNG endpoint is not configured on this AXIVESTRA server." });
+
+      const { data: profile, error: profileError } = await admin.from("discovery_profiles")
+        .select("*").eq("company_id", companyId).eq("id", payload.profileId).maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) return jsonResponse(404, { error: "The discovery profile was not found in this company." });
+      if (profile.enabled !== true) return jsonResponse(409, { error: "Enable this workspace profile before searching." });
+      if (profile.criteria?.disabledByPolicy === true) return jsonResponse(403, { error: "This workspace/mode is disabled by discovery policy." });
+      if (profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER") {
+        return jsonResponse(403, { error: "Personal Loan borrower discovery is limited to inbound, referred, user-entered or explicitly consented intake." });
+      }
+      if (profile.workspace_key === "litigation" && profile.discovery_mode === "LENDER") {
+        return jsonResponse(403, { error: "Litigation lender discovery remains disabled until separately configured and legally reviewed." });
+      }
+
+      const { data: links, error: linkError } = await admin.from("discovery_profile_sources")
+        .select("source_id").eq("company_id", companyId).eq("profile_id", profile.id);
+      if (linkError) throw linkError;
+      const sourceIds = [...new Set((links || []).map((item: { source_id: string }) => item.source_id))];
+      if (!sourceIds.length) return jsonResponse(409, { error: "Attach at least one approved source to this profile before searching." });
+      const { data: sources, error: sourcesError } = await admin.from("discovery_source_registry")
+        .select("*").eq("company_id", companyId).eq("status", "approved").in("id", sourceIds).limit(100);
+      if (sourcesError) throw sourcesError;
+      const eligibleSources = (sources || []).filter((source: Record<string, unknown>) => {
+        try { assertSourceCanBeAttached(profile, source); return true; } catch { return false; }
+      });
+      if (!eligibleSources.length) return jsonResponse(409, { error: "This profile has no currently approved and purpose-matched source attached." });
+
+      const filters = isObject(payload.filters) ? {
+        location: typeof payload.filters.location === "string" ? payload.filters.location.slice(0, 120) : "",
+        sector: typeof payload.filters.sector === "string" ? payload.filters.sector.slice(0, 100) : "",
+        product: typeof payload.filters.product === "string" ? payload.filters.product.slice(0, 100) : "",
+        stage: typeof payload.filters.stage === "string" ? payload.filters.stage.slice(0, 80) : "",
+        instrument: typeof payload.filters.instrument === "string" ? payload.filters.instrument.slice(0, 80) : ""
+      } : {};
+      const queries = buildSearxngQueries(profile.criteria || {}, filters);
+      const resultsByUrl = new Map<string, Record<string, unknown>>();
+      for (const query of queries) {
+        const rows = await searchSearxng({
+          baseUrl: searchBaseUrl,
+          query,
+          limit: 10,
+          bearerToken: searchBearerToken
+        });
+        for (const candidate of rows) {
+          const url = String(candidate.url || "");
+          let approvedSource: Record<string, unknown> | null = null;
+          for (const source of eligibleSources as Record<string, unknown>[]) {
+            try {
+              assertAllowedSourceUrl(source, url);
+              approvedSource = source;
+              break;
+            } catch {
+              // Search results outside a separately approved exact host/path remain unapproved.
+            }
+          }
+          resultsByUrl.set(url, {
+            ...candidate,
+            approvedSourceId: approvedSource?.id || null,
+            approvedSourceName: approvedSource?.name || null,
+            fetchEligible: Boolean(approvedSource)
+          });
+          if (resultsByUrl.size >= 30) break;
+        }
+        if (resultsByUrl.size >= 30) break;
+      }
+      const results = [...resultsByUrl.values()].slice(0, 30);
+      return jsonResponse(200, {
+        ok: true,
+        profile: { id: profile.id, workspace_key: profile.workspace_key, discovery_mode: profile.discovery_mode },
+        queries,
+        results,
+        message: "Search results are unverified candidates, not evidence or verified contacts. Only URLs inside an already approved, attached source path may be added to the E04 queue. Other domains need separate source registration and owner/admin approval."
+      });
     }
 
     if (action === "workers.status") {
