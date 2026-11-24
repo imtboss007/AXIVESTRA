@@ -6453,3 +6453,13 @@ h2,h3{color:#e5f2fc}
 .discovery-evidence-search{max-width:520px}
 .discovery-evidence-catalogue .discovery-evidence-candidate-list{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
 @media(max-width:760px){.discovery-evidence-layout{grid-template-columns:minmax(0,1fr)}.discovery-evidence-catalogue .discovery-evidence-candidate-list{grid-template-columns:minmax(0,1fr)}.discovery-evidence-pack-choice{align-items:flex-start}}
+
+/* E22 owner/admin advisory suggestion review desk */
+.e22-review-workspace{display:grid;gap:14px}
+.e22-review-card{display:grid;gap:12px}
+.e22-reasons{display:grid;gap:6px;padding:10px;border:1px solid var(--border,rgba(128,128,128,.22));border-radius:9px}
+.e22-reasons span,.e22-reasons small{font-size:12px;color:var(--muted,#737373);overflow-wrap:anywhere}
+.e22-history{padding:9px;border:1px solid var(--border,rgba(128,128,128,.22));border-radius:9px}
+.e22-history summary{cursor:pointer;font-size:12px;font-weight:650}
+.e22-history>div{display:grid;gap:3px;padding:8px 0;border-top:1px solid var(--border,rgba(128,128,128,.16))}
+.e22-history small{font-size:11px;color:var(--muted,#737373);overflow-wrap:anywhere}
