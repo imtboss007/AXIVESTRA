@@ -27,7 +27,6 @@ on:
       - feat/discovery-e09-geo-resolution
       - feat/discovery-e10-enrichment
       - feat/discovery-e11-explainable-matching
-      - feat/discovery-e10-enrichment
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
