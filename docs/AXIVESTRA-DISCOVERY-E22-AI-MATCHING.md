@@ -2,7 +2,7 @@
 
 **Revised roadmap capability:** E12 AI Matching  
 **Technical stage:** E22  
-**Status:** advisory core and synthetic evaluation contract implemented; real model-provider integration and adjudicated production evaluation remain disabled/pending.
+**Status:** advisory core, synthetic evaluation contract, durable company-scoped suggestion ledger and owner/admin review desk implemented on the feature branch. Real model-provider integration, production adjudication and authenticated browser acceptance remain disabled/pending.
 
 ## Purpose
 
