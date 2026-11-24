@@ -1733,6 +1733,15 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         ),
         /not registered to this company/
       );
+      await assert.rejects(
+        e22ServiceClient.query(
+          "select public.record_discovery_ai_match_suggestion($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)",
+          [companyId,e22MatchResultId,"d".repeat(64),"test-adapter","fixture-1",
+            JSON.stringify({...e22Suggestion,requestHash:"d".repeat(64),reasons:[{code:"aligned",evidenceIds:[evidenceId]}]}),
+            JSON.stringify([evidenceId]),"Reject a reason without its required criterion."]
+        ),
+        /unapproved criterion, code or evidence reference/
+      );
     } finally {
       await e22ServiceClient.query("reset role");
       await e22ServiceClient.query("select set_config('request.jwt.claim.role','',false)");
