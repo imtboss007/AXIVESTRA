@@ -3,9 +3,10 @@ import type { FormEvent } from "react";
 import { supabase } from "./lib/supabase";
 import { Activity, Clock3, LoaderCircle, PlayCircle, RefreshCw, ShieldAlert, ShieldCheck, Square, Waypoints } from "lucide-react";
 import { BorderBeam } from "./components/BorderBeam";
+import { buildDiscoveryQueryHints } from "./lib/discovery-profiles.mjs";
 
 type Source = { id: string; name: string; status: string; max_pages_per_job: number; rate_limit_per_minute: number };
-type Profile = { id: string; workspace_key: string; discovery_mode: "LENDER" | "CUSTOMER"; purpose: string; enabled: boolean };
+type Profile = { id: string; workspace_key: string; discovery_mode: "LENDER" | "CUSTOMER"; purpose: string; enabled: boolean; criteria: Record<string, unknown> };
 type Link = { profile_id: string; source_id: string };
 type Job = {
   id: string; profile_id: string; source_id: string; status: string;
@@ -56,6 +57,9 @@ export default function DiscoveryJobQueue({
   }, [links, profileId, sources]);
   const selectedProfile = eligibleProfiles.find(profile => profile.id === profileId);
   const selectedSource = eligibleSources.find(source => source.id === sourceId);
+  const queryHints = useMemo(() => selectedProfile
+    ? buildDiscoveryQueryHints(selectedProfile.criteria || {})
+    : [], [selectedProfile]);
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("An authenticated company workspace is required.");
@@ -123,7 +127,7 @@ export default function DiscoveryJobQueue({
         profileId: selectedProfile.id,
         sourceId: selectedSource.id,
         purpose: selectedProfile.purpose,
-        criteria: {},
+        criteria: selectedProfile.criteria || {},
         candidateUrls: urls,
         idempotencyKey
       });
@@ -186,6 +190,12 @@ export default function DiscoveryJobQueue({
               {eligibleSources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}
             </select>
           </label>
+          {selectedProfile && <div className="discovery-planner-preview">
+            <span className="section-kicker">E01 · PROFILE-DRIVEN SEARCH PLAN</span>
+            <b>Target classes</b><small>{Array.isArray(selectedProfile.criteria?.targetClasses) ? selectedProfile.criteria.targetClasses.join(" · ") : "Configure profile criteria first."}</small>
+            <b>Suggested research queries</b><small>{queryHints.length ? queryHints.slice(0, 8).join(" · ") : "No query hints available."}</small>
+            <small>These are deterministic research hints, not a live search request. Only explicitly supplied candidate URLs are queued by E04.</small>
+          </div>}
           <label>Candidate URLs <span className="discovery-optional">(one per line)</span>
             <textarea rows={5} value={candidateText} onChange={event => setCandidateText(event.target.value)} disabled={!selectedSource || busy === "enqueue"} placeholder={"https://approved-source.example/api/v1/record/123"} />
           </label>
