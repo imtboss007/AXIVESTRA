@@ -24,6 +24,10 @@ test("only the isolated service role can persist validated suggestions", async (
   assert.ok(sql.includes("E22 rationale contains an unapproved criterion, code or evidence reference."));
   assert.ok(sql.includes("where e.company_id=p_company_id and e.id=v_evidence_id"));
   assert.ok(sql.includes("E22 evidence identifier is not registered to this company."));
+  assert.ok(sql.includes("nullif(v_reason->>'criterion','') is null"));
+  assert.ok(sql.includes("nullif(v_reason->>'code','') is null"));
+  assert.ok(sql.includes("jsonb_typeof(v_reason->'evidenceIds') is distinct from 'array'"));
+  assert.ok(sql.includes("jsonb_typeof(p_suggestion) is distinct from 'object'"));
 });
 
 test("owner/admin review is reasoned, bounded and append-only", async () => {
