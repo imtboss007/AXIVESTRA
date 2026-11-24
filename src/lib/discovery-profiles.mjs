@@ -292,6 +292,76 @@ const WORKSPACE_PROFILES = {
   }
 };
 
+const E11_MATCH_KEYS = Object.freeze([
+  "geography", "type", "ticket", "instrument", "collateral", "stage", "mandate", "evidence_freshness"
+]);
+
+export const E11_MATCH_CRITERIA = E11_MATCH_KEYS;
+
+export function validateE11MatchCriteria(value) {
+  const input = value === undefined || value === null ? {} : value;
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("matchCriteria must be a JSON object.");
+  }
+  const result = {};
+  for (const [key, rule] of Object.entries(input)) {
+    if (!E11_MATCH_KEYS.includes(key)) {
+      throw new Error("Unsupported E11 match criterion: " + key + ".");
+    }
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) {
+      throw new Error("E11 " + key + " criteria must be an object.");
+    }
+    const allowedProperties = key === "evidence_freshness"
+      ? ["maxAgeDays", "weight", "required"]
+      : ["value", "weight", "required"];
+    if (Object.keys(rule).some(property => !allowedProperties.includes(property))) {
+      throw new Error("E11 " + key + " contains an unsupported criterion property.");
+    }
+    const weight = rule.weight === undefined ? 1 : rule.weight;
+    if (typeof weight !== "number" || !Number.isFinite(weight) || weight < 0 || weight > 100) {
+      throw new Error("E11 " + key + " weight must be between 0 and 100.");
+    }
+    if (rule.required !== undefined && typeof rule.required !== "boolean") {
+      throw new Error("E11 " + key + " required must be boolean.");
+    }
+    if (key === "evidence_freshness") {
+      if (typeof rule.maxAgeDays !== "number" || !Number.isFinite(rule.maxAgeDays) ||
+          rule.maxAgeDays < 0 || rule.maxAgeDays > 3650) {
+        throw new Error("E11 evidence_freshness.maxAgeDays must be between 0 and 3650.");
+      }
+      result[key] = { maxAgeDays: rule.maxAgeDays, weight, required: rule.required === true };
+      continue;
+    }
+    if (!Object.prototype.hasOwnProperty.call(rule, "value")) {
+      throw new Error("E11 " + key + " must include an explicit value.");
+    }
+    const criterionValue = rule.value;
+    if (key === "ticket") {
+      if (!criterionValue || typeof criterionValue !== "object" || Array.isArray(criterionValue) ||
+          Object.keys(criterionValue).some(part => !["min", "max"].includes(part)) ||
+          !Object.keys(criterionValue).length ||
+          Object.values(criterionValue).some(part => typeof part !== "number" || !Number.isFinite(part) || part < 0) ||
+          (criterionValue.min !== undefined && criterionValue.max !== undefined && criterionValue.min > criterionValue.max)) {
+        throw new Error("E11 ticket.value must be a non-negative min/max range.");
+      }
+    } else {
+      const isValid = typeof criterionValue === "string" && criterionValue.trim().length > 0 ||
+        typeof criterionValue === "number" && Number.isFinite(criterionValue) ||
+        Array.isArray(criterionValue) && criterionValue.length > 0 && criterionValue.length <= 40 &&
+          criterionValue.every(item => typeof item === "string" && item.trim().length > 0 && item.length <= 120);
+      if (!isValid) {
+        throw new Error("E11 " + key + ".value must be a non-empty string, finite number or bounded list of strings.");
+      }
+    }
+    result[key] = { value: criterionValue, weight, required: rule.required === true };
+  }
+  return result;
+}
+
+export function getE11MatchCriteria(workspaceCriteria) {
+  return validateE11MatchCriteria(workspaceCriteria?.matchCriteria);
+}
+
 export const DISCOVERY_WORKSPACE_KEYS = Object.freeze(Object.keys(WORKSPACE_PROFILES));
 
 export function getDefaultWorkspaceCriteria(workspaceKey, mode) {
@@ -305,6 +375,7 @@ export function getDefaultWorkspaceCriteria(workspaceKey, mode) {
     targetClasses: [...profile.targetClasses],
     requiredFields: [...profile.requiredFields],
     sourceRequiredFields: [],
+    matchCriteria: {},
     preferredFields: [...profile.preferredFields],
     matchDimensions: [...profile.matchDimensions],
     sourcePriorities: [...profile.sourcePriorities],
@@ -339,6 +410,7 @@ export function validateWorkspaceCriteria(value, workspaceKey, mode) {
   if (result.sourceRequiredFields.some(field => !result.requiredFields.includes(field) && !result.preferredFields.includes(field))) {
     throw new Error("Every source-required field must also be a final required or preferred workspace field.");
   }
+  result.matchCriteria = validateE11MatchCriteria(value.matchCriteria);
   if (expectedMode === "CUSTOMER" && workspaceKey === "personal_loan") {
     result.disabledByPolicy = true;
   } else {
