@@ -7,6 +7,7 @@ const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
 const studio = fs.readFileSync(path.join(root, "src", "ThemeStudio.tsx"), "utf8");
 const helper = fs.readFileSync(path.join(root, "src", "lib", "theme-preferences.ts"), "utf8");
 const css = fs.readFileSync(path.join(root, "src", "styles.css"), "utf8");
+const portfolio = fs.readFileSync(path.join(root, "src", "PortfolioAnalytics.tsx"), "utf8");
 
 for (const name of [
   "AXIVESTRA Signature", "Titanium Graphite", "Obsidian Emerald", "Midnight Sapphire",
@@ -33,6 +34,9 @@ assert.doesNotMatch(studio,/₹2\.45 Cr|Open actions<\/small><strong>08/,"Theme 
 assert.match(studio,/type="color"/,"The palette must include a colour picker.");
 assert.match(studio,/type="text" value=\{palette\[key\]\.toUpperCase\(\)\}/,"The palette must include editable HEX values.");
 assert.match(css,/\.ax-modern-shell\[data-ax-theme\]/,"Theme values must style the existing application shell.");
+assert.match(css,/ax-orbit-core__sphere[\s\S]*?--ax-theme-chart/,"Orbital 3D sphere must respond to theme chart/graph tokens.");
+assert.match(css,/ax-intent-module-bars[\s\S]*?--ax-theme-chart/,"Intent Canvas charts must use theme colour tokens.");
+assert.match(portfolio,/var\(--ax-theme-chart/,"Portfolio chart series must use theme colour tokens.");
 assert.match(css,/@media\s*\(max-width:\s*720px\)[\s\S]*?\.ax-theme-studio__palette/,"Theme Studio must have a mobile-responsive palette layout.");
 assert.match(css,/@media\s*\(prefers-reduced-motion:\s*reduce\)/,"Theme preview must respect reduced-motion preferences.");
 console.log("AXIVESTRA Theme Studio contract passed.");
