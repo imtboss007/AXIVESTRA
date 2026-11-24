@@ -154,8 +154,113 @@ begin
     raise exception 'The company-scoped E11 match result was not found.' using errcode='P0002';
   end if;
   for v_item in select value from jsonb_array_elements(p_evidence_ids) loop
-    if jsonb_typeof(v_item)<>'string' or length(v_item#>>'{}') not between 1 and 80 then
-      raise exception 'E22 evidence identifiers must be bounded strings.' using errcode='22023';
+    if jsonb_typeof(v_item)<>'string'
+      or (v_item#>>'{}') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}
+  v_allowed_evidence:=p_evidence_ids;
+  for v_reason in select value from jsonb_array_elements(p_suggestion->'reasons') loop
+    if jsonb_typeof(v_reason)<>'object'
+      or v_reason->>'criterion' not in ('geography','type','ticket','instrument','collateral','stage','mandate')
+      or v_reason->>'code' not in ('aligned','misaligned','unknown','needs_verification')
+      or jsonb_typeof(v_reason->'evidenceIds')<>'array'
+      or exists(select 1 from jsonb_array_elements(v_reason->'evidenceIds') x
+        where not (v_allowed_evidence @> jsonb_build_array(x.value))) then
+      raise exception 'E22 rationale contains an unapproved criterion, code or evidence reference.' using errcode='22023';
+    end if;
+  end loop;
+
+  insert into public.discovery_ai_match_suggestions(
+    company_id,match_result_id,request_hash,policy_version,provider_id,model_version,
+    recommendation,advisory_score,reasons,evidence_ids,created_by
+  ) values (
+    p_company_id,p_match_result_id,p_request_hash,'e22_advisory_matching_v1',
+    trim(p_provider_id),trim(p_model_version),p_suggestion->>'recommendation',
+    (p_suggestion->>'advisoryScore')::integer,p_suggestion->'reasons',p_evidence_ids,null
+  )
+  on conflict(company_id,match_result_id,request_hash,provider_id,model_version) do nothing
+  returning id into v_id;
+  if v_id is null then
+    select id into v_id from public.discovery_ai_match_suggestions
+      where company_id=p_company_id and match_result_id=p_match_result_id and request_hash=p_request_hash
+        and provider_id=trim(p_provider_id) and model_version=trim(p_model_version);
+    return v_id;
+  end if;
+
+  insert into public.discovery_ai_match_suggestion_events(
+    company_id,suggestion_id,event_type,reason,details
+  ) values (
+    p_company_id,v_id,'suggestion_recorded',trim(p_reason),
+    jsonb_build_object('providerId',trim(p_provider_id),'modelVersion',trim(p_model_version),
+      'recommendation',p_suggestion->>'recommendation','advisoryScore',(p_suggestion->>'advisoryScore')::integer)
+  );
+  return v_id;
+end;
+$record$;
+
+create or replace function public.review_discovery_ai_match_suggestion(
+  p_company_id uuid,p_suggestion_id uuid,p_decision text,p_reason text
+) returns uuid
+language plpgsql security definer
+set search_path=public,pg_temp
+as $review$
+declare
+  v_actor uuid:=auth.uid();
+  v_role text;
+  v_suggestion public.discovery_ai_match_suggestions%rowtype;
+  v_event_id uuid;
+begin
+  select role into v_role from public.company_memberships
+    where company_id=p_company_id and user_id=v_actor;
+  if v_actor is null or coalesce(v_role,'') not in ('owner','admin') then
+    raise exception 'Only company owners/admins can review E22 suggestions.' using errcode='42501';
+  end if;
+  if p_decision not in ('accepted_for_review','rejected','needs_more_evidence') then
+    raise exception 'Choose an allowed human review decision.' using errcode='22023';
+  end if;
+  if p_reason is null or p_reason<>trim(p_reason) or length(p_reason) not between 10 and 1000 then
+    raise exception 'A review reason of 10–1000 characters is required.' using errcode='22023';
+  end if;
+  select * into v_suggestion from public.discovery_ai_match_suggestions
+    where company_id=p_company_id and id=p_suggestion_id for update;
+  if not found or v_suggestion.review_state<>'pending_review' then
+    raise exception 'Only a pending E22 suggestion can be reviewed.' using errcode='55000';
+  end if;
+  update public.discovery_ai_match_suggestions
+    set review_state=p_decision,reviewed_by=v_actor,reviewed_at=clock_timestamp(),review_reason=p_reason
+    where company_id=p_company_id and id=p_suggestion_id;
+  insert into public.discovery_ai_match_suggestion_events(
+    company_id,suggestion_id,actor_user_id,event_type,decision,reason,details
+  ) values (
+    p_company_id,p_suggestion_id,v_actor,'reviewed',p_decision,p_reason,
+    jsonb_build_object('reviewerRole',v_role)
+  ) returning id into v_event_id;
+  return v_event_id;
+end;
+$review$;
+
+revoke all on function public.record_discovery_ai_match_suggestion(uuid,uuid,text,text,text,jsonb,jsonb,text)
+  from public,anon,authenticated;
+grant execute on function public.record_discovery_ai_match_suggestion(uuid,uuid,text,text,text,jsonb,jsonb,text)
+  to service_role;
+revoke all on function public.review_discovery_ai_match_suggestion(uuid,uuid,text,text)
+  from public,anon,service_role;
+grant execute on function public.review_discovery_ai_match_suggestion(uuid,uuid,text,text)
+  to authenticated;
+
+comment on table public.discovery_ai_match_suggestions is
+  'E22 validated advisory suggestions. No AI suggestion approves, rejects, mutates canonical data or promotes a lead.';
+comment on table public.discovery_ai_match_suggestion_events is
+  'E22 append-only suggestion creation and owner/admin review history.';
+comment on view public.discovery_ai_match_suggestion_inbox is
+  'Company-scoped E22 review queue joined to the authoritative E11 deterministic baseline.';
+commit;
+ then
+      raise exception 'E22 evidence identifiers must be UUIDs.' using errcode='22023';
+    end if;
+    if not exists(
+      select 1 from public.discovery_evidence_items e
+      where e.company_id=p_company_id and e.id=(v_item#>>'{}')::uuid
+    ) then
+      raise exception 'E22 evidence identifier is not registered to this company.' using errcode='42501';
     end if;
   end loop;
   v_allowed_evidence:=p_evidence_ids;
