@@ -149,7 +149,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "agreedPrice", label: "Agreed price (₹)", placeholder: "Amount", type: "number" },
     { key: "offerDate", label: "Offer date", placeholder: "Date", type: "date" },
     { key: "targetClosingDate", label: "Target closing / registration date", placeholder: "Date", type: "date" },
-    { key: "closingStage", label: "Closing stage", placeholder: "Offer / diligence / agreement / registration" }
+    { key: "closingStage", label: "Closing stage", placeholder: "Offer / diligence / agreement / registration" },
+    { key: "dueDiligenceStatus", label: "Due diligence status", placeholder: "Title / EC / tax / approvals" },
+    { key: "paymentMilestones", label: "Advance and payment milestones", placeholder: "Advance / agreement / balance / registration" }
   ],
   "Property Loans": [
     { key: "borrower", label: "Borrower / applicant", placeholder: "Client or company" },
@@ -164,7 +166,11 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "targetSanctionDate", label: "Target sanction date", placeholder: "Date", type: "date" },
     { key: "targetDisbursementDate", label: "Target disbursement / completion date", placeholder: "Date", type: "date" },
     { key: "loanOfficer", label: "Loan officer / person to call", placeholder: "Name / contact" },
-    { key: "pendingDocuments", label: "Pending documents / blockers", placeholder: "KYC, bank statements, title, valuation…" }
+    { key: "pendingDocuments", label: "Pending documents / blockers", placeholder: "KYC, bank statements, title, valuation…" },
+    { key: "collateralDescription", label: "Collateral asset / security description", placeholder: "Property, survey reference and charge" },
+    { key: "loanTenureMonths", label: "Loan tenure (months)", placeholder: "Months", type: "number" },
+    { key: "repaymentFrequency", label: "Repayment frequency / structure", placeholder: "Monthly EMI / quarterly / bullet" },
+    { key: "nextRepaymentDate", label: "Next repayment date", placeholder: "Date", type: "date" }
   ],
   "JV / JDA / JD": [
     { key: "landowner", label: "Landowner / owner group", placeholder: "Names or entity" },
@@ -174,7 +180,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "agreementStage", label: "Agreement stage", placeholder: "Term sheet / diligence / draft / signed" },
     { key: "targetSigningDate", label: "Target agreement signing", placeholder: "Date", type: "date" },
     { key: "targetHandoverDate", label: "Target handover / possession", placeholder: "Date", type: "date" },
-    { key: "keyObligations", label: "Key obligations / blockers", placeholder: "Approvals, allocation, construction milestones" }
+    { key: "keyObligations", label: "Key obligations / blockers", placeholder: "Approvals, allocation, construction milestones" },
+    { key: "otherPartners", label: "Other partners / co-developers", placeholder: "Names and roles" },
+    { key: "requiredApprovals", label: "Required approvals and authority status", placeholder: "Planning / RERA / local authority / utilities" },
+    { key: "financialCommitments", label: "Financial commitments and funding milestones", placeholder: "Who funds what and when" }
   ],
   "SR Rate Settlement": [
     { key: "settlementParties", label: "Settlement parties", placeholder: "Names / entities" },
@@ -185,7 +194,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "settlementAmount", label: "Settlement amount / value (₹)", placeholder: "Amount", type: "number" },
     { key: "settlementStage", label: "Settlement stage", placeholder: "Proposal / negotiation / approved / paid" },
     { key: "targetSettlementDate", label: "Target settlement date", placeholder: "Date", type: "date" },
-    { key: "supportingReference", label: "MOU / reference / supporting documents", placeholder: "Reference details" }
+    { key: "supportingReference", label: "MOU / reference / supporting documents", placeholder: "Reference details" },
+    { key: "approvalAuthority", label: "Approval authority / decision owner", placeholder: "Approver or committee" },
+    { key: "actualSettlementDate", label: "Actual settlement / completion date", placeholder: "Date", type: "date" }
   ],
   "Agricultural Land": [
     { key: "landClassification", label: "Land classification", placeholder: "Agricultural / converted / restricted" },
@@ -193,7 +204,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "waterAndAccess", label: "Water, access and utilities", placeholder: "Borewell / road / power" },
     { key: "dueDiligenceStatus", label: "Due diligence status", placeholder: "Title / survey / mutation / conversion" },
     { key: "targetDueDiligenceDate", label: "Target due-diligence completion", placeholder: "Date", type: "date" },
-    { key: "targetClosingDate", label: "Target acquisition / registration", placeholder: "Date", type: "date" }
+    { key: "targetClosingDate", label: "Target acquisition / registration", placeholder: "Date", type: "date" },
+    { key: "encumbranceStatus", label: "Encumbrance / charge status", placeholder: "Checked / pending / issue identified" },
+    { key: "ownershipVerificationStatus", label: "Ownership and mutation verification", placeholder: "Verified / pending / discrepancy" }
   ],
   "Commercial Land": [
     { key: "zoning", label: "Zoning / permitted use", placeholder: "Commercial / industrial / mixed use" },
@@ -201,7 +214,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "titleStatus", label: "Title / encumbrance status", placeholder: "Clear / pending / issue identified" },
     { key: "dueDiligenceStage", label: "Due diligence stage", placeholder: "Title / zoning / access / approvals" },
     { key: "targetClosingDate", label: "Target closing / registration date", placeholder: "Date", type: "date" },
-    { key: "commercialNotes", label: "Utilities / lease / access notes", placeholder: "Operational detail" }
+    { key: "commercialNotes", label: "Utilities / lease / access notes", placeholder: "Operational detail" },
+    { key: "occupancyStatus", label: "Occupancy status", placeholder: "Vacant / owner occupied / tenanted" },
+    { key: "leaseExpiryDate", label: "Lease expiry / renewal date", placeholder: "Date", type: "date" },
+    { key: "accessAndUtilities", label: "Access and utilities", placeholder: "Road access / power / water / drainage" }
   ],
   "Startup": [
     { key: "stage", label: "Startup stage", placeholder: "Pre-seed, seed, Series A…" },
@@ -211,7 +227,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "capitalSought", label: "Capital sought (₹)", placeholder: "Amount", type: "number" },
     { key: "preMoneyValuation", label: "Pre-money valuation (₹)", placeholder: "Amount", type: "number" },
     { key: "equityOffered", label: "Equity offered (%)", placeholder: "Percentage", type: "number" },
-    { key: "targetCloseDate", label: "Target close date", placeholder: "Date", type: "date" }
+    { key: "targetCloseDate", label: "Target close date", placeholder: "Date", type: "date" },
+    { key: "useOfFunds", label: "Use of funds / deployment plan", placeholder: "Hiring / product / working capital / expansion" },
+    { key: "investorCommitmentSummary", label: "Investor interest / commitments summary", placeholder: "Keep indicative interest separate from confirmed commitments" }
   ],
   "Equity": [
     { key: "instrument", label: "Instrument / asset class", placeholder: "Listed equity, private shares, SAFE…" },
@@ -221,7 +239,11 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "entryPrice", label: "Entry price per share (₹)", placeholder: "Price", type: "number" },
     { key: "currentValuation", label: "Current valuation (₹)", placeholder: "Amount", type: "number" },
     { key: "custodian", label: "Custodian / broker", placeholder: "Institution or account reference" },
-    { key: "targetExitDate", label: "Target exit / review date", placeholder: "Date", type: "date" }
+    { key: "targetExitDate", label: "Target exit / review date", placeholder: "Date", type: "date" },
+    { key: "costBasis", label: "Total cost basis (₹)", placeholder: "Amount", type: "number" },
+    { key: "valuationSource", label: "Valuation source / method", placeholder: "Exchange / statement / latest round / independent valuation" },
+    { key: "valuationAsOfDate", label: "Valuation as-of date", placeholder: "Date", type: "date" },
+    { key: "liquidityStatus", label: "Liquidity / exit status", placeholder: "Listed / restricted / lock-in / illiquid / realised" }
   ],
   "Unsecured Company Loan": [
     { key: "borrowerCompany", label: "Borrowing company", placeholder: "Legal company name" },
@@ -232,7 +254,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "repaymentFrequency", label: "Repayment frequency", placeholder: "Monthly / quarterly / bullet" },
     { key: "guarantees", label: "Guarantees / covenants", placeholder: "Guarantees, DSCR, covenants…" },
     { key: "targetDisbursementDate", label: "Target disbursement date", placeholder: "Date", type: "date" },
-    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" }
+    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" },
+    { key: "outstandingBalance", label: "Current outstanding balance (₹)", placeholder: "Amount", type: "number" },
+    { key: "nextRepaymentDate", label: "Next repayment date", placeholder: "Date", type: "date" },
+    { key: "repaymentScheduleReference", label: "Repayment schedule / covenant reference", placeholder: "Schedule or document reference" }
   ],
   "Personal Loan": [
     { key: "borrower", label: "Borrower", placeholder: "Full legal name" },
@@ -245,7 +270,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "guarantor", label: "Guarantor / co-obligant", placeholder: "Optional" },
     { key: "targetSanctionDate", label: "Target sanction date", placeholder: "Date", type: "date" },
     { key: "targetDisbursementDate", label: "Target disbursement date", placeholder: "Date", type: "date" },
-    { key: "firstEmiDate", label: "First EMI date", placeholder: "Date", type: "date" }
+    { key: "firstEmiDate", label: "First EMI date", placeholder: "Date", type: "date" },
+    { key: "outstandingBalance", label: "Current outstanding balance (₹)", placeholder: "Amount", type: "number" },
+    { key: "maturityDate", label: "Facility maturity date", placeholder: "Date", type: "date" },
+    { key: "repaymentStatus", label: "Repayment status", placeholder: "Current / overdue / restructured / closed" }
   ],
   "Housing Loan": [
     { key: "lender", label: "Lender", placeholder: "Bank / housing finance company" },
@@ -260,7 +288,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "targetSanctionDate", label: "Target sanction date", placeholder: "Date", type: "date" },
     { key: "targetDisbursementDate", label: "Target disbursement date", placeholder: "Date", type: "date" },
     { key: "firstEmiDate", label: "First EMI date", placeholder: "Date", type: "date" },
-    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" }
+    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" },
+    { key: "collateralDescription", label: "Mortgage / collateral property description", placeholder: "Property address and survey / title reference" },
+    { key: "repaymentFrequency", label: "Repayment frequency", placeholder: "Monthly / other" },
+    { key: "nextRepaymentDate", label: "Next EMI / repayment date", placeholder: "Date", type: "date" }
   ],
   "House Purchase": [
     { key: "buyer", label: "Buyer / purchaser", placeholder: "Buyer name" },
@@ -270,7 +301,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "stampDutyAndFees", label: "Stamp duty / registration estimate (₹)", placeholder: "Amount", type: "number" },
     { key: "dueDiligenceStage", label: "Due-diligence stage", placeholder: "Title, EC, tax, khata, approvals…" },
     { key: "targetRegistrationDate", label: "Target registration date", placeholder: "Date", type: "date" },
-    { key: "possessionDate", label: "Possession date", placeholder: "Date", type: "date" }
+    { key: "possessionDate", label: "Possession date", placeholder: "Date", type: "date" },
+    { key: "paymentMilestones", label: "Payment milestones and balances", placeholder: "Advance / agreement / registration / possession" },
+    { key: "possessionStatus", label: "Possession / handover status", placeholder: "Pending / scheduled / handed over" }
   ],
   "Litigation": [
     { key: "caseNumber", label: "Case number / CNR", placeholder: "Court case reference" },
@@ -280,7 +313,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "caseType", label: "Case type / current stage", placeholder: "Civil, criminal, appeal, interim…" },
     { key: "claimExposure", label: "Claim / exposure (₹)", placeholder: "Amount in dispute", type: "number" },
     { key: "nextHearingDate", label: "Next hearing date", placeholder: "Date", type: "date" },
-    { key: "limitationDate", label: "Limitation / next legal deadline", placeholder: "Date", type: "date" }
+    { key: "limitationDate", label: "Limitation / next legal deadline", placeholder: "Date", type: "date" },
+    { key: "filingDate", label: "Case filing / institution date", placeholder: "Date", type: "date" },
+    { key: "latestOrderReference", label: "Latest order / filing reference", placeholder: "Order date, number or document reference" }
   ],
   "Fund & Portfolio Management": [
     { key: "fundName", label: "Fund / portfolio name", placeholder: "Legal fund or portfolio name" },
@@ -296,7 +331,12 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "benchmark", label: "Benchmark", placeholder: "Reference index or hurdle" },
     { key: "administrator", label: "Fund administrator / custodian", placeholder: "Service provider" },
     { key: "reportingPeriod", label: "Reporting period", placeholder: "Quarter / fiscal year" },
-    { key: "nextReportingDate", label: "Next reporting deadline", placeholder: "Date", type: "date" }
+    { key: "nextReportingDate", label: "Next reporting deadline", placeholder: "Date", type: "date" },
+    { key: "paidInCapital", label: "Paid-in capital (₹)", placeholder: "Capital called and received", type: "number" },
+    { key: "capitalCalls", label: "Capital called to date (₹)", placeholder: "Amount", type: "number" },
+    { key: "distributions", label: "Distributions to date (₹)", placeholder: "Amount", type: "number" },
+    { key: "navAsOfDate", label: "NAV as-of date", placeholder: "Date", type: "date" },
+    { key: "navSource", label: "NAV source / review status", placeholder: "Administrator statement / reviewed / provisional" }
   ],
   "Investor Relations": [
     { key: "investorType", label: "Investor type", placeholder: "LP, family office, VC, institution…" },
@@ -309,7 +349,15 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "sourceOfFunds", label: "Source of funds", placeholder: "Documented source-of-funds summary" },
     { key: "riskRating", label: "Investor risk rating", placeholder: "Low / medium / high" },
     { key: "lastReportDate", label: "Last investor report date", placeholder: "Date", type: "date" },
-    { key: "nextContactDate", label: "Next investor follow-up date", placeholder: "Date", type: "date" }
+    { key: "nextContactDate", label: "Next investor follow-up date", placeholder: "Date", type: "date" },
+    { key: "investmentMandate", label: "Investment mandate / instrument preference", placeholder: "Debt / equity / secured lending / co-invest" },
+    { key: "preferredSectors", label: "Preferred sectors", placeholder: "Sector preferences" },
+    { key: "targetGeography", label: "Target investment geography", placeholder: "Countries / regions" },
+    { key: "minimumTicket", label: "Minimum ticket size (₹)", placeholder: "Amount", type: "number" },
+    { key: "maximumTicket", label: "Maximum ticket size (₹)", placeholder: "Amount", type: "number" },
+    { key: "pastInvestmentSummary", label: "Past investments / track record summary", placeholder: "Source-backed summary" },
+    { key: "publicSourceUrl", label: "Public source / profile URL", placeholder: "https://..." },
+    { key: "sourceLastVerifiedDate", label: "Source last verified date", placeholder: "Date", type: "date" }
   ],
   "Compliance & KYC": [
     { key: "counterpartyLegalName", label: "Counterparty legal name", placeholder: "Name matching official records" },
@@ -330,7 +378,11 @@ const moduleContactFields: Record<string, ModuleContactField[]> = {
     { key: "__contact_seller", label: "Seller / property owner" },
     { key: "__contact_buyer", label: "Buyer" },
     { key: "__contact_broker", label: "Broker / agent" },
-    { key: "__contact_legalCounsel", label: "Lawyer / conveyance" }
+    { key: "__contact_legalCounsel", label: "Lawyer / conveyance" },
+    { key: "screeningSource", label: "Sanctions / PEP screening source", placeholder: "Provider / official list / source reference" },
+    { key: "lastScreenedDate", label: "Last screening date", placeholder: "Date", type: "date" },
+    { key: "reviewerRationale", label: "Reviewer rationale / match disposition", placeholder: "Reasoned review; distinguish false positive from confirmed match" },
+    { key: "remediationAction", label: "Remediation / outstanding requirement", placeholder: "Document, correction or review action" }
   ],
   "Property Loans": [
     { key: "__contact_borrower", label: "Borrower / applicant" },
