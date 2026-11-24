@@ -8,10 +8,11 @@ export const OFFICIAL_SOURCE_STARTERS = Object.freeze([
     renderMode: "http",
     jurisdiction: "IN",
     allowedPaths: ["/scripts/banklinks.aspx"],
-    allowedPurposes: ["lender institution discovery", "lender institution verification"],
-    allowedFields: ["institution_name", "official_website_url"],
+    allowedPurposes: ["lender institution discovery", "lender institution verification", "enrichment"],
+    allowedFields: ["institution_name", "institution_type", "official_website_url"],
     fieldSchema: {
       institution_name: { type: "string", aliases: ["Name of the Bank", "Bank Name"], required: true, entityKind: "organization" },
+      institution_type: { type: "string", aliases: ["Bank Category", "Bank Group", "Category"] },
       official_website_url: { type: "url", aliases: ["Website", "Official Website", "URL"] }
     },
     attribution: "Source: Reserve Bank of India — official bank links.",
@@ -28,7 +29,7 @@ export const OFFICIAL_SOURCE_STARTERS = Object.freeze([
     renderMode: "http",
     jurisdiction: "IN",
     allowedPaths: ["/Scripts/BS_NBFCList.aspx"],
-    allowedPurposes: ["lender institution discovery", "lender institution verification"],
+    allowedPurposes: ["lender institution discovery", "lender institution verification", "enrichment"],
     allowedFields: ["institution_name", "registration_status", "source_as_of_date"],
     fieldSchema: {
       institution_name: { type: "string", aliases: ["Name of the NBFC", "Name of NBFC", "Company Name"], required: true, entityKind: "organization" },
@@ -49,7 +50,7 @@ export const OFFICIAL_SOURCE_STARTERS = Object.freeze([
     renderMode: "http",
     jurisdiction: "IN",
     allowedPaths: ["/supervision/list-of-hfcs-in-india/"],
-    allowedPurposes: ["housing finance provider discovery", "lender institution verification"],
+    allowedPurposes: ["housing finance provider discovery", "lender institution verification", "enrichment"],
     allowedFields: ["institution_name", "registered_office_address", "certificate_status"],
     fieldSchema: {
       institution_name: { type: "string", aliases: ["Name of the HFC", "Name of Housing Finance Company"], required: true, entityKind: "organization" },
@@ -70,7 +71,7 @@ export const OFFICIAL_SOURCE_STARTERS = Object.freeze([
     renderMode: "http",
     jurisdiction: "IN",
     allowedPaths: ["/company-master-details"],
-    allowedPurposes: ["company identity discovery", "company identity verification"],
+    allowedPurposes: ["company identity discovery", "company identity verification", "enrichment"],
     allowedFields: ["legal_name", "registration_id", "registered_state"],
     fieldSchema: {
       legal_name: { type: "string", aliases: ["Company Name", "Legal Name"], required: true, entityKind: "organization" },
