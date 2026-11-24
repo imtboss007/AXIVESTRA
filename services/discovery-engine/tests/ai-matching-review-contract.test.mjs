@@ -8,7 +8,7 @@ const read = path => readFile(new URL(path, root), "utf8");
 test("E22 suggestion persistence is company-scoped and bound to an E11 result", async () => {
   const sql = await read("supabase/migrations/20261123270000_axivestra_e22_ai_matching_review.sql");
   assert.match(sql, /foreign key\(company_id,match_result_id\)[\s\S]*references public\.discovery_match_results\(company_id,id\)/i);
-  assert.match(sql, /unique\(company_id,match_result_id,request_hash\)/i);
+  assert.ok(sql.includes("unique(company_id,match_result_id,request_hash,provider_id,model_version)"));
   assert.match(sql, /enable row level security/i);
   assert.match(sql, /security_invoker=true/i);
   assert.ok(sql.includes("public.is_company_member(company_id)"));
