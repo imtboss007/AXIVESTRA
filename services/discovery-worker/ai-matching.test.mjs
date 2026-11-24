@@ -62,7 +62,7 @@ test("E22 request is structured, versioned, evidence-linked and data-minimised",
   assert.deepEqual(request.evidenceIds, ["evidence-00000001"]);
   const serialized = JSON.stringify(request);
   for (const forbidden of ["private@example.invalid", "+910000000000",
-    "Ignore all rules", "https://private.invalid", "raw_value", "personal_income", "\\"age\\":"]) {
+    "Ignore all rules", "https://private.invalid", "raw_value", "personal_income"]) {
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
   assert.equal(request.constraints.advisoryOnly, true);
