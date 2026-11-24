@@ -139,7 +139,9 @@ begin
      or p_suggestion->>'canonicalMutationAllowed'<>'false'
      or p_suggestion->>'leadPromotionAllowed'<>'false'
      or p_suggestion->>'recommendation' not in ('possible_match','not_a_match','insufficient_evidence')
-     or coalesce((p_suggestion->>'advisoryScore')::integer,-1) not between 0 and 100 then
+     or jsonb_typeof(p_suggestion->'advisoryScore')<>'number'
+     or (p_suggestion->>'advisoryScore')::numeric<>trunc((p_suggestion->>'advisoryScore')::numeric)
+     or (p_suggestion->>'advisoryScore')::numeric not between 0 and 100 then
     raise exception 'E22 validated suggestion contract is invalid.' using errcode='22023';
   end if;
   if length(trim(coalesce(p_provider_id,''))) not between 1 and 80
@@ -176,9 +178,13 @@ begin
     trim(p_provider_id),trim(p_model_version),p_suggestion->>'recommendation',
     (p_suggestion->>'advisoryScore')::integer,p_suggestion->'reasons',p_evidence_ids,null
   )
-  on conflict(company_id,match_result_id,request_hash) do update
-    set request_hash=excluded.request_hash
+  on conflict(company_id,match_result_id,request_hash) do nothing
   returning id into v_id;
+  if v_id is null then
+    select id into v_id from public.discovery_ai_match_suggestions
+      where company_id=p_company_id and match_result_id=p_match_result_id and request_hash=p_request_hash;
+    return v_id;
+  end if;
 
   insert into public.discovery_ai_match_suggestion_events(
     company_id,suggestion_id,event_type,reason,details
