@@ -55,6 +55,7 @@ test("E22 request is structured, versioned, evidence-linked and data-minimised",
   assert.equal(E22_AI_MATCHING_POLICY.version, "e22_advisory_matching_v1");
   assert.equal(request.schemaVersion, "axivestra.ai-match-suggestion.v1");
   assert.equal(request.deterministicBaseline.score, 75);
+  assert.equal(Object.hasOwn(request.candidateFacts, "age"), false);
   assert.deepEqual(Object.keys(request.candidateFacts).sort(),
     ["collateral", "geography", "instrument", "mandate", "stage", "ticket", "type"]);
   assert.deepEqual(request.evidenceIds, ["evidence-00000001"]);
