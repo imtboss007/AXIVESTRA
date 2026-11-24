@@ -25,7 +25,7 @@ test("the lender/customer profile catalogue covers all 16 existing AXIVESTRA wor
   }
 });
 
-test("E11 match criteria are optional, typed and limited to the eight supported scorer dimensions", () => {
+test("E11 match criteria are optional, typed and limited to the nine supported scorer dimensions", () => {
   const defaults = getDefaultWorkspaceCriteria("property_loans", "LENDER");
   assert.deepEqual(defaults.matchCriteria, {});
   const configured = validateWorkspaceCriteria({
