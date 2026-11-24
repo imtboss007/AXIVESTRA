@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { getEnrichmentAttribute } from "../../discovery-worker/enrichment.mjs";
 import { OFFICIAL_SOURCE_STARTERS, toSourceDraft } from "../../../src/lib/discovery-source-catalogue.mjs";
 
 test("official source starters are limited to identified RBI, NHB and MCA public entry points", () => {
@@ -12,6 +14,18 @@ test("official source starters are limited to identified RBI, NHB and MCA public
     assert.ok(source.allowedPaths.length > 0);
     assert.ok(source.allowedPurposes.length > 0);
     assert.ok(source.allowedFields.length > 0);
+  }
+});
+
+test("official source starter attributes reach the E10 enrichment registry", async () => {
+  const migration = await readFile(new URL("../../../supabase/migrations/20261124002500_discovery_e11_matching_dimensions.sql", import.meta.url), "utf8");
+  for (const source of OFFICIAL_SOURCE_STARTERS) {
+    assert.ok(source.allowedPurposes.includes("enrichment"), source.id + " must request a separately reviewed enrichment purpose");
+    const mappable = source.allowedFields.filter(field => getEnrichmentAttribute(field));
+    assert.ok(mappable.length > 0, source.id + " must map at least one allowed source field into E10");
+    for (const field of mappable) {
+      assert.match(migration, new RegExp("'" + field + "'"), field + " must exist in the database-side enrichment registry");
+    }
   }
 });
 
