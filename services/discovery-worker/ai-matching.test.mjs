@@ -48,7 +48,8 @@ const evidence = [{
   canonical_url: "https://private.invalid/source"
 }];
 const request = buildAiMatchingRequest({
-  candidate, criteria, evidence, deterministicResult, workspaceKey: "growth-india"
+  candidate, criteria, evidence, deterministicResult,
+  candidateFactsReviewed: true, workspaceCriteriaApproved: true, workspaceKey: "growth-india"
 });
 
 test("E22 request is structured, versioned, evidence-linked and data-minimised", () => {
@@ -71,10 +72,15 @@ test("E22 request is structured, versioned, evidence-linked and data-minimised",
 
 test("E22 refuses to run without the E11 deterministic baseline", () => {
   assert.throws(() => buildAiMatchingRequest({
-    candidate, criteria, evidence, deterministicResult: { score: 95 }
+    candidate, criteria, evidence, deterministicResult: { score: 95 },
+    candidateFactsReviewed: true, workspaceCriteriaApproved: true
   }), /valid E11 deterministic baseline/);
   assert.throws(() => buildAiMatchingRequest({
-    candidate, criteria: [], evidence, deterministicResult
+    candidate, criteria, evidence, deterministicResult
+  }), /reviewed candidate facts and approved workspace criteria/);
+  assert.throws(() => buildAiMatchingRequest({
+    candidate, criteria: [], evidence, deterministicResult,
+    candidateFactsReviewed: true, workspaceCriteriaApproved: true
   }), /invalid shapes/);
 });
 
