@@ -33,7 +33,7 @@ export async function loadContactValidationInputs(admin, job, keys) {
       .select("id,status,allowed_fields,field_schema")
       .eq("company_id", job.company_id).eq("id", job.source_id).maybeSingle(),
     admin.from("discovery_extracted_facts")
-      .select("id,extracted_entity_id,field_name,value_type,raw_value,validation_status,source_span,confidence")
+      .select("id,extracted_entity_id,field_name,value_type,raw_value,raw_value_ciphertext,raw_value_nonce,raw_value_auth_tag,raw_value_fingerprint,raw_value_encryption_version,validation_status,source_span,confidence")
       .eq("company_id", job.company_id).eq("extraction_run_id", job.extraction_run_id)
       .in("value_type", ["email", "phone"]),
     admin.from("discovery_extracted_entities")
@@ -63,8 +63,21 @@ export async function loadContactValidationInputs(admin, job, keys) {
   for (const fact of factsResult.data || []) {
     const entity = entities.get(fact.extracted_entity_id);
     if (!entity) continue;
+    if (!fact.raw_value_ciphertext || !fact.raw_value_nonce || !fact.raw_value_auth_tag ||
+        !fact.raw_value_fingerprint || fact.raw_value_encryption_version !== "aes-256-gcm-v1") {
+      throw new Error("E08 refuses a plaintext or incompletely encrypted E05 contact fact.");
+    }
+    const rawValue = decryptContactValue({
+      value_ciphertext: fact.raw_value_ciphertext,
+      value_nonce: fact.raw_value_nonce,
+      value_auth_tag: fact.raw_value_auth_tag,
+      encryption_version: fact.raw_value_encryption_version
+    }, keys.encryptionKey);
+    if (!verifyContactFingerprint(rawValue, fact.raw_value_fingerprint, keys.fingerprintKey)) {
+      throw new Error("E08 E05 contact fingerprint verification failed.");
+    }
     const candidate = buildContactCandidate({
-      fact,
+      fact: { ...fact, raw_value: rawValue },
       entity,
       fieldSchema: job.field_schema_snapshot || {},
       allowedFields: job.allowed_fields_snapshot || [],
