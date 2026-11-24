@@ -15,7 +15,6 @@ export const E22_AI_MATCHING_POLICY = Object.freeze({
 
 const CRITERIA = new Set(E22_AI_MATCHING_POLICY.allowedCriteria);
 const SEGMENTS = new Set(E22_AI_MATCHING_POLICY.allowedEvaluationSegments);
-const FORBIDDEN_KEY = /(age|birth|gender|sex|race|ethnic|relig|politic|health|medical|sexual|income_personal|salary|email|phone|mobile|address_personal|contact|password|token|secret|raw|url|html|body|full_text|document_text)/i;
 const RECOMMENDATIONS = new Set(["possible_match", "not_a_match", "insufficient_evidence"]);
 const REASON_CODES = new Set(["aligned", "misaligned", "unknown", "needs_verification"]);
 
@@ -96,13 +95,13 @@ export function buildAiMatchingRequest({
   }
   const facts = {};
   for (const key of E22_AI_MATCHING_POLICY.allowedCriteria) {
-    if (candidate[key] === undefined || FORBIDDEN_KEY.test(key)) continue;
+    if (candidate[key] === undefined) continue;
     const value = safeCriterionValue(candidate[key]);
     if (value !== null) facts[key] = value;
   }
   const workspaceCriteria = {};
   for (const key of Object.keys(criteria)) {
-    if (!CRITERIA.has(key) || FORBIDDEN_KEY.test(key)) continue;
+    if (!CRITERIA.has(key)) continue;
     const rule = isRecord(criteria[key]) ? criteria[key].value : criteria[key];
     const value = safeCriterionValue(rule);
     if (value !== null) workspaceCriteria[key] = value;
