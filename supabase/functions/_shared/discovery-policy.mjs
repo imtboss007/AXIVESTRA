@@ -232,19 +232,110 @@ export function normalizeSourceReview(input, existing, reviewerId) {
   return update;
 }
 
+function validateProfileMatchCriteria(value) {
+  if (value === undefined || value === null) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Workspace matchCriteria must be a JSON object.");
+  }
+  const allowed = new Set(["geography","type","ticket","instrument","collateral","stage","mandate","evidence_freshness"]);
+  const result = {};
+  for (const [key, rule] of Object.entries(value)) {
+    if (!allowed.has(key)) throw new Error("Unsupported E11 match criterion: " + key + ".");
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) {
+      throw new Error("E11 " + key + " criterion must be an object.");
+    }
+    const expectedProperties = key === "evidence_freshness"
+      ? ["maxAgeDays","weight","required"] : ["value","weight","required"];
+    if (Object.keys(rule).some(property => !expectedProperties.includes(property))) {
+      throw new Error("E11 " + key + " has an unsupported criterion property.");
+    }
+    const weight = rule.weight === undefined ? 1 : rule.weight;
+    if (typeof weight !== "number" || !Number.isFinite(weight) || weight < 0 || weight > 100) {
+      throw new Error("E11 " + key + " weight must be between 0 and 100.");
+    }
+    if (rule.required !== undefined && typeof rule.required !== "boolean") {
+      throw new Error("E11 " + key + " required must be boolean.");
+    }
+    if (key === "evidence_freshness") {
+      if (typeof rule.maxAgeDays !== "number" || !Number.isFinite(rule.maxAgeDays) ||
+          rule.maxAgeDays < 0 || rule.maxAgeDays > 3650) {
+        throw new Error("E11 evidence freshness must be between 0 and 3650 days.");
+      }
+      result[key] = { maxAgeDays: rule.maxAgeDays, weight, required: rule.required === true };
+      continue;
+    }
+    if (!Object.hasOwn(rule, "value")) throw new Error("E11 " + key + " needs an explicit expected value.");
+    const item = rule.value;
+    if (key === "ticket") {
+      if (!item || typeof item !== "object" || Array.isArray(item) ||
+          Object.keys(item).some(part => !["min","max"].includes(part)) ||
+          Object.keys(item).length === 0 ||
+          Object.values(item).some(part => typeof part !== "number" || !Number.isFinite(part) || part < 0) ||
+          (item.min !== undefined && item.max !== undefined && item.min > item.max)) {
+        throw new Error("E11 ticket requires a valid non-negative min/max range.");
+      }
+    } else {
+      const valid = typeof item === "string" && item.trim().length > 0 ||
+        typeof item === "number" && Number.isFinite(item) ||
+        Array.isArray(item) && item.length > 0 && item.length <= 40 &&
+          item.every(part => typeof part === "string" && part.trim().length > 0 && part.length <= 120);
+      if (!valid) throw new Error("E11 " + key + " expected value is invalid.");
+    }
+    result[key] = { value: item, weight, required: rule.required === true };
+  }
+  return result;
+}
+
+function normalizeProfileCriteria(criteria, workspaceKey, discoveryMode) {
+  const result = { ...criteria };
+  if (result.schemaVersion !== undefined) {
+    if (result.schemaVersion !== 1 || result.workspaceKey !== workspaceKey || result.mode !== discoveryMode) {
+      throw new Error("Workspace criteria schema, workspace and mode must match the selected profile.");
+    }
+    const listKeys = ["targetClasses","requiredFields","preferredFields","matchDimensions","sourcePriorities","guardrails"];
+    for (const key of listKeys) {
+      const values = result[key];
+      if (!Array.isArray(values) || values.length < 1 || values.length > 60 ||
+          values.some(item => typeof item !== "string" || !item.trim() || item.length > 180)) {
+        throw new Error("Workspace criteria " + key + " must contain 1 to 60 valid text items.");
+      }
+    }
+    const sourceFields = result.sourceRequiredFields === undefined ? [] : result.sourceRequiredFields;
+    if (!Array.isArray(sourceFields) || sourceFields.length > 40 ||
+        sourceFields.some(item => typeof item !== "string" || !item.trim() || item.length > 180)) {
+      throw new Error("Workspace criteria sourceRequiredFields must contain 0 to 40 valid text items.");
+    }
+    if (sourceFields.some(field => !result.requiredFields.includes(field) && !result.preferredFields.includes(field))) {
+      throw new Error("Source-required fields must be final required or preferred workspace fields.");
+    }
+    result.sourceRequiredFields = [...new Set(sourceFields)];
+  }
+  result.matchCriteria = validateProfileMatchCriteria(result.matchCriteria);
+  const policyDisabled =
+    (workspaceKey === "personal_loan" && discoveryMode === "CUSTOMER") ||
+    (workspaceKey === "litigation" && discoveryMode === "LENDER") ||
+    (workspaceKey === "investor_relations" && discoveryMode === "LENDER");
+  if (policyDisabled) result.disabledByPolicy = true;
+  if (discoveryMode === "CUSTOMER" && workspaceKey === "personal_loan" && result.disabledByPolicy !== true) {
+    result.disabledByPolicy = true;
+  }
+  return result;
+}
+
 export function normalizeProfile(input, sourceCount = 0) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("A discovery profile object is required.");
   const workspaceKey = requiredText(input.workspaceKey, "Workspace", 80);
   if (!WORKSPACES.includes(workspaceKey)) throw new Error("Choose one of AXIVESTRA's 16 supported workspaces.");
   const discoveryMode = requiredText(input.discoveryMode, "Discovery mode", 16).toUpperCase();
   if (!DISCOVERY_MODES.includes(discoveryMode)) throw new Error("Discovery mode must be LENDER or CUSTOMER.");
+  const rawCriteria = input.criteria && typeof input.criteria === "object" && !Array.isArray(input.criteria) ? input.criteria : {};
+  if (JSON.stringify(rawCriteria).length > 12000) throw new Error("Profile criteria are too large.");
+  const criteria = normalizeProfileCriteria(rawCriteria, workspaceKey, discoveryMode);
   const enabled = input.enabled === true;
-  if (workspaceKey === "personal_loan" && discoveryMode === "CUSTOMER" && enabled) {
-    throw new Error("Personal Loan customer discovery cannot scrape or harvest individuals. Use user-entered, referred, inbound or explicitly consented intake instead.");
+  if (criteria.disabledByPolicy === true && enabled) {
+    throw new Error("This workspace/mode is disabled by discovery policy and cannot be enabled.");
   }
   if (enabled && sourceCount < 1) throw new Error("Attach at least one approved source before enabling this profile.");
-  const criteria = input.criteria && typeof input.criteria === "object" && !Array.isArray(input.criteria) ? input.criteria : {};
-  if (JSON.stringify(criteria).length > 12000) throw new Error("Profile criteria are too large.");
   return {
     workspace_key: workspaceKey,
     discovery_mode: discoveryMode,
