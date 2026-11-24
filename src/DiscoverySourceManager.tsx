@@ -9,6 +9,7 @@ import DiscoveryLeadWorkspace from "./DiscoveryLeadWorkspace";
 import DiscoveryVerificationWorkspace from "./DiscoveryVerificationWorkspace";
 import DiscoveryOrchestrationWorkspace from "./DiscoveryOrchestrationWorkspace";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { getDefaultWorkspaceCriteria, validateWorkspaceCriteria } from "./lib/discovery-profiles.mjs";
 
 type SourceStatus = "pending" | "approved" | "paused" | "rejected";
 type Source = {
@@ -132,6 +133,8 @@ export default function DiscoverySourceManager({
     purpose: "",
     jurisdiction: "IN"
   });
+  const [criteriaText, setCriteriaText] = useState(() => JSON.stringify(getDefaultWorkspaceCriteria("property_loans", "LENDER"), null, 2));
+  const [criteriaEditors, setCriteriaEditors] = useState<Record<string, string>>({});
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, {
     termsUrl: string;
     licenseRef: string;
@@ -172,6 +175,10 @@ export default function DiscoverySourceManager({
   }, [companyId, invoke]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    setCriteriaText(JSON.stringify(getDefaultWorkspaceCriteria(profileDraft.workspaceKey, profileDraft.discoveryMode), null, 2));
+  }, [profileDraft.workspaceKey, profileDraft.discoveryMode]);
 
   const purposeOptions = useMemo(() => [...new Set(
     sources.filter(source => source.status === "approved").flatMap(source => source.allowed_purposes || [])
@@ -251,13 +258,45 @@ export default function DiscoverySourceManager({
     setError("");
     setNotice("");
     try {
+      const criteria = validateWorkspaceCriteria(JSON.parse(criteriaText), profileDraft.workspaceKey, profileDraft.discoveryMode);
       await invoke("profiles.upsert", {
         ...profileDraft,
         enabled: false,
-        criteria: {}
+        criteria
       });
       setProfileDraft({ ...profileDraft, purpose: "" });
       setNotice("Workspace discovery profile saved in disabled state.");
+      await refresh();
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusyKey("");
+    }
+  };
+
+  const saveProfileCriteria = async (profile: Profile) => {
+    const editorValue = criteriaEditors[profile.id] || JSON.stringify(
+      profile.criteria?.schemaVersion === 1
+        ? profile.criteria
+        : getDefaultWorkspaceCriteria(profile.workspace_key, profile.discovery_mode),
+      null,
+      2
+    );
+    setBusyKey("criteria-" + profile.id);
+    setError("");
+    setNotice("");
+    try {
+      const criteria = validateWorkspaceCriteria(JSON.parse(editorValue), profile.workspace_key, profile.discovery_mode);
+      await invoke("profiles.upsert", {
+        workspaceKey: profile.workspace_key,
+        discoveryMode: profile.discovery_mode,
+        purpose: profile.purpose,
+        jurisdiction: profile.jurisdiction,
+        enabled: profile.enabled && criteria.disabledByPolicy !== true,
+        criteria
+      });
+      setCriteriaEditors({ ...criteriaEditors, [profile.id]: JSON.stringify(criteria, null, 2) });
+      setNotice("Workspace-specific discovery criteria saved. Existing records and source evidence were not changed.");
       await refresh();
     } catch (reason) {
       setError(errorText(reason));
@@ -444,6 +483,10 @@ export default function DiscoverySourceManager({
         <label>Profile mode<select value={profileDraft.discoveryMode} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, discoveryMode: event.target.value })}><option value="LENDER">LENDER</option><option value="CUSTOMER">CUSTOMER</option></select></label>
         <label>Exact permitted purpose<select required value={profileDraft.purpose} disabled={!canManage || busyKey === "add-profile" || !purposeOptions.length} onChange={event => setProfileDraft({ ...profileDraft, purpose: event.target.value })}><option value="">Choose approved source purpose…</option>{purposeOptions.map(purpose => <option value={purpose} key={purpose}>{purpose}</option>)}</select></label>
         <label>Jurisdiction<input required value={profileDraft.jurisdiction} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, jurisdiction: event.target.value })}/></label>
+        <label className="discovery-profile-criteria-editor">Workspace-specific targets, required fields, match dimensions and guardrails
+          <textarea rows={9} value={criteriaText} onChange={event => setCriteriaText(event.target.value)} disabled={!canManage || busyKey === "add-profile"} spellCheck={false}/>
+          <small>Defaults are loaded from the 16-workspace blueprint. Edit valid JSON to tune this workspace and mode. Criteria remain disabled until an owner/admin approves a source and enables the profile.</small>
+        </label>
         <button type="submit" className="primary-button" disabled={!canManage || !profileDraft.purpose || busyKey === "add-profile" || profileAlreadyExists}><Plus size={15}/>{profileAlreadyExists ? "Profile already exists" : "Create disabled profile"}</button>
       </form>
       {profileAlreadyExists && <p className="discovery-readonly">A {profileDraft.discoveryMode} profile already exists for this workspace. Select another workspace/mode; existing profiles are listed below.</p>}
@@ -462,6 +505,22 @@ export default function DiscoverySourceManager({
               <b>Attached sources ({attached.length})</b>
               {attached.length ? attached.map(source => <span key={source.id}>{source.name} <button type="button" onClick={() => void detachSource(profile, source.id)} disabled={!canManage || busyKey === "detach-" + profile.id} aria-label={"Detach " + source.name}>×</button></span>) : <small>No approved sources attached.</small>}
             </div>
+            <details className="discovery-profile-criteria">
+              <summary>Workspace criteria and guardrails</summary>
+              <textarea rows={8}
+                value={criteriaEditors[profile.id] ?? JSON.stringify(
+                  profile.criteria?.schemaVersion === 1
+                    ? profile.criteria
+                    : getDefaultWorkspaceCriteria(profile.workspace_key, profile.discovery_mode),
+                  null,
+                  2
+                )}
+                onChange={event => setCriteriaEditors({ ...criteriaEditors, [profile.id]: event.target.value })}
+                disabled={!canManage || busyKey === "criteria-" + profile.id}
+                spellCheck={false}
+              />
+              {canManage && <button type="button" className="secondary-button" onClick={() => void saveProfileCriteria(profile)} disabled={busyKey === "criteria-" + profile.id}>Save criteria</button>}
+            </details>
             {canManage && <div className="discovery-profile-controls">
               <select value={selected} onChange={event => setSelectedSources({ ...selectedSources, [profile.id]: event.target.value })} disabled={!choices.length || busyKey === "attach-" + profile.id}>
                 <option value="">{choices.length ? "Choose a purpose-matched source…" : "No matching approved source"}</option>
