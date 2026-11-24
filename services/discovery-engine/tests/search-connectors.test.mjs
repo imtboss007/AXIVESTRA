@@ -28,6 +28,8 @@ test("search results are unverified candidates and exclude non-HTTPS or unsafe a
     { title: "Official institution", url: "https://finance.example.in/product", content: "Product page", engine: "example" },
     { title: "Unsafe HTTP", url: "http://finance.example.in/" },
     { title: "Local", url: "https://127.0.0.1/internal" },
+    { title: "Private network", url: "https://10.2.3.4/internal" },
+    { title: "Social profile", url: "https://www.linkedin.com/in/person" },
     { title: "Credentialed", url: "https://user:pass@finance.example.in/" },
     { title: "Duplicate", url: "https://finance.example.in/product" }
   ], 10, "2026-11-24T00:00:00.000Z");
@@ -36,6 +38,19 @@ test("search results are unverified candidates and exclude non-HTTPS or unsafe a
   assert.equal(rows[0].verified, false);
   assert.equal(rows[0].evidenceId, null);
   assert.equal(rows[0].domain, "finance.example.in");
+});
+
+test("search snippets redact email and phone text before candidate results are returned", () => {
+  const rows = normalizeSearxngResults([{
+    title: "Company directory",
+    url: "https://directory.example.in/company",
+    content: "Contact team@example.in or call +91 98765 43210 for details."
+  }]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].snippet.includes("team@example.in"), false);
+  assert.equal(rows[0].snippet.includes("98765"), false);
+  assert.match(rows[0].snippet, /email redacted/);
+  assert.match(rows[0].snippet, /phone redacted/);
 });
 
 test("SearXNG connector only calls a fixed configured HTTPS endpoint and requests JSON results", async () => {
