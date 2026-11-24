@@ -293,7 +293,7 @@ const WORKSPACE_PROFILES = {
 };
 
 const E11_MATCH_KEYS = Object.freeze([
-  "geography", "type", "ticket", "instrument", "collateral", "stage", "mandate", "evidence_freshness"
+  "geography", "type", "sector", "ticket", "instrument", "collateral", "stage", "mandate", "evidence_freshness"
 ]);
 
 export const E11_MATCH_CRITERIA = E11_MATCH_KEYS;
