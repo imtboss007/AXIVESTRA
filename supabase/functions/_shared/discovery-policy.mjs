@@ -332,6 +332,9 @@ export function normalizeProfile(input, sourceCount = 0) {
   if (JSON.stringify(rawCriteria).length > 12000) throw new Error("Profile criteria are too large.");
   const criteria = normalizeProfileCriteria(rawCriteria, workspaceKey, discoveryMode);
   const enabled = input.enabled === true;
+  if (workspaceKey === "personal_loan" && discoveryMode === "CUSTOMER" && enabled) {
+    throw new Error("Personal Loan customer discovery cannot scrape or harvest individuals. Use user-entered, referred, inbound or explicitly consented intake instead.");
+  }
   if (criteria.disabledByPolicy === true && enabled) {
     throw new Error("This workspace/mode is disabled by discovery policy and cannot be enabled.");
   }
