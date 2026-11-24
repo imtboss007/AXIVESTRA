@@ -1,6 +1,13 @@
 import json
+import importlib.util
+from pathlib import Path
 from scrapling.parser import Selector
-from scrapling_parser import extract_table_observations
+
+_parser_path = Path(__file__).with_name("scrapling-parser.py")
+_spec = importlib.util.spec_from_file_location("axivestra_scrapling_parser", _parser_path)
+_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_module)
+extract_table_observations = _module.extract_table_observations
 
 HTML = """
 <html><body>
