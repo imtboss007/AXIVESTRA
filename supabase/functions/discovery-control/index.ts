@@ -162,6 +162,20 @@ Deno.serve(async request => {
         instrument: typeof payload.filters.instrument === "string" ? payload.filters.instrument.slice(0, 80) : ""
       } : {};
       const queries = buildSearxngQueries(profile.criteria || {}, filters);
+      await writeAudit(admin, {
+        company_id: companyId,
+        actor_user_id: caller.id,
+        action: "discovery_search_previewed",
+        entity_type: "profile",
+        entity_id: profile.id,
+        details: {
+          workspaceKey: profile.workspace_key,
+          discoveryMode: profile.discovery_mode,
+          queryCount: queries.length,
+          attachedApprovedSourceCount: eligibleSources.length,
+          filterKeys: Object.keys(filters).filter(key => typeof filters[key as keyof typeof filters] === "string" && Boolean(filters[key as keyof typeof filters]))
+        }
+      });
       const resultsByUrl = new Map<string, Record<string, unknown>>();
       for (const query of queries) {
         const rows = await searchSearxng({
