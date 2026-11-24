@@ -56,6 +56,8 @@ test("E22 request is structured, versioned, evidence-linked and data-minimised",
   assert.equal(E22_AI_MATCHING_POLICY.version, "e22_advisory_matching_v1");
   assert.equal(request.schemaVersion, "axivestra.ai-match-suggestion.v1");
   assert.equal(request.deterministicBaseline.score, 75);
+  assert.equal(request.reviewAssertions.candidateFactsReviewed, true);
+  assert.equal(request.reviewAssertions.workspaceCriteriaApproved, true);
   assert.equal(Object.hasOwn(request.candidateFacts, "age"), false);
   assert.deepEqual(Object.keys(request.candidateFacts).sort(),
     ["collateral", "geography", "instrument", "mandate", "stage", "ticket", "type"]);
@@ -94,6 +96,24 @@ test("E22 provider is disabled unless a caller explicitly injects an enabled ada
   assert.equal(disabled.providerInvoked, false);
   assert.equal(invoked, false);
   assert.equal(disabled.automaticDecisionAllowed, false);
+});
+
+test("E22 refuses a request mutated after minimisation and hashing", async () => {
+  let invoked = false;
+  const tampered = {
+    ...request,
+    candidateFacts: { ...request.candidateFacts, type: "injected override" }
+  };
+  await assert.rejects(requestAiMatchingSuggestion({
+    request: tampered,
+    adapter: {
+      enabled: true,
+      providerId: "test-adapter",
+      modelVersion: "fixture-1",
+      propose: async () => { invoked = true; return {}; }
+    }
+  }), /integrity hash does not match/);
+  assert.equal(invoked, false);
 });
 
 test("E22 validates model output and binds every citation to supplied evidence", () => {
