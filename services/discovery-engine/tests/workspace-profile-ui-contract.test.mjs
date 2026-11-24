@@ -21,6 +21,17 @@ test("existing workspace profile criteria can be edited and saved without overwr
   assert.match(manager, /profiles\.upsert/);
 });
 
+test("discovery manager exposes full 16-workspace by 2-mode profile coverage", () => {
+  assert.match(manager, /discovery-profile-coverage/);
+  assert.match(manager, /WORKSPACES\.map/);
+  assert.match(manager, /renderStatus\("LENDER"\)/);
+  assert.match(manager, /renderStatus\("CUSTOMER"\)/);
+  assert.match(manager, /Not configured/);
+  assert.match(manager, /Configured · disabled/);
+  assert.match(manager, /Policy restricted/);
+  assert.match(manager, /enrichment-purpose/);
+});
+
 test("queued jobs carry their exact workspace/mode profile criteria to the server", () => {
   assert.match(queue, /criteria:\s*selectedProfile\.criteria \|\| \{\}/);
   assert.match(queue, /buildDiscoveryQueryHints/);
