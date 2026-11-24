@@ -39,13 +39,15 @@ function errorMessage(error: unknown) {
 }
 
 export default function DiscoveryJobQueue({
-  companyId, companyRole, sources, profiles, links
+  companyId, companyRole, sources, profiles, links, initialWorkspaceKey, initialMode
 }: {
   companyId?: string;
   companyRole?: string;
   sources: Source[];
   profiles: Profile[];
   links: Link[];
+  initialWorkspaceKey?: string;
+  initialMode?: "LENDER" | "CUSTOMER";
 }) {
   const canManage = companyRole === "owner" || companyRole === "admin";
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -105,12 +107,20 @@ export default function DiscoveryJobQueue({
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
+    const preferred = initialWorkspaceKey
+      ? eligibleProfiles.find(profile => profile.workspace_key === initialWorkspaceKey && profile.discovery_mode === (initialMode || "LENDER"))
+      : undefined;
+    if (preferred && profileId !== preferred.id) {
+      setProfileId(preferred.id);
+      setSourceId("");
+      return;
+    }
     if (!eligibleProfiles.some(profile => profile.id === profileId)) {
-      const next = eligibleProfiles[0];
+      const next = preferred || eligibleProfiles[0];
       setProfileId(next?.id || "");
       setSourceId("");
     }
-  }, [eligibleProfiles, profileId]);
+  }, [eligibleProfiles, profileId, initialWorkspaceKey, initialMode]);
 
   useEffect(() => {
     if (!eligibleSources.some(source => source.id === sourceId)) setSourceId(eligibleSources[0]?.id || "");
