@@ -1,11 +1,103 @@
 const CRITERIA = Object.freeze([
-  "geography","type","ticket","instrument","collateral","stage","mandate","evidence_freshness"
+  "geography","type","sector","ticket","instrument","collateral","stage","mandate","evidence_freshness"
 ]);
 const clean = value => typeof value === "string"
   ? value.normalize("NFKC").trim().toLowerCase().replace(/\\s+/g," ")
   : value;
 const finite = value => typeof value === "number" && Number.isFinite(value);
 const asList = value => Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+
+const DIMENSION_ATTRIBUTES = Object.freeze({
+  geography: ["geography","country","state","city","district"],
+  type: ["entity_type","business_type","institution_type","lender_category","borrower_type","counterparty_type","investor_type"],
+  sector: ["industry","industry_sector","sector","business_sector"],
+  instrument: ["capital_instrument","funding_instrument","debt_equity_instrument","facility_type"],
+  collateral: ["collateral_type","eligible_collateral","security_type"],
+  stage: ["startup_stage","funding_stage","project_stage","development_stage"],
+  mandate: ["mandate","investment_mandate","lending_mandate","funding_mandate","investment_thesis"]
+});
+
+function valueTextList(value) {
+  const values = Array.isArray(value) ? value : [value];
+  return values.flatMap(item => {
+    if (typeof item !== "string") return [];
+    const normal = item.normalize("NFKC").trim();
+    if (!normal || normal.length > 300) return [];
+    return normal.split(/[,;|]/).map(part => part.trim()).filter(Boolean).slice(0, 20);
+  });
+}
+
+function numericAmount(value) {
+  if (finite(value)) return value;
+  if (value && typeof value === "object" && finite(value.amount)) return value.amount;
+  return null;
+}
+
+/**
+ * Build a scoring candidate only from E10 observations explicitly accepted
+ * by a human reviewer. No pending/conflicting observation is used.
+ */
+export function buildE11CandidateFromAcceptedObservations({
+  canonicalEntity = {},
+  observations = []
+} = {}) {
+  const accepted = observations.filter(item =>
+    item && item.review_state === "accepted" &&
+    typeof item.attribute_key === "string" && item.evidence_id && item.source_id
+  );
+  const candidate = {};
+  const evidenceById = new Map();
+  const snapshot = { canonicalEntityId: canonicalEntity.id || null, dimensions: {}, evidenceReferences: [] };
+
+  if (typeof canonicalEntity.entity_type === "string" && canonicalEntity.entity_type.trim()) {
+    candidate.type = [canonicalEntity.entity_type.trim()];
+  }
+  const collect = key => accepted
+    .filter(item => DIMENSION_ATTRIBUTES[key]?.includes(item.attribute_key))
+    .flatMap(item => valueTextList(item.normalized_value));
+
+  for (const key of ["geography","type","sector","instrument","collateral","stage","mandate"]) {
+    const values = [...new Set([...asList(candidate[key]).flatMap(valueTextList), ...collect(key)])];
+    if (values.length) candidate[key] = values;
+  }
+
+  const ticketRows = accepted.filter(item =>
+    ["ticket_size","minimum_ticket_size","maximum_ticket_size","min_ticket","max_ticket"].includes(item.attribute_key)
+  );
+  const ticketNumbers = ticketRows.map(item => ({
+    key: item.attribute_key,
+    amount: numericAmount(item.normalized_value),
+    currencyCode: typeof item.currency_code === "string" ? item.currency_code.toUpperCase() : null
+  })).filter(item => item.amount !== null);
+  const minRow = ticketNumbers.find(item => ["minimum_ticket_size","min_ticket"].includes(item.key));
+  const maxRow = ticketNumbers.find(item => ["maximum_ticket_size","max_ticket"].includes(item.key));
+  const singleRow = ticketNumbers.find(item => item.key === "ticket_size");
+  if (minRow || maxRow || singleRow) {
+    const currencyCodes = [...new Set(ticketNumbers.map(item => item.currencyCode).filter(Boolean))];
+    candidate.ticket = {
+      ...(minRow ? { min: minRow.amount } : {}),
+      ...(maxRow ? { max: maxRow.amount } : {}),
+      ...(!minRow && !maxRow && singleRow ? { amount: singleRow.amount } : {}),
+      ...(currencyCodes.length === 1 ? { currencyCode: currencyCodes[0] } : {})
+    };
+  }
+
+  for (const item of accepted) {
+    if (!evidenceById.has(item.evidence_id)) {
+      evidenceById.set(item.evidence_id, {
+        evidence_id: item.evidence_id,
+        source_id: item.source_id,
+        source_published_at: item.source_published_at || null,
+        evidence_captured_at: item.evidence_captured_at || null
+      });
+    }
+  }
+  const evidence = [...evidenceById.values()];
+  for (const key of [...Object.keys(candidate)]) snapshot.dimensions[key] = candidate[key];
+  snapshot.evidenceReferences = evidence.map(item => ({ ...item }));
+  return { candidate, evidence, snapshot, acceptedObservationIds: accepted.map(item => item.id).filter(Boolean) };
+}
+
 
 function comparable(value) {
   if (typeof value === "string") return clean(value);
@@ -24,6 +116,9 @@ function evaluateRange(actual, expected) {
   const low=actual.min ?? actual.amount ?? actual.value;
   const high=actual.max ?? actual.amount ?? actual.value;
   if ((!finite(low)&&!finite(high)) || (!finite(min)&&!finite(max))) return null;
+  const actualCurrency = typeof actual.currencyCode === "string" ? actual.currencyCode.toUpperCase() : null;
+  const expectedCurrency = typeof expected.currencyCode === "string" ? expected.currencyCode.toUpperCase() : null;
+  if ((actualCurrency || expectedCurrency) && actualCurrency !== expectedCurrency) return null;
   if (finite(max)&&finite(low)&&low>max) return false;
   if (finite(min)&&finite(high)&&high<min) return false;
   return true;
@@ -44,7 +139,8 @@ function evaluateCriterion(key, actual, expected, now) {
     return {status:"unknown",reason:"Candidate or workspace criterion is missing."};
   if (key==="ticket") {
     const result=evaluateRange(actual,expected);
-    if(result!==null) return {status:result?"match":"mismatch",reason:result?"Ticket range overlaps the workspace range.":"Ticket range does not overlap the workspace range."};
+    if(result===null) return {status:"unknown",reason:"Ticket ranges or currencies are not comparable."};
+    return {status:result?"match":"mismatch",reason:result?"Ticket range overlaps the workspace range.":"Ticket range does not overlap the workspace range."};
   }
   const matched=overlap(actual,expected);
   if(matched===null) return {status:"unknown",reason:"Candidate or workspace criterion is not comparable."};
