@@ -130,21 +130,78 @@ begin
      or p_suggestion->>'requestHash' is distinct from p_request_hash then
     raise exception 'E22 request integrity hash is invalid.' using errcode='22023';
   end if;
-  if jsonb_typeof(p_evidence_ids)<>'array' or jsonb_array_length(p_evidence_ids)>30
-     or jsonb_typeof(p_suggestion->'reasons')<>'array'
-     or jsonb_array_length(p_suggestion->'reasons')>7
-     or p_suggestion->>'schemaVersion'<>'axivestra.ai-match-suggestion.v1'
-     or p_suggestion->>'policyVersion'<>'e22_advisory_matching_v1'
-     or p_suggestion->>'requiresHumanReview'<>'true'
-     or p_suggestion->>'automaticDecisionAllowed'<>'false'
-     or p_suggestion->>'canonicalMutationAllowed'<>'false'
-     or p_suggestion->>'leadPromotionAllowed'<>'false'
-     or p_suggestion->>'recommendation' not in ('possible_match','not_a_match','insufficient_evidence')
-     or jsonb_typeof(p_suggestion->'advisoryScore')<>'number'
-     or (p_suggestion->>'advisoryScore')::numeric<>trunc((p_suggestion->>'advisoryScore')::numeric)
+  if jsonb_typeof(p_suggestion) is distinct from 'object' then
+    raise exception 'E22 suggestion must be a JSON object.' using errcode='22023';
+  end if;
+  if jsonb_typeof(p_evidence_ids) is distinct from 'array' then
+    raise exception 'E22 evidence identifiers must be an array.' using errcode='22023';
+  end if;
+  if jsonb_array_length(p_evidence_ids)>30 then
+    raise exception 'E22 evidence identifier list exceeds its bound.' using errcode='22023';
+  end if;
+  if jsonb_typeof(p_suggestion->'reasons') is distinct from 'array' then
+    raise exception 'E22 suggestion reasons must be an array.' using errcode='22023';
+  end if;
+  if jsonb_array_length(p_suggestion->'reasons')>7 then
+    raise exception 'E22 suggestion reasons exceed their bound.' using errcode='22023';
+  end if;
+  if p_suggestion->>'schemaVersion' is distinct from 'axivestra.ai-match-suggestion.v1'
+     or p_suggestion->>'policyVersion' is distinct from 'e22_advisory_matching_v1'
+     or p_suggestion->>'requiresHumanReview' is distinct from 'true'
+     or p_suggestion->>'automaticDecisionAllowed' is distinct from 'false'
+     or p_suggestion->>'canonicalMutationAllowed' is distinct from 'false'
+     or p_suggestion->>'leadPromotionAllowed' is distinct from 'false'
+     or p_suggestion->>'recommendation' is null
+     or p_suggestion->>'recommendation' not in ('possible_match','not_a_match','insufficient_evidence') then
+    raise exception 'E22 validated suggestion contract is invalid.' using errcode='22023';
+  end if;
+  if jsonb_typeof(p_suggestion->'advisoryScore') is distinct from 'number' then
+    raise exception 'E22 advisory score must be a JSON number.' using errcode='22023';
+  end if;
+  if (p_suggestion->>'advisoryScore')::numeric<>trunc((p_suggestion->>'advisoryScore')::numeric)
      or (p_suggestion->>'advisoryScore')::numeric not between 0 and 100 then
     raise exception 'E22 validated suggestion contract is invalid.' using errcode='22023';
   end if;
+  if length(trim(coalesce(p_provider_id,''))) not between 1 and 80
+     or length(trim(coalesce(p_model_version,''))) not between 1 and 120
+     or length(trim(coalesce(p_reason,''))) not between 5 and 1000 then
+    raise exception 'E22 provider metadata or record reason is invalid.' using errcode='22023';
+  end if;
+  if not exists(select 1 from public.discovery_match_results
+    where company_id=p_company_id and id=p_match_result_id) then
+    raise exception 'The company-scoped E11 match result was not found.' using errcode='P0002';
+  end if;
+  for v_item in select value from jsonb_array_elements(p_evidence_ids) loop
+    if jsonb_typeof(v_item) is distinct from 'string' or length(v_item#>>'{}')<>36 then
+      raise exception 'E22 evidence identifiers must be UUIDs.' using errcode='22023';
+    end if;
+    begin
+      v_evidence_id := (v_item#>>'{}')::uuid;
+    exception when others then
+      raise exception 'E22 evidence identifiers must be UUIDs.' using errcode='22023';
+    end;
+    if not exists(
+      select 1 from public.discovery_evidence_items e
+      where e.company_id=p_company_id and e.id=v_evidence_id
+    ) then
+      raise exception 'E22 evidence identifier is not registered to this company.' using errcode='42501';
+    end if;
+  end loop;
+  v_allowed_evidence:=p_evidence_ids;
+  for v_reason in select value from jsonb_array_elements(p_suggestion->'reasons') loop
+    if jsonb_typeof(v_reason) is distinct from 'object'
+      or nullif(v_reason->>'criterion','') is null
+      or v_reason->>'criterion' not in ('geography','type','ticket','instrument','collateral','stage','mandate')
+      or nullif(v_reason->>'code','') is null
+      or v_reason->>'code' not in ('aligned','misaligned','unknown','needs_verification')
+      or jsonb_typeof(v_reason->'evidenceIds') is distinct from 'array'
+      or exists(select 1 from jsonb_array_elements(v_reason->'evidenceIds') x
+        where jsonb_typeof(x.value) is distinct from 'string'
+          or not (v_allowed_evidence @> jsonb_build_array(x.value))) then
+      raise exception 'E22 rationale contains an unapproved criterion, code or evidence reference.' using errcode='22023';
+    end if;
+  end loop;
+
   if length(trim(coalesce(p_provider_id,''))) not between 1 and 80
      or length(trim(coalesce(p_model_version,''))) not between 1 and 120
      or length(trim(coalesce(p_reason,''))) not between 5 and 1000 then
