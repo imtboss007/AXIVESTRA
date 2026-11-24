@@ -132,7 +132,12 @@ export default function DiscoverySourceManager({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [sourceDraft, setSourceDraft] = useState(initialSourceDraft);
-  const [profileDraft, setProfileDraft] = useState({
+  const [profileDraft, setProfileDraft] = useState<{
+    workspaceKey: string;
+    discoveryMode: "LENDER" | "CUSTOMER";
+    purpose: string;
+    jurisdiction: string;
+  }>({
     workspaceKey: selectedWorkspaceKey || "property_loans",
     discoveryMode: selectedMode || "LENDER",
     purpose: "",
