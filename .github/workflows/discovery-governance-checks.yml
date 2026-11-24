@@ -39,6 +39,7 @@ on:
       - "src/App.tsx"
       - "src/CompanyCommitmentWorkspace.tsx"
       - "src/DiscoverySourceManager.tsx"
+      - "src/DiscoveryAiMatchingReviewWorkspace.tsx"
       - "src/DiscoveryVerificationWorkspace.tsx"
       - "src/DiscoveryOrchestrationWorkspace.tsx"
       - "src/styles.css"
