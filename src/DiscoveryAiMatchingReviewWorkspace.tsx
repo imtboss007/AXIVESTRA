@@ -116,7 +116,7 @@ export default function DiscoveryAiMatchingReviewWorkspace({
   const pending = suggestions.filter(item => item.review_state === "pending_review");
   const reviewed = suggestions.length - pending.length;
 
-  return <section className="data-panel discovery-panel e22-review-workspace">
+  return <section className="data-panel discovery-panel e22-review-workspace" data-testid="e22-review-workspace">
     <div className="section-heading">
       <div><span className="section-kicker">E22 · GOVERNED AI MATCHING</span><h2>AI suggestion review desk</h2>
         <p>Company-scoped advisory suggestions beside the authoritative E11 score. Human review only; no automatic match decision or lead promotion.</p></div>
@@ -136,7 +136,7 @@ export default function DiscoveryAiMatchingReviewWorkspace({
       suggestions.length === 0 ? <p className="discovery-empty-inline">No E22 suggestions have been recorded for this company. The queue does not generate suggestions or activate a model provider.</p> :
       <div className="discovery-source-list">{suggestions.map(item => {
         const itemEvents = events.filter(event => event.suggestion_id === item.id);
-        return <article className="discovery-source-card e22-review-card" key={item.id}>
+        return <article className="discovery-source-card e22-review-card" key={item.id} data-suggestion-id={item.id}>
           <div className="discovery-source-head">
             <div><strong>{item.candidate_label || "Candidate record"}</strong><small>{humanize(item.workspace_key)} · E11 match {item.match_result_id.slice(0, 8)}</small></div>
             <span className={"discovery-status discovery-status--" + (item.review_state === "pending_review" ? "pending" : "approved")}>{humanize(item.review_state)}</span>
