@@ -268,8 +268,8 @@ const WORKSPACE_PROFILES = {
       preferredFields: ["facility_type", "eligibility", "ticket_band", "relationship_owner"],
       matchDimensions: ["facility_type", "fund_strategy", "geography", "ticket"],
       sourcePriorities: ["official_lender_page", "approved_crm", "licensed_feed"],
-      disabledByPolicy: true,
-      guardrails: ["Not a default investor-relations lead type; enable only for an explicitly approved fund-finance workflow.", "Investors remain separate from debt lenders."]
+      disabledByPolicy: false,
+      guardrails: ["Optional only for an explicitly configured and approved fund-finance workflow; it is not a default investor-relations lead type.", "Investors remain separate from debt lenders."]
     }
   },
   compliance_kyc: {
