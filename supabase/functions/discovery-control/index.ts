@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactExtractedFacts } from "../_shared/discovery-contact-redaction.mjs";
 import { buildSearxngQueries, searchSearxng } from "../_shared/discovery-search-connectors.mjs";
+import { buildE11CandidateFromAcceptedObservations, scoreDiscoveryMatch } from "../_shared/discovery-matching.mjs";
 import {
   normalizeSourceRegistration,
   normalizeSourceReview,
@@ -509,6 +510,181 @@ Deno.serve(async request => {
         message: duplicate ? "The same discovery job was already queued." : "Discovery job queued. Enqueue does not contact the source."
       });
     }
+
+    if (action === "matches.candidates.list") {
+      if (!isUuid(payload.profileId)) return jsonResponse(400, { error: "A valid workspace profile ID is required." });
+      const { data: profile, error: profileError } = await admin.from("discovery_profiles")
+        .select("*").eq("company_id", companyId).eq("id", payload.profileId).maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) return jsonResponse(404, { error: "The discovery profile was not found in this company." });
+      if (profile.enabled !== true || profile.criteria?.disabledByPolicy === true) {
+        return jsonResponse(409, { error: "Enable an eligible workspace profile before scoring candidates." });
+      }
+      const matchCriteria = profile.criteria?.matchCriteria;
+      if (!matchCriteria || typeof matchCriteria !== "object" || Array.isArray(matchCriteria) || !Object.keys(matchCriteria).length) {
+        return jsonResponse(409, { error: "Add explicit E11 matchCriteria values to this workspace profile before scoring." });
+      }
+      const { data: links, error: linkError } = await admin.from("discovery_profile_sources")
+        .select("source_id").eq("company_id", companyId).eq("profile_id", profile.id);
+      if (linkError) throw linkError;
+      const sourceIds = [...new Set((links || []).map((item: { source_id: string }) => item.source_id))];
+      if (!sourceIds.length) return jsonResponse(409, { error: "Attach an approved source before scoring candidates." });
+      const { data: sources, error: sourcesError } = await admin.from("discovery_source_registry")
+        .select("*").eq("company_id", companyId).eq("status", "approved").in("id", sourceIds).limit(100);
+      if (sourcesError) throw sourcesError;
+      const eligibleSourceIds = (sources || []).filter((source: Record<string, unknown>) => {
+        try { assertSourceCanBeAttached(profile, source); return true; } catch { return false; }
+      }).map((source: { id: string }) => source.id);
+      if (!eligibleSourceIds.length) return jsonResponse(409, { error: "No attached source is currently approved for this profile's exact purpose and policy." });
+
+      const { data: observations, error: observationsError } = await admin.from("discovery_enrichment_observations")
+        .select("id,canonical_entity_id")
+        .eq("company_id", companyId).eq("review_state", "accepted")
+        .in("source_id", eligibleSourceIds).limit(3000);
+      if (observationsError) throw observationsError;
+      const counts = new Map<string, number>();
+      for (const item of observations || []) {
+        counts.set(item.canonical_entity_id, (counts.get(item.canonical_entity_id) || 0) + 1);
+      }
+      const entityIds = [...counts.keys()].slice(0, 500);
+      if (!entityIds.length) return jsonResponse(200, { ok: true, candidates: [], acceptedObservationCount: 0 });
+      const { data: entities, error: entitiesError } = await admin.from("discovery_canonical_entities")
+        .select("id,legal_name,jurisdiction,entity_type,status")
+        .eq("company_id", companyId).eq("status", "active").in("id", entityIds).limit(500);
+      if (entitiesError) throw entitiesError;
+      return jsonResponse(200, {
+        ok: true,
+        workspaceKey: profile.workspace_key,
+        discoveryMode: profile.discovery_mode,
+        candidates: (entities || []).map((entity: Record<string, unknown>) => ({
+          id: entity.id,
+          legalName: entity.legal_name,
+          jurisdiction: entity.jurisdiction,
+          entityType: entity.entity_type,
+          acceptedObservationCount: counts.get(String(entity.id)) || 0
+        })),
+        acceptedObservationCount: observations?.length || 0,
+        message: "Only owner-accepted E10 observations from attached, currently approved sources are eligible for E11 scoring."
+      });
+    }
+
+    if (action === "matches.evaluate") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can run and persist E11 match scoring." });
+      if (!isUuid(payload.profileId) || !isUuid(payload.canonicalEntityId)) {
+        return jsonResponse(400, { error: "A valid workspace profile and canonical entity ID are required." });
+      }
+      const [{ data: profile, error: profileError }, { data: canonicalEntity, error: entityError }] = await Promise.all([
+        admin.from("discovery_profiles").select("*")
+          .eq("company_id", companyId).eq("id", payload.profileId).maybeSingle(),
+        admin.from("discovery_canonical_entities").select("id,legal_name,jurisdiction,entity_type,status")
+          .eq("company_id", companyId).eq("id", payload.canonicalEntityId).maybeSingle()
+      ]);
+      if (profileError) throw profileError;
+      if (entityError) throw entityError;
+      if (!profile) return jsonResponse(404, { error: "The workspace profile was not found in this company." });
+      if (!canonicalEntity || canonicalEntity.status !== "active") return jsonResponse(404, { error: "The active canonical entity was not found in this company." });
+      if (profile.enabled !== true || profile.criteria?.disabledByPolicy === true) {
+        return jsonResponse(409, { error: "The workspace profile is disabled or restricted by discovery policy." });
+      }
+      const matchCriteria = profile.criteria?.matchCriteria;
+      if (!matchCriteria || typeof matchCriteria !== "object" || Array.isArray(matchCriteria) || !Object.keys(matchCriteria).length) {
+        return jsonResponse(409, { error: "Configure explicit E11 matchCriteria values in this workspace profile first." });
+      }
+      const { data: links, error: linkError } = await admin.from("discovery_profile_sources")
+        .select("source_id").eq("company_id", companyId).eq("profile_id", profile.id);
+      if (linkError) throw linkError;
+      const sourceIds = [...new Set((links || []).map((item: { source_id: string }) => item.source_id))];
+      if (!sourceIds.length) return jsonResponse(409, { error: "No sources are attached to this workspace profile." });
+      const { data: sources, error: sourcesError } = await admin.from("discovery_source_registry")
+        .select("*").eq("company_id", companyId).eq("status", "approved").in("id", sourceIds).limit(100);
+      if (sourcesError) throw sourcesError;
+      const eligibleSourceIds = (sources || []).filter((source: Record<string, unknown>) => {
+        try { assertSourceCanBeAttached(profile, source); return true; } catch { return false; }
+      }).map((source: { id: string }) => source.id);
+      if (!eligibleSourceIds.length) return jsonResponse(409, { error: "No attached source remains approved for this profile's exact purpose and policy." });
+
+      const { data: observations, error: observationsError } = await admin.from("discovery_enrichment_observations")
+        .select("id,canonical_entity_id,attribute_key,normalized_value,currency_code,source_id,evidence_id,source_published_at,evidence_captured_at,review_state")
+        .eq("company_id", companyId).eq("canonical_entity_id", payload.canonicalEntityId)
+        .eq("review_state", "accepted").in("source_id", eligibleSourceIds)
+        .order("evidence_captured_at", { ascending: false }).limit(500);
+      if (observationsError) throw observationsError;
+      if (!observations?.length) {
+        return jsonResponse(409, { error: "No owner-accepted E10 enrichment observations from attached approved sources are available for this candidate." });
+      }
+
+      let mapped: ReturnType<typeof buildE11CandidateFromAcceptedObservations>;
+      let scored: ReturnType<typeof scoreDiscoveryMatch>;
+      try {
+        mapped = buildE11CandidateFromAcceptedObservations({ canonicalEntity, observations });
+        scored = scoreDiscoveryMatch({
+          candidate: mapped.candidate,
+          criteria: matchCriteria,
+          evidence: mapped.evidence,
+          now: new Date().toISOString()
+        });
+      } catch (error) {
+        return jsonResponse(400, { error: error instanceof Error ? error.message : "The configured E11 scoring criteria are invalid." });
+      }
+      if (!scored.components.length || !mapped.evidence.length) {
+        return jsonResponse(409, { error: "No configured scoring dimensions could be evaluated from the accepted evidence." });
+      }
+      const candidateSnapshot = {
+        ...mapped.snapshot,
+        canonicalEntityId: canonicalEntity.id,
+        legalName: canonicalEntity.legal_name,
+        jurisdiction: canonicalEntity.jurisdiction,
+        entityType: canonicalEntity.entity_type
+      };
+      const components = scored.components.map(item => ({
+        criterion: item.criterion,
+        weight: item.weight,
+        points: item.points,
+        status: item.status,
+        required: item.required,
+        reason: item.reason
+      }));
+      const { data: matchId, error: saveError } = await admin.rpc("record_discovery_match_score", {
+        p_company_id: companyId,
+        p_actor_user_id: caller.id,
+        p_profile_id: profile.id,
+        p_canonical_entity_id: canonicalEntity.id,
+        p_criteria_version: "e11-weighted-rules-v1",
+        p_criteria_snapshot: matchCriteria,
+        p_candidate_snapshot: candidateSnapshot,
+        p_score: scored.score,
+        p_confidence: scored.confidence,
+        p_eligible: scored.eligible,
+        p_positive_factors: scored.positives,
+        p_negative_factors: scored.negatives,
+        p_unknown_criteria: scored.unknown,
+        p_blockers: scored.blockers,
+        p_components: components
+      });
+      if (saveError) {
+        if (saveError.code === "42501") return jsonResponse(403, { error: saveError.message });
+        if (saveError.code === "22023") return jsonResponse(400, { error: saveError.message });
+        throw saveError;
+      }
+      return jsonResponse(201, {
+        ok: true,
+        matchResultId: matchId,
+        workspaceKey: profile.workspace_key,
+        discoveryMode: profile.discovery_mode,
+        canonicalEntity: { id: canonicalEntity.id, legalName: canonicalEntity.legal_name },
+        score: scored.score,
+        confidence: scored.confidence,
+        eligible: scored.eligible,
+        positives: scored.positives,
+        negatives: scored.negatives,
+        unknown: scored.unknown,
+        blockers: scored.blockers,
+        components,
+        requiresHumanReview: true,
+        message: "E11 score saved as a pending human-review result. No lead, approval, contact or outreach was created."
+      });
+    }
+
     if (action === "matches.list") {
       const { data: matches, error } = await admin.from("discovery_match_results")
         .select("id,canonical_entity_id,workspace_key,criteria_version,score,confidence,eligible,positive_factors,negative_factors,unknown_criteria,blockers,review_state,created_at")
