@@ -611,6 +611,8 @@ type AppProps = { company?: WorkspaceCompany; userId?: string; personalUserId?: 
 
 export default function App({ company, userId, personalUserId, onSignOut, onSwitchCompany }: AppProps = {}) {
   const [active, setActive] = useState<Section>("Overview");
+  const [discoveryWorkspaceKey, setDiscoveryWorkspaceKey] = useState<string | undefined>(undefined);
+  const [discoveryMode, setDiscoveryMode] = useState<"LENDER" | "CUSTOMER">("LENDER");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [search, setSearch] = useState("");
   const [contactRoleFilters, setContactRoleFilters] = useState<string[]>([]);
@@ -2638,6 +2640,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             onAddFollowUp={(record,contact)=>openFollowUpForm(record as PropertyRecord,contact as ContactRecord)}
             onSchedule={(record,contact)=>openTaskForm(null,{title:`Follow up · ${record.title}`,date:record.nextFollowUpDate||record.targetDeadline||today,time:"10:00",type:"Follow-up",property:record.title,propertyId:record.id,contactId:contact?.id||record.primaryContactId,contactName:contact?.name})}
             onWhatsApp={(contactId,propertyId)=>openWhatsAppFor(contactId,propertyId)}
+            onOpenDiscovery={(workspaceKey,mode)=>{setDiscoveryWorkspaceKey(workspaceKey);setDiscoveryMode(mode);go("Discovery Sources");}}
           /> : null}
           {active === "Contacts" && <section className="data-panel"><div className="section-heading ax-contact-heading"><div><h2>Contacts</h2><p>{contacts.length} saved contacts · import, export and sync across devices</p></div><div className="ax-contact-actions"><input ref={contactImportInputRef} type="file" accept=".vcf,.csv,text/vcard,text/csv" className="ax-contact-file-input" onChange={event=>{const file=event.target.files?.[0];if(file)void importPortableContacts(file);}}/><button className="secondary-button" type="button" disabled={contactImportBusy} onClick={()=>contactImportInputRef.current?.click()}>{contactImportBusy?"Importing…":"Import contacts"}</button><button className="secondary-button" type="button" disabled={!contacts.length} onClick={exportPortableContacts}>Export .vcf</button><button className="primary-button" onClick={()=>openContactForm()}><Plus size={16}/> Add contact</button></div></div>
             <div className="ax-contact-transfer-note"><strong>Use on phone or PC</strong><span>Import a .vcf address-book export from your phone, or a .csv contacts file from your PC. Export .vcf to move AXIVESTRA contacts to either device. With the same AXIVESTRA account, company cloud sync carries app changes both ways; personal device pairing syncs when a PC companion is connected.</span></div>
