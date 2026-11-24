@@ -138,6 +138,26 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(e11DimensionsMigration);
     const e11ScoringRunnerMigration = await readFile(new URL("../../supabase/migrations/20261124003000_discovery_match_scoring_runner.sql", import.meta.url), "utf8");
     await pool.query(e11ScoringRunnerMigration);
+    const e11Columns = await pool.query(
+      "select column_name from information_schema.columns where table_schema='public' and table_name='discovery_match_results'"
+    );
+    assert.ok(e11Columns.rows.some(row => row.column_name === "discovery_mode"),
+      "E11 match results preserve LENDER/CUSTOMER mode separately");
+    const e11Routine = await pool.query(
+      "select p.prosecdef as security_definer from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='record_discovery_match_score'"
+    );
+    assert.equal(e11Routine.rows.length, 1, "E11 score persistence RPC exists exactly once");
+    assert.equal(e11Routine.rows[0].security_definer, true, "E11 score writer runs as a controlled SECURITY DEFINER routine");
+    const e11Acl = await pool.query(
+      "select has_function_privilege('authenticated','public.record_discovery_match_score(uuid,uuid,uuid,uuid,text,jsonb,jsonb,numeric,numeric,boolean,jsonb,jsonb,jsonb,jsonb,jsonb)','execute') as authenticated_execute, has_function_privilege('service_role','public.record_discovery_match_score(uuid,uuid,uuid,uuid,text,jsonb,jsonb,numeric,numeric,boolean,jsonb,jsonb,jsonb,jsonb,jsonb)','execute') as service_execute"
+    );
+    assert.equal(e11Acl.rows[0].authenticated_execute, false, "direct authenticated calls cannot write E11 scores");
+    assert.equal(e11Acl.rows[0].service_execute, true, "only the server-side discovery service can invoke score persistence");
+    const e11SectorConstraint = await pool.query(
+      "select pg_get_constraintdef(oid) as definition from pg_constraint where conrelid='public.discovery_match_score_components'::regclass and conname='discovery_match_score_components_criterion_check'"
+    );
+    assert.match(e11SectorConstraint.rows[0]?.definition || "", /sector/);
+
     const executionConsoleAcl=await pool.query(
       "select has_table_privilege('authenticated','public.discovery_orchestration_operations_inbox','select') as safe_console_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as raw_worker_select"
     );
