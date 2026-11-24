@@ -22,6 +22,7 @@ test("only the isolated service role can persist validated suggestions", async (
   assert.ok(sql.includes("p_suggestion->>'recommendation' not in ('possible_match','not_a_match','insufficient_evidence')"));
   assert.ok(sql.includes("E22 request integrity hash is invalid."));
   assert.ok(sql.includes("E22 rationale contains an unapproved criterion, code or evidence reference."));
+  assert.match(sql, /from public\\.discovery_evidence_items e[\\s\\S]*e\\.company_id=p_company_id and e\\.id=\\(v_item#>>'\\{\\}'\\)::uuid/i);
 });
 
 test("owner/admin review is reasoned, bounded and append-only", async () => {
