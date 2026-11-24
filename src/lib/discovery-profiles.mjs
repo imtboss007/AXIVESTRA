@@ -304,6 +304,7 @@ export function getDefaultWorkspaceCriteria(workspaceKey, mode) {
     mode: normalizedMode,
     targetClasses: [...profile.targetClasses],
     requiredFields: [...profile.requiredFields],
+    sourceRequiredFields: [],
     preferredFields: [...profile.preferredFields],
     matchDimensions: [...profile.matchDimensions],
     sourcePriorities: [...profile.sourcePriorities],
@@ -328,6 +329,15 @@ export function validateWorkspaceCriteria(value, workspaceKey, mode) {
       throw new Error("Criteria " + key + " must contain 1 to 60 non-empty text items.");
     }
     result[key] = [...new Set(raw.map(item => item.trim()))];
+  }
+  const sourceRequiredFields = value.sourceRequiredFields === undefined ? [] : value.sourceRequiredFields;
+  if (!Array.isArray(sourceRequiredFields) || sourceRequiredFields.length > 40 ||
+      sourceRequiredFields.some(item => typeof item !== "string" || !item.trim() || item.length > 180)) {
+    throw new Error("Criteria sourceRequiredFields must contain 0 to 40 non-empty text items.");
+  }
+  result.sourceRequiredFields = [...new Set(sourceRequiredFields.map(item => item.trim()))];
+  if (result.sourceRequiredFields.some(field => !result.requiredFields.includes(field) && !result.preferredFields.includes(field))) {
+    throw new Error("Every source-required field must also be a final required or preferred workspace field.");
   }
   if (expectedMode === "CUSTOMER" && workspaceKey === "personal_loan") {
     result.disabledByPolicy = true;
