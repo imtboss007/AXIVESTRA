@@ -36,7 +36,7 @@ E11 persists deterministic scores, criterion components and an audit receipt thr
 - The Discovery Intelligence Hub exposes an E11 scoring desk. It lists canonical organisations with owner-accepted E10 observations from sources attached to that exact profile and still approved for that profile's purpose. Pending/conflicting E10 observations do not enter the candidate snapshot.
 - The shared deterministic matcher is used by both the Node test suite and the Supabase Edge Function. The score writer checks company owner/admin membership, profile scope, the exact stored criteria snapshot, active canonical entity and each accepted evidence/source reference before persisting.
 - A score, factor components and an append-only audit receipt are saved atomically. Results preserve LENDER/CUSTOMER mode; a new score supersedes an earlier pending score for the same entity/workspace/mode without deleting history. The existing E15 review desk remains the human approval step before a lead is created.
-- Personal Loan CUSTOMER, Litigation LENDER and Investor Relations LENDER external-discovery profiles remain policy-restricted. No contact, outreach, lending approval, investment recommendation, legal conclusion or CRM lead is created by scoring.
+- Personal Loan CUSTOMER and Litigation LENDER external discovery remain policy-restricted. Investor Relations LENDER is permitted only for an explicitly configured fund-finance workflow; investors remain distinct from debt lenders. No contact, outreach, lending approval, investment recommendation, legal conclusion or CRM lead is created by scoring.
 
 ## Activation boundary
 
