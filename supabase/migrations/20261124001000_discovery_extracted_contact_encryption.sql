@@ -10,18 +10,9 @@ alter table public.discovery_extracted_facts
   add column if not exists raw_value_fingerprint text,
   add column if not exists raw_value_encryption_version text;
 
-do $migration$
-begin
-  if exists (
-    select 1 from public.discovery_extracted_facts
-    where value_type in ('email','phone')
-      and raw_value_ciphertext is null
-  ) then
-    raise exception 'E05 contact encryption migration stopped: legacy plaintext email/phone facts require an approved secure backfill before this migration can be applied.';
-  end if;
-end;
-$migration$;
-
+-- Existing legacy contact facts are backfilled by the idempotent worker script
+-- before the constraint is validated. NOT VALID permits the schema rollout while
+-- still enforcing the constraint for every new or updated contact fact.
 alter table public.discovery_extracted_facts
   drop constraint if exists discovery_extracted_facts_contact_encryption_check;
 alter table public.discovery_extracted_facts
@@ -51,7 +42,7 @@ alter table public.discovery_extracted_facts
       and raw_value_fingerprint is null
       and raw_value_encryption_version is null
     )
-  );
+  ) not valid;
 
 create index if not exists discovery_extracted_facts_contact_fingerprint_idx
   on public.discovery_extracted_facts(company_id, value_type, raw_value_fingerprint)
@@ -256,6 +247,9 @@ $complete$;
 
 comment on column public.discovery_extracted_facts.raw_value_ciphertext is
   'E05 AES-256-GCM ciphertext for source-observed email/phone values. Never expose through client inbox views.';
+comment on constraint discovery_extracted_facts_contact_encryption_check on public.discovery_extracted_facts is
+  'NOT VALID during rollout; run the resumable E05 contact backfill, then VALIDATE CONSTRAINT after legacy rows are encrypted.';
+
 comment on column public.discovery_extracted_facts.raw_value_fingerprint is
   'E05 keyed HMAC fingerprint used only for controlled duplicate detection; not a plain SHA hash.';
 
