@@ -12,6 +12,7 @@ test("E22 suggestion persistence is company-scoped and bound to an E11 result", 
   assert.match(sql, /enable row level security/i);
   assert.match(sql, /security_invoker=true/i);
   assert.ok(sql.includes("public.is_company_member(company_id)"));
+  assert.ok(sql.includes("grant select on public.discovery_ai_match_suggestions to service_role"));
 });
 
 test("only the isolated service role can persist validated suggestions", async () => {
