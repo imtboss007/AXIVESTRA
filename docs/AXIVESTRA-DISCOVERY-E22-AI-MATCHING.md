@@ -22,7 +22,7 @@ The request builder accepts only the seven business criteria already used by E11
 - Stage
 - Mandate
 
-It strips contact values, personal attributes, raw source text, document bodies, URLs, unapproved criterion keys and unknown structured fields. It forwards only allow-listed structured facts and metadata-only provenance references (evidence ID, source ID, optional content hash and source/capture timestamps). No raw evidence body is copied to a model request.
+It requires the caller to assert that candidate facts have already been reviewed and workspace criteria approved. It strips contact values, personal attributes, raw source text, document bodies, URLs, unapproved criterion keys and unknown structured fields. It forwards only allow-listed structured facts and metadata-only provenance references (evidence ID, source ID, optional content hash and source/capture timestamps). No raw evidence body is copied to a model request.
 
 The request carries E11's deterministic score, confidence and eligibility state as context. It does not allow an AI suggestion to override an E11 blocker or make an ineligible match eligible.
 
