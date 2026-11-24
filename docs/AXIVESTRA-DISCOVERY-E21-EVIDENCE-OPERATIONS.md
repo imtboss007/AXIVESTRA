@@ -33,6 +33,12 @@ E21 does not create a second evidence blob store or copy extracted values into a
 
 The E21 contract test checks RLS, company scope, owner/admin function boundaries, draft-only curation, submission/review/reopen transitions, approved-only export and raw-data exclusions. Current-head PostgreSQL integration verifies idempotent evidence inclusion, viewer denial, submitted-pack immutability, owner approval, export receipt integrity, event immutability and retention-aware pack citations after E04 evidence purge. The discovery governance CI run also passed full regression, E05 benchmark, both discovery Edge Function type-checks and the AXIVESTRA application build. Authenticated browser acceptance remains a separate QA prerequisite until a configured QA account/company and Supabase credentials are available.
 
+## Browser acceptance
+
+A dedicated authenticated Playwright spec lives at `tests/browser/axivestra-evidence-pack-workspace.spec.ts`. It checks that the Discovery Sources screen exposes the company-scoped evidence catalogue and safe-export notice. With a dedicated eligible QA provenance-event UUID, it creates a new QA pack, adds one existing provenance citation, submits and approves the pack, downloads the metadata/provenance manifest and checks for the export receipt. It deliberately leaves the approved QA pack and immutable history in place; it does not alter or copy raw E04 evidence.
+
+The spec runs once on desktop Chromium alongside E18/E19/E22 browser acceptance when the authenticated QA account/company and Supabase build credentials are configured. Optional test-time fixture: `AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID`. A successful CI job with absent QA credentials is a skip notice, not browser acceptance.
+
 ## Release boundary
 
 This is an additive schema/UI/API implementation on the existing AXIVESTRA feature branch. It does not apply migrations to production, deploy the edge function, change source approvals, activate a fetch worker or change any E20 dispatch/queue gate.
