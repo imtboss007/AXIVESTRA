@@ -5,7 +5,7 @@ import { Activity, Clock3, LoaderCircle, PlayCircle, RefreshCw, ShieldAlert, Shi
 import { BorderBeam } from "./components/BorderBeam";
 import { buildDiscoveryQueryHints } from "./lib/discovery-profiles.mjs";
 
-type Source = { id: string; name: string; status: string; max_pages_per_job: number; rate_limit_per_minute: number };
+type Source = { id: string; name: string; canonical_url: string; status: string; max_pages_per_job: number; rate_limit_per_minute: number };
 type Profile = { id: string; workspace_key: string; discovery_mode: "LENDER" | "CUSTOMER"; purpose: string; enabled: boolean; criteria: Record<string, unknown> };
 type Link = { profile_id: string; source_id: string };
 type Job = {
@@ -199,6 +199,12 @@ export default function DiscoveryJobQueue({
           <label>Candidate URLs <span className="discovery-optional">(one per line)</span>
             <textarea rows={5} value={candidateText} onChange={event => setCandidateText(event.target.value)} disabled={!selectedSource || busy === "enqueue"} placeholder={"https://approved-source.example/api/v1/record/123"} />
           </label>
+          {selectedSource && <div className="discovery-source-url-actions">
+            <button type="button" className="secondary-button" onClick={() => setCandidateText(current => current.trim() ? current + "\\n" + selectedSource.canonical_url : selectedSource.canonical_url)} disabled={busy === "enqueue"}>
+              Use registered source entry URL
+            </button>
+            <small>This adds only the exact registered entry point. It does not expand links, submit search forms or bypass CAPTCHA or access controls.</small>
+          </div>}
           {selectedSource && <div className="discovery-job-limits">
             <span><b>Purpose</b>{selectedProfile?.purpose}</span>
             <span><b>Page budget</b>{selectedSource.max_pages_per_job} max</span>
