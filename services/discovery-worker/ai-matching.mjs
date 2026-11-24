@@ -60,11 +60,28 @@ function canonicalJson(value) {
   }
   return JSON.stringify(value);
 }
-function requireUuidLike(value, name) {
-  if (typeof value !== "string" || !/^[0-9a-f-]{16,64}$/i.test(value)) {
-    throw new TypeError("E22 " + name + " must be a stable record identifier.");
+function assertValidRequest(request) {
+  if (!isRecord(request) || request.schemaVersion !== E22_AI_MATCHING_POLICY.outputSchema) {
+    throw new TypeError("E22 request schema is invalid.");
   }
-  return value;
+  const { requestHash, evidenceIds, ...payload } = request;
+  if (!Array.isArray(payload.provenance) || !Array.isArray(evidenceIds) ||
+      !isRecord(payload.candidateFacts) || !isRecord(payload.workspaceCriteria) ||
+      payload.reviewAssertions?.candidateFactsReviewed !== true ||
+      payload.reviewAssertions?.workspaceCriteriaApproved !== true) {
+    throw new TypeError("E22 request is missing approved inputs or provenance.");
+  }
+  if (Object.keys(payload.candidateFacts).some(key => !CRITERIA.has(key)) ||
+      Object.keys(payload.workspaceCriteria).some(key => !CRITERIA.has(key))) {
+    throw new TypeError("E22 request contains a criterion outside the approved allow-list.");
+  }
+  const provenanceIds = payload.provenance.map(item => item?.evidenceId);
+  if (JSON.stringify(provenanceIds) !== JSON.stringify(evidenceIds)) {
+    throw new TypeError("E22 request evidence IDs do not match its provenance list.");
+  }
+  if (typeof requestHash !== "string" || sha256(canonicalJson(payload)) !== requestHash) {
+    throw new TypeError("E22 request integrity hash does not match its payload.");
+  }
 }
 
 /**
@@ -126,6 +143,10 @@ export function buildAiMatchingRequest({
     schemaVersion: E22_AI_MATCHING_POLICY.outputSchema,
     policyVersion: E22_AI_MATCHING_POLICY.version,
     purpose: "Advisory comparison of reviewed organization facts against workspace criteria.",
+    reviewAssertions: {
+      candidateFactsReviewed: true,
+      workspaceCriteriaApproved: true
+    },
     constraints: {
       advisoryOnly: true,
       neverApproveOrReject: true,
@@ -156,9 +177,7 @@ export function buildAiMatchingRequest({
 
 /** Validate an untrusted model response against the supplied request. */
 export function validateAiMatchingSuggestion({ suggestion, request } = {}) {
-  if (!isRecord(request) || request.schemaVersion !== E22_AI_MATCHING_POLICY.outputSchema) {
-    throw new TypeError("E22 request schema is invalid.");
-  }
+  assertValidRequest(request);
   if (!isRecord(suggestion) || !RECOMMENDATIONS.has(suggestion.recommendation)) {
     throw new TypeError("E22 model recommendation is invalid.");
   }
@@ -213,6 +232,7 @@ export async function requestAiMatchingSuggestion({ adapter, request } = {}) {
       automaticDecisionAllowed: false
     });
   }
+  assertValidRequest(request);
   const raw = await adapter.propose(Object.freeze({
     requestHash: request?.requestHash,
     schemaVersion: request?.schemaVersion,
