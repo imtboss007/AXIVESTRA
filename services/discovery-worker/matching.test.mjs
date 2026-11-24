@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {scoreDiscoveryMatch,E11_MATCH_CRITERIA} from "./matching.mjs";
+import {scoreDiscoveryMatch,E11_MATCH_CRITERIA,buildE11CandidateFromAcceptedObservations} from "./matching.mjs";
 
 const candidate={
  geography:["India","Karnataka"],type:"manufacturing",ticket:{min:5,max:20},
@@ -10,6 +10,7 @@ const evidence=[{evidence_id:"ev-1",source_id:"src-1",source_published_at:"2026-
 const criteria={
  geography:{value:["India"],weight:2},
  type:{value:["manufacturing"],weight:2,required:true},
+ sector:{value:["industrial"],weight:1},
  ticket:{value:{min:8,max:15},weight:2},
  instrument:{value:["equity"],weight:1},
  collateral:{value:["real_estate"],weight:1},
@@ -26,7 +27,7 @@ test("E11 scores all eight matrix criteria and explains each component",()=>{
  assert.equal(result.eligible,true);
  assert.equal(result.method,"deterministic_weighted_rules_v1");
  assert.equal(result.requiresHumanReview,true);
- assert.equal(result.positives.length,8);
+ assert.equal(result.positives.length,9);
 });
 
 test("E11 records negative factors and required mismatches as blockers",()=>{
@@ -38,6 +39,35 @@ test("E11 records negative factors and required mismatches as blockers",()=>{
  assert.deepEqual(result.blockers,["type"]);
  assert.ok(result.negatives.some(x=>x.criterion==="instrument"));
  assert.ok(result.score<100);
+});
+
+test("E11 candidate mapper consumes only accepted E10 observations and retains evidence references", () => {
+ const mapped=buildE11CandidateFromAcceptedObservations({
+  canonicalEntity:{id:"entity-1",entity_type:"organization",jurisdiction:"IN"},
+  observations:[
+   {id:"o1",canonical_entity_id:"entity-1",attribute_key:"city",normalized_value:"Bengaluru",review_state:"accepted",evidence_id:"ev-1",source_id:"s1",source_published_at:"2026-11-20T00:00:00Z",evidence_captured_at:"2026-11-21T00:00:00Z"},
+   {id:"o2",canonical_entity_id:"entity-1",attribute_key:"industry_sector",normalized_value:"Industrial Machinery",review_state:"accepted",evidence_id:"ev-1",source_id:"s1",source_published_at:"2026-11-20T00:00:00Z",evidence_captured_at:"2026-11-21T00:00:00Z"},
+   {id:"o3",canonical_entity_id:"entity-1",attribute_key:"ticket_size",normalized_value:{amount:25000000,currency:"INR"},currency_code:"INR",review_state:"accepted",evidence_id:"ev-2",source_id:"s2",evidence_captured_at:"2026-11-22T00:00:00Z"},
+   {id:"o4",canonical_entity_id:"entity-1",attribute_key:"lender_category",normalized_value:"NBFC",review_state:"pending_review",evidence_id:"ev-3",source_id:"s3",evidence_captured_at:"2026-11-22T00:00:00Z"}
+  ]
+ });
+ assert.deepEqual(mapped.candidate.geography,["Bengaluru"]);
+ assert.ok(mapped.candidate.type.includes("organization"));
+ assert.deepEqual(mapped.candidate.sector,["Industrial Machinery"]);
+ assert.deepEqual(mapped.candidate.ticket,{amount:25000000,currencyCode:"INR"});
+ assert.equal(mapped.evidence.length,2);
+ assert.equal(mapped.acceptedObservationIds.includes("o4"),false);
+ assert.deepEqual(mapped.snapshot.evidenceReferences.map(item=>item.evidence_id),["ev-1","ev-2"]);
+});
+
+test("E11 ticket score abstains when configured and observed currencies conflict", () => {
+ const result=scoreDiscoveryMatch({
+  candidate:{ticket:{amount:20000000,currencyCode:"USD"}},
+  criteria:{ticket:{value:{min:10000000,max:50000000,currencyCode:"INR"},weight:1}},
+  evidence:[],now:"2026-11-22T00:00:00Z"
+ });
+ assert.equal(result.components[0].status,"unknown");
+ assert.match(result.components[0].reason,/currencies are not comparable/);
 });
 
 test("E11 missing facts stay unknown, earn no points and lower confidence",()=>{
