@@ -4,7 +4,7 @@ import { ArrowRight, CalendarClock, CheckCircle2, CircleAlert, ClipboardList, Lo
 
 type Candidate = { legal_name?: string; jurisdiction?: string; entity_type?: string } | null;
 type Match = {
-  id: string; canonical_entity_id: string; workspace_key: string; criteria_version: string;
+  id: string; canonical_entity_id: string; workspace_key: string; discovery_mode?: "LENDER" | "CUSTOMER" | null; criteria_version: string;
   score: number; confidence: number; eligible: boolean; positive_factors: unknown[];
   negative_factors: unknown[]; unknown_criteria: string[]; blockers: string[];
   created_at: string; candidate: Candidate;
@@ -145,7 +145,7 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
     {loading&&!matches.length?<div className="discovery-loading"><LoaderCircle size={15}/>Loading match review queue…</div>:
       matches.length?<div className="discovery-match-list">{matches.map(match=><article className="discovery-match-card" key={match.id}>
         <div className="discovery-match-top">
-          <div><strong>{match.candidate?.legal_name||"Canonical company record"}</strong><small>{label(match.workspace_key)} · {match.candidate?.jurisdiction||"Jurisdiction not recorded"} · {match.candidate?.entity_type||"Entity type not recorded"}</small></div>
+          <div><strong>{match.candidate?.legal_name||"Canonical company record"}</strong><small>{label(match.workspace_key)} · {match.discovery_mode || "Mode not recorded"} · {match.candidate?.jurisdiction||"Jurisdiction not recorded"} · {match.candidate?.entity_type||"Entity type not recorded"}</small></div>
           <div className="discovery-match-score"><b>{Number(match.score).toFixed(1)}%</b><small>{Math.round(Number(match.confidence)*100)}% confidence</small></div>
         </div>
         <div className="discovery-match-factors">
