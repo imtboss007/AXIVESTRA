@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const handler = await readFile(new URL("../../../supabase/functions/discovery-control/index.ts", import.meta.url), "utf8");
 const queueUi = await readFile(new URL("../../../src/DiscoveryJobQueue.tsx", import.meta.url), "utf8");
 const connector = await readFile(new URL("../../../supabase/functions/_shared/discovery-search-connectors.mjs", import.meta.url), "utf8");
+const auditMigration = await readFile(new URL("../../../supabase/migrations/20261124002000_discovery_search_preview_audit.sql", import.meta.url), "utf8");
 
 test("E03 search preview is disabled unless the server-side SearXNG feature flag and endpoint are configured", () => {
   const actionStart = handler.indexOf('if (action === "search.preview")');
@@ -19,6 +20,11 @@ test("E03 search preview is disabled unless the server-side SearXNG feature flag
   assert.match(action, /\.eq\("status", "approved"\)/);
   assert.match(action, /assertSourceCanBeAttached/);
   assert.match(action, /source\.connector_key === "manual_research"/);
+  const auditIndex = action.indexOf('action: "discovery_search_previewed"');
+  const searchIndex = action.indexOf("searchSearxng(");
+  assert.ok(auditIndex >= 0 && searchIndex > auditIndex, "audit receipt must be written before the provider call");
+  assert.match(auditMigration, /'discovery_search_previewed'/);
+  assert.match(auditMigration, /Raw search terms, snippets and result contents/);
 });
 
 test("E03 returns unverified search candidates and never queues or fetches them automatically", () => {
