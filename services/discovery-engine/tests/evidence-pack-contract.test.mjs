@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
-const [migration, edge, workspace, manager, packageJson, integration, roadmap, docs] = await Promise.all([
+const [migration, edge, workspace, manager, packageJson, integration, roadmap, docs, browserAcceptance, workflow] = await Promise.all([
   read("supabase/migrations/20261123260000_axivestra_evidence_pack_management.sql"),
   read("supabase/functions/discovery-control/index.ts"),
   read("src/DiscoveryEvidenceWorkspace.tsx"),
@@ -13,7 +13,9 @@ const [migration, edge, workspace, manager, packageJson, integration, roadmap, d
   read("package.json"),
   read("services/discovery-worker/postgres-integration.test.mjs"),
   read("docs/AXIVESTRA-REVISED-DISCOVERY-ROADMAP-E05-E16.md"),
-  read("docs/AXIVESTRA-DISCOVERY-E21-EVIDENCE-OPERATIONS.md")
+  read("docs/AXIVESTRA-DISCOVERY-E21-EVIDENCE-OPERATIONS.md"),
+  read("tests/browser/axivestra-evidence-pack-workspace.spec.ts"),
+  read(".github/workflows/discovery-governance-checks.yml")
 ]);
 const packageManifest = JSON.parse(packageJson);
 
@@ -79,4 +81,17 @@ test("E21 evidence manager is connected to the existing discovery workspace", ()
   assert.match(integration, /E21 evidence pack lifecycle/);
   assert.match(roadmap, /technical E21 evidence operations/i);
   assert.match(docs, /E21 — Evidence Manager/);
+});
+
+test("E21 authenticated browser acceptance is gated to a dedicated QA provenance fixture", () => {
+  assert.match(workspace, /data-testid="e21-evidence-workspace"/);
+  assert.match(workspace, /data-provenance-event-id=\{candidate\.provenance_event_id\}/);
+  assert.match(browserAcceptance, /AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID/);
+  assert.match(browserAcceptance, /Submit for review/);
+  assert.match(browserAcceptance, /Approve pack/);
+  assert.match(browserAcceptance, /Export SHA-256 hashed manifest/);
+  assert.match(browserAcceptance, /does not alter|does not copy/i);
+  assert.match(workflow, /tests\/browser\/axivestra-evidence-pack-workspace\.spec\.ts/);
+  assert.match(workflow, /AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID/);
+  assert.match(workflow, /Validate authenticated browser acceptance test discovery/);
 });
