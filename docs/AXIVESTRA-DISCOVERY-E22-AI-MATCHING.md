@@ -62,12 +62,22 @@ The worker test suite includes E22 contract tests for:
 
 These tests use synthetic fixtures. They demonstrate contract behaviour, not model accuracy, production readiness or authenticated browser acceptance.
 
+## Durable suggestion and review layer
+
+The feature branch adds migration `20261123270000_axivestra_e22_ai_matching_review.sql` and the `DiscoveryAiMatchingReviewWorkspace` in the existing Discovery Sources workspace. The migration stores validated structured E22 outputs, provider/model identifiers, request hash, E11 match reference and evidence identifiers. It does not store raw source bodies or free-text model rationale.
+
+Suggestions are company-scoped and visible through security-invoker inbox views. The service-role-only recording RPC validates request integrity, output schema, recommendation, integer advisory score, allowed reason codes and evidence-ID membership. Idempotency is scoped by company, E11 result, request hash and provider/model version. Direct table writes are denied.
+
+Owner/admin review is performed through a separate RPC. Decisions are limited to `accepted_for_review`, `needs_more_evidence` and `rejected`, with a required reason. Other company roles have read-only access. Review events are append-only. The review desk is mounted in the existing Discovery Sources workspace. E22 review does not mutate E11 match results, canonical entities or lead records.
+
+PostgreSQL integration coverage verifies suggestion persistence/idempotency, invalid score rejection, owner/admin review, viewer denial, immutable history, least-privilege grants and unchanged E11 state. The end-to-end CI result for commit `864ee915e01cf092cb0dba8cceb54d2d9155f5d1` passed discovery governance, worker/PostgreSQL integration, parser benchmark, full regression, Edge Function type-check and application build. Authenticated E18/E19 browser acceptance was skipped because QA credentials/company fixtures were not configured.
+
 ## Remaining acceptance work
 
-1. Select and approve a lawful, supported, preferably self-hosted/open-source model and runtime; keep it disabled until the separate approval is given.
+1. Complete the new E22 authenticated browser acceptance with a configured QA company account. The browser spec also supports an optional pre-seeded pending QA suggestion via `AXIVESTRA_E2E_E22_SUGGESTION_ID`; it validates review-form gating without submitting a decision.
 2. Assemble a company-authorised, privacy-reviewed, adjudicated evaluation set with sufficient positive and negative examples.
-3. Run offline evaluations and segment error reviews; document false positives, false negatives, abstention and data-quality limitations.
-4. Add durable company-scoped suggestion and review records plus an owner/admin review surface before any operational pilot.
-5. Complete authenticated browser/security acceptance and verify no AI path can bypass existing E11 review or E15 lead controls.
+3. Select and separately approve a lawful, supported, preferably self-hosted/open-source model/runtime only if a real provider integration is required. Keep provider execution disabled until explicit approval.
+4. Run offline evaluations and segment error reviews; document false positives, false negatives, abstention and data-quality limitations.
+5. Complete authenticated browser/security acceptance and verify no AI path can bypass E11 review or E15 lead controls.
 
-No production migration, deployment, provider activation, queue activation, dispatch change or merge is part of E22.
+The provider remains disabled. No production migration has been applied, no deployment/merge has occurred, and no queue, dispatch or provider activation is part of E22.
