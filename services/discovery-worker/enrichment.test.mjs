@@ -95,7 +95,9 @@ test("E10 taxonomy supports source-backed lender/customer matching attributes wi
     "capital_instrument", "funding_instrument", "collateral_type",
     "eligible_collateral", "startup_stage", "project_stage",
     "investment_mandate", "geography", "country", "state", "city", "district",
-    "minimum_ticket_size", "maximum_ticket_size"
+    "minimum_ticket_size", "maximum_ticket_size",
+    "institution_name", "registration_status", "source_as_of_date", "registered_office_address",
+    "certificate_status", "legal_name", "registration_id", "registered_state"
   ]) {
     assert.ok(getEnrichmentAttribute(field), field + " must be a registered source-backed business attribute");
   }
