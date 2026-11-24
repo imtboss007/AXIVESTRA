@@ -2625,7 +2625,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             </div>
           </section>}
 
-          {active === "Discovery Sources" && <DiscoverySourceManager companyId={company?.id} companyRole={company?.role}/>}
+          {active === "Discovery Sources" && <DiscoverySourceManager companyId={company?.id} companyRole={company?.role} selectedWorkspaceKey={discoveryWorkspaceKey} selectedMode={discoveryMode}/>}
           {active === "All Properties" || modules.some(m=>m.name===active) ? <ModuleWorkbench
             moduleName={active === "All Properties" ? "All Properties" : active}
             description={active === "All Properties" ? "Search, inspect, compare and action every property, deal, loan, investment and legal workstream from one live register." : modules.find(item=>item.name===active)?.description || "Manage every detail, stakeholder, date, value and next action for this workstream."}
