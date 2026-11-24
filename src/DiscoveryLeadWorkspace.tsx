@@ -16,7 +16,7 @@ type LeadEvent = {
 type Lead = {
   id: string; match_result_id: string; workspace_key: string; status: string; priority: string;
   assigned_to: string | null; next_action_code: string; next_action_due_at: string | null;
-  updated_at: string; candidate: Candidate; match: { score: number; confidence: number; eligible: boolean } | null;
+  updated_at: string; candidate: Candidate; match: { score: number; confidence: number; eligible: boolean; discovery_mode?: "LENDER" | "CUSTOMER" | null } | null;
   events: LeadEvent[];
 };
 type Member = { user_id: string; role: string };
@@ -182,7 +182,7 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
       const assignee=members.find(member=>member.user_id===lead.assigned_to);
       return <article className="discovery-lead-card" key={lead.id}>
         <div className="discovery-lead-card-head">
-          <div><strong>{lead.candidate?.legal_name||"Canonical company record"}</strong><small>{label(lead.workspace_key)} · Match {lead.match?Number(lead.match.score).toFixed(1)+"%":"—"} · Updated {localDate(lead.updated_at)}</small></div>
+          <div><strong>{lead.candidate?.legal_name||"Canonical company record"}</strong><small>{label(lead.workspace_key)} · {lead.match?.discovery_mode || "Mode not recorded"} · Match {lead.match?Number(lead.match.score).toFixed(1)+"%":"—"} · Updated {localDate(lead.updated_at)}</small></div>
           <span className={"discovery-lead-stage stage-"+lead.status}>{label(lead.status)}</span>
         </div>
         <div className="discovery-lead-controls">
