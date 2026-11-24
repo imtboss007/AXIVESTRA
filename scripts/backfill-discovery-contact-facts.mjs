@@ -12,7 +12,9 @@ function requiredEnv(name) {
 }
 
 const apply = process.env.DISCOVERY_E05_CONTACT_BACKFILL_APPLY === "true";
-const pageSize = Math.max(25, Math.min(500, Number(process.env.DISCOVERY_E05_CONTACT_BACKFILL_PAGE_SIZE || 100)));
+const requestedPageSize = Number(process.env.DISCOVERY_E05_CONTACT_BACKFILL_PAGE_SIZE || 100);
+const pageSize = Number.isInteger(requestedPageSize) && requestedPageSize > 0
+  ? Math.max(25, Math.min(500, requestedPageSize)) : 100;
 const client = createClient(requiredEnv("SUPABASE_URL"), requiredEnv("SUPABASE_SERVICE_ROLE_KEY"), {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
 });
@@ -78,7 +80,9 @@ async function run() {
       if (changed) updated += 1;
     }
 
-    offset += rows.length;
+    // APPLY removes processed rows from the pending filter, so keep offset at zero.
+    // DRY RUN does not mutate the result set and advances through normal pages.
+    offset = apply ? 0 : offset + rows.length;
     if (rows.length < pageSize) break;
   }
 
