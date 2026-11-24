@@ -134,6 +134,10 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(evidencePackManagementMigration);
     const aiMatchingReviewMigration = await readFile(new URL("../../supabase/migrations/20261123270000_axivestra_e22_ai_matching_review.sql", import.meta.url), "utf8");
     await pool.query(aiMatchingReviewMigration);
+    const e11DimensionsMigration = await readFile(new URL("../../supabase/migrations/20261124002500_discovery_e11_matching_dimensions.sql", import.meta.url), "utf8");
+    await pool.query(e11DimensionsMigration);
+    const e11ScoringRunnerMigration = await readFile(new URL("../../supabase/migrations/20261124003000_discovery_match_scoring_runner.sql", import.meta.url), "utf8");
+    await pool.query(e11ScoringRunnerMigration);
     const executionConsoleAcl=await pool.query(
       "select has_table_privilege('authenticated','public.discovery_orchestration_operations_inbox','select') as safe_console_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as raw_worker_select"
     );
