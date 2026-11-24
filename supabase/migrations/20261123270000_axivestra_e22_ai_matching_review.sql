@@ -121,6 +121,7 @@ declare
   v_item jsonb;
   v_reason jsonb;
   v_allowed_evidence jsonb;
+  v_evidence_id uuid;
 begin
   if coalesce(auth.role(),'') <> 'service_role' then
     raise exception 'Only the isolated service process can record validated E22 suggestions.' using errcode='42501';
@@ -154,8 +155,21 @@ begin
     raise exception 'The company-scoped E11 match result was not found.' using errcode='P0002';
   end if;
   for v_item in select value from jsonb_array_elements(p_evidence_ids) loop
-    if jsonb_typeof(v_item)<>'string'
-      or (v_item#>>'{}') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}
+    if jsonb_typeof(v_item)<>'string' or length(v_item#>>'{}')<>36 then
+      raise exception 'E22 evidence identifiers must be UUIDs.' using errcode='22023';
+    end if;
+    begin
+      v_evidence_id := (v_item#>>'{}')::uuid;
+    exception when others then
+      raise exception 'E22 evidence identifiers must be UUIDs.' using errcode='22023';
+    end;
+    if not exists(
+      select 1 from public.discovery_evidence_items e
+      where e.company_id=p_company_id and e.id=v_evidence_id
+    ) then
+      raise exception 'E22 evidence identifier is not registered to this company.' using errcode='42501';
+    end if;
+  end loop;
   v_allowed_evidence:=p_evidence_ids;
   for v_reason in select value from jsonb_array_elements(p_suggestion->'reasons') loop
     if jsonb_typeof(v_reason)<>'object'
