@@ -55,10 +55,16 @@ test("E05 leaves non-contact facts unchanged when no contact values are present"
 
 test("database migration requires encrypted contact facts and only stores a masked value", async () => {
   const migration = await readFile(new URL("../../../supabase/migrations/20261124001000_discovery_extracted_contact_encryption.sql", import.meta.url), "utf8");
+  const backfill = await readFile(new URL("../../../scripts/backfill-discovery-contact-facts.mjs", import.meta.url), "utf8");
   assert.match(migration, /raw_value_ciphertext text/);
   assert.match(migration, /raw_value_fingerprint ~ '\^\[a-f0-9\]\{64\}\$'/);
   assert.match(migration, /E05 refuses plaintext or incomplete encrypted contact facts/);
   assert.match(migration, /normalized_value := null/);
   assert.match(migration, /quoteRedacted/);
-  assert.match(migration, /raise exception 'E05 contact encryption migration stopped/);
+  assert.match(migration, /discovery_extracted_facts_contact_encryption_check check/);
+  assert.match(migration, /not valid;/i);
+  assert.match(migration, /E05 refuses plaintext or incomplete encrypted contact facts/);
+  assert.match(backfill, /DISCOVERY_E05_CONTACT_BACKFILL_APPLY === "true"/);
+  assert.match(backfill, /\.is\("raw_value_ciphertext", null\)/);
+  assert.match(backfill, /VALIDATE CONSTRAINT discovery_extracted_facts_contact_encryption_check/);
 });
