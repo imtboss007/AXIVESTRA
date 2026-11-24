@@ -36,6 +36,10 @@ function safeScalar(value) {
 function safeCriterionValue(value) {
   const scalar = safeScalar(value);
   if (scalar !== null) return scalar;
+  if (Array.isArray(value)) {
+    const items = value.slice(0, 20).map(safeScalar).filter(item => item !== null);
+    return items.length ? [...new Set(items)] : null;
+  }
   if (!isRecord(value)) return null;
   const result = {};
   for (const key of ["min", "max", "amount", "currency", "value"]) {
