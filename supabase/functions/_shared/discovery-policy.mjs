@@ -272,7 +272,7 @@ function validateProfileMatchCriteria(value) {
           Object.keys(item).length === 0 ||
           Object.values(item).some(part => typeof part !== "number" || !Number.isFinite(part) || part < 0) ||
           (item.min !== undefined && item.max !== undefined && item.min > item.max) ||
-          (item.currencyCode !== undefined && (typeof item.currencyCode !== "string" || !/^[A-Z]{3}$/.test(item.currencyCode)))) {
+          (typeof item.currencyCode !== "string" || !/^[A-Z]{3}$/.test(item.currencyCode))) {
         throw new Error("E11 ticket requires a valid non-negative min/max range.");
       }
     } else {
