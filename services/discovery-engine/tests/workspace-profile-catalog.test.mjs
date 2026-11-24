@@ -16,6 +16,7 @@ test("the lender/customer profile catalogue covers all 16 existing AXIVESTRA wor
       assert.equal(criteria.mode, mode);
       assert.ok(criteria.targetClasses.length, workspaceKey + "/" + mode + " targets");
       assert.ok(criteria.requiredFields.length, workspaceKey + "/" + mode + " required fields");
+      assert.deepEqual(criteria.sourceRequiredFields, [], workspaceKey + "/" + mode + " starts with no source-specific mandatory fields");
       assert.ok(criteria.guardrails.length, workspaceKey + "/" + mode + " guardrails");
       assert.deepEqual(validateWorkspaceCriteria(criteria, workspaceKey, mode), criteria);
     }
@@ -48,6 +49,7 @@ test("criteria rejects cross-workspace, cross-mode and malformed values", () => 
   assert.throws(() => validateWorkspaceCriteria(criteria, "property_loans", "CUSTOMER"), /does not match/);
   assert.throws(() => validateWorkspaceCriteria({ ...criteria, requiredFields: [] }, "property_loans", "LENDER"), /requiredFields/);
   assert.throws(() => validateWorkspaceCriteria({ ...criteria, preferredFields: "turnover" }, "property_loans", "LENDER"), /preferredFields/);
+  assert.throws(() => validateWorkspaceCriteria({ ...criteria, sourceRequiredFields: ["private_credit_score"] }, "property_loans", "LENDER"), /final required or preferred/);
 });
 
 test("search hints derive from workspace targets and bounded user filters without generating contacts", () => {
