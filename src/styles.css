@@ -6703,3 +6703,20 @@ h2,h3{color:#e5f2fc}
   .discovery-search-filter-grid { grid-template-columns: 1fr; }
   .discovery-search-result-actions { align-items: stretch; }
 }
+
+
+.ax-module-hero-actions .ax-module-intelligence-action {
+  border-color: #315f79;
+  color: #b9dce9;
+  background: rgba(16,44,66,.82);
+}
+.ax-module-hero-actions .ax-module-intelligence-action:hover {
+  border-color: #45aac4;
+  color: #effcff;
+  background: #143b55;
+}
+@media (max-width: 640px) {
+  .ax-module-hero-actions .ax-module-intelligence-action {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
