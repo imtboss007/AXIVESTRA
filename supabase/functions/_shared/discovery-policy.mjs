@@ -265,10 +265,13 @@ export function assertSourceCanBeAttached(profile, source) {
   if (!allowedPurposes.includes(profile.purpose)) {
     throw new Error("The source's approved purposes do not include this workspace profile's exact purpose.");
   }
-  const requestedFields = Array.isArray(profile.criteria?.requiredFields) ? profile.criteria.requiredFields : [];
+  // requiredFields describes the final multi-source qualification target. A single source
+  // is only responsible for fields explicitly declared sourceRequiredFields; complementary
+  // approved sources may supply the other required facts.
+  const requestedFields = Array.isArray(profile.criteria?.sourceRequiredFields) ? profile.criteria.sourceRequiredFields : [];
   const allowedFields = new Set((Array.isArray(source.allowed_fields) ? source.allowed_fields : []).map(field => String(field).toLowerCase()));
   if (requestedFields.some(field => !allowedFields.has(String(field).toLowerCase()))) {
-    throw new Error("The profile requests fields that are not in the source's approved field allow-list.");
+    throw new Error("The source does not allow every field explicitly required from this source.");
   }
   return true;
 }
