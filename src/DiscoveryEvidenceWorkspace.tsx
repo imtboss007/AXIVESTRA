@@ -201,7 +201,7 @@ export default function DiscoveryEvidenceWorkspace({
     </section>;
   }
 
-  return <section className="discovery-evidence-workspace data-panel discovery-panel" aria-label="E21 evidence management and evidence packs">
+  return <section className="discovery-evidence-workspace data-panel discovery-panel" aria-label="E21 evidence management and evidence packs" data-testid="e21-evidence-workspace">
     <div className="section-heading">
       <div><span className="section-kicker">E21 · REVISED ROADMAP E11</span><h2>Evidence manager & review packs</h2>
         <p>Browse evidence lineage across capture, extraction, entity, contact, location, enrichment, matching and verification stages. Curate citations into a reviewable pack.</p>
@@ -237,7 +237,7 @@ export default function DiscoveryEvidenceWorkspace({
         {!canManage && <p className="discovery-readonly">You can view evidence packs. Only company owners/admins can curate, submit, review or export packs.</p>}
         <div className="discovery-evidence-pack-list">
           {packs.map(pack => <button type="button" key={pack.id}
-            className={"discovery-evidence-pack-choice" + (pack.id === selectedPackId ? " is-selected" : "")}
+            data-pack-id={pack.id} className={"discovery-evidence-pack-choice" + (pack.id === selectedPackId ? " is-selected" : "")}
             onClick={() => setSelectedPackId(pack.id)}>
             <span><b>{pack.title}</b><small>{pack.item_count} citation(s) · {formatDate(pack.updated_at)}</small></span>
             <em className={"discovery-evidence-status status-" + pack.status}>{label(pack.status)}</em>
@@ -302,7 +302,7 @@ export default function DiscoveryEvidenceWorkspace({
         <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search citations…" />
       </label>
       <div className="discovery-evidence-candidate-list">
-        {visibleCandidates.map(candidate => <article key={candidate.provenance_event_id}>
+        {visibleCandidates.map(candidate => <article key={candidate.provenance_event_id} data-provenance-event-id={candidate.provenance_event_id}>
           <div><b>{label(candidate.subject_kind)}{candidate.field_name ? " · " + candidate.field_name : ""}</b><em>{label(candidate.event_type)}</em></div>
           <small>{candidate.source_name_snapshot || "Unknown source"} · {candidate.source_domain_snapshot || "domain not recorded"} · {candidate.source_jurisdiction_snapshot || "jurisdiction not recorded"}</small>
           <small>Evidence {candidate.evidence_id} · SHA-256 {candidate.evidence_content_hash || "not recorded"}</small>
