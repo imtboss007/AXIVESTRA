@@ -25,7 +25,9 @@ test("queued jobs carry their exact workspace/mode profile criteria to the serve
   assert.match(queue, /criteria:\s*selectedProfile\.criteria \|\| \{\}/);
   assert.match(queue, /buildDiscoveryQueryHints/);
   assert.match(queue, /PROFILE-DRIVEN SEARCH PLAN/);
-  assert.match(queue, /does not search the internet/);
+  assert.match(queue, /does not crawl links or expand scope/);
+  assert.match(queue, /searchPublicDirectories/);
+  assert.match(queue, /results remain unverified and are never fetched automatically/);
 });
 
 test("profile catalogue encodes separate lender and customer target classes with policy guardrails", () => {
