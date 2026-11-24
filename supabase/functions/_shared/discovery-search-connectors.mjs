@@ -30,7 +30,7 @@ function normalizeUrl(value) {
   if (typeof value !== "string" || value.length > 2048) return null;
   let url;
   try { url = new URL(value); } catch { return null; }
-  if (url.protocol !== "https:" || url.username || url.password || !isPublicSearchHost(url.hostname)) return null;
+  if (url.protocol !== "https:" || url.username || url.password || url.search || !isPublicSearchHost(url.hostname)) return null;
   url.hash = "";
   return url;
 }
@@ -54,6 +54,14 @@ export function buildSearxngQueries(criteria, filters = {}) {
     stage: cleanText(filters.stage, 80),
     instrument: cleanText(filters.instrument, 80)
   };
+  const sensitiveInput = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i;
+  const phoneInput = /(?:\\+?\\d[\\d .()\\-]{7,}\\d)/;
+  if (Object.values(cleanFilters).some(value => sensitiveInput.test(value) || phoneInput.test(value))) {
+    throw new Error("Search filters must not contain personal email addresses or phone numbers.");
+  }
+  if (targetClasses.some(value => sensitiveInput.test(value) || phoneInput.test(value))) {
+    throw new Error("Workspace search target classes must not contain personal contact details.");
+  }
   const suffix = Object.values(cleanFilters).filter(Boolean).join(" ");
   const queries = [];
   for (const target of targetClasses.slice(0, 4)) {
