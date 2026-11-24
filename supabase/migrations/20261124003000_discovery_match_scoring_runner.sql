@@ -63,8 +63,8 @@ begin
   if coalesce((v_profile.criteria->>'disabledByPolicy')::boolean,false) then
     raise exception 'E11 workspace/mode is disabled by discovery policy' using errcode='42501';
   end if;
-  if v_profile.workspace_key in ('litigation','investor_relations') and v_profile.discovery_mode='LENDER' then
-    raise exception 'E11 lender discovery is disabled for this workspace' using errcode='42501';
+  if v_profile.workspace_key='litigation' and v_profile.discovery_mode='LENDER' then
+    raise exception 'E11 lender discovery is disabled for Litigation' using errcode='42501';
   end if;
   if v_profile.workspace_key='personal_loan' and v_profile.discovery_mode='CUSTOMER' then
     raise exception 'E11 Personal Loan customer discovery is limited to inbound, referred or explicitly consented intake' using errcode='42501';
