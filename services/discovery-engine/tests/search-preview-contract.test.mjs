@@ -48,8 +48,8 @@ test("E03 UI only adds a search result to E04 when server confirms an attached a
   assert.match(queueUi, /Add URL to E04 draft/);
   assert.match(queueUi, /No fetch permission/);
   assert.match(queueUi, /Candidate URL added to the E04 draft/);
-  assert.match(queueUi, /current\.split\(\/\\r\?\\n\/\)/);
-  assert.match(queueUi, /join\("\\n"\)/);
+  assert.ok(queueUi.includes(String.raw`current.split(/\r?\n/)`));
+  assert.ok(queueUi.includes(String.raw`.join("\n")`));
   assert.doesNotMatch(queueUi, /searchResults\.map[\s\S]{0,300}fetch\(/);
 });
 
