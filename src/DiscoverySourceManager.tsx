@@ -504,7 +504,7 @@ export default function DiscoverySourceManager({
         <label>Jurisdiction<input required value={profileDraft.jurisdiction} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, jurisdiction: event.target.value })}/></label>
         <label className="discovery-profile-criteria-editor">Workspace-specific targets, required fields, match dimensions and guardrails
           <textarea rows={9} value={criteriaText} onChange={event => setCriteriaText(event.target.value)} disabled={!canManage || busyKey === "add-profile"} spellCheck={false}/>
-          <small>Defaults are loaded from the 16-workspace blueprint. Edit valid JSON to tune this workspace and mode. Criteria remain disabled until an owner/admin approves a source and enables the profile.</small>
+          <small>Defaults are loaded from the 16-workspace blueprint. <code>requiredFields</code> describe the final record and may be supplied by several sources; use <code>sourceRequiredFields</code> only when every attached source must provide a particular field. Profiles remain disabled until an owner/admin approves a source and enables them.</small>
         </label>
         <button type="submit" className="primary-button" disabled={!canManage || !profileDraft.purpose || busyKey === "add-profile" || profileAlreadyExists}><Plus size={15}/>{profileAlreadyExists ? "Profile already exists" : "Create disabled profile"}</button>
       </form>
