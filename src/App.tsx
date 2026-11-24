@@ -1790,14 +1790,28 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
     }
     setProperties(previous => previous.map(record => {
       if (source && source.id !== target.id && record.id === source.id) {
-        const remaining = parseFollowUps(record.moduleData).filter(item => item.id !== editingFollowUp.entry.id);
-        return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) } };
+        const previousEntry = editingFollowUp.entry;
+        const remaining = parseFollowUps(record.moduleData).filter(item => item.id !== previousEntry.id);
+        // If the legacy date was only mirroring the structured item being moved, clear that mirror too.
+        const legacyDateWasMirror = record.nextFollowUpDate === previousEntry.date;
+        return {
+          ...record,
+          ...(legacyDateWasMirror ? { nextFollowUpDate: "" } : {}),
+          moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) }
+        };
       }
       if (record.id !== target.id) return record;
       const current = parseFollowUps(record.moduleData);
-      const exists = current.some(item => item.id === entry.id);
+      const previousEntry = current.find(item => item.id === entry.id);
+      const exists = Boolean(previousEntry);
       const next = exists ? current.map(item => item.id === entry.id ? entry : item) : [entry, ...current];
-      return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) } };
+      // Keep the legacy nextFollowUpDate mirror aligned only when it still represented this exact item.
+      const legacyDateWasMirror = Boolean(previousEntry && record.nextFollowUpDate === previousEntry.date);
+      return {
+        ...record,
+        ...(legacyDateWasMirror ? { nextFollowUpDate: entry.date } : {}),
+        moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) }
+      };
     }));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: editingFollowUp ? "updated" as const : "created" as const,
@@ -1813,9 +1827,16 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
       setNotice("Read-only company access cannot change follow-ups.");
       return;
     }
-    const next = parseFollowUps(record.moduleData).map(item => item.id === entry.id ? entry : item);
+    const current = parseFollowUps(record.moduleData);
+    const previousEntry = current.find(item => item.id === entry.id);
+    const next = current.map(item => item.id === entry.id ? entry : item);
+    const legacyDateWasMirror = Boolean(previousEntry && record.nextFollowUpDate === previousEntry.date);
     setProperties(previous => previous.map(item => item.id === record.id
-      ? { ...item, moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) } }
+      ? {
+          ...item,
+          ...(legacyDateWasMirror ? { nextFollowUpDate: entry.date } : {}),
+          moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) }
+        }
       : item));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: "updated" as const, entity: "Follow-up",
