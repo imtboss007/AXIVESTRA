@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { redactExtractedFacts } from "../_shared/discovery-contact-redaction.mjs";
 import {
   normalizeSourceRegistration,
   normalizeSourceReview,
