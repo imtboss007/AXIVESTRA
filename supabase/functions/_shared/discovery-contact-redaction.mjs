@@ -27,8 +27,16 @@ export function redactExtractedFact(fact) {
   delete sourceSpan.quoteHash;
   sourceSpan.quote = masked;
   sourceSpan.quoteRedacted = true;
+  const {
+    raw_value_ciphertext,
+    raw_value_nonce,
+    raw_value_auth_tag,
+    raw_value_fingerprint,
+    raw_value_encryption_version,
+    ...safeFact
+  } = fact;
   return {
-    ...fact,
+    ...safeFact,
     raw_value: masked,
     normalized_value: null,
     source_span: sourceSpan
