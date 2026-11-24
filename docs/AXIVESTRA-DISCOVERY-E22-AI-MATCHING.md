@@ -30,7 +30,7 @@ The request carries E11's deterministic score, confidence and eligibility state 
 
 A model adapter must be explicitly injected by a caller and set \`enabled: true\`. Without that explicit injection, \`requestAiMatchingSuggestion\` returns \`provider_disabled\` without invoking anything.
 
-Any returned value is treated as untrusted. E22 validates:
+Before an enabled adapter is called, E22 rechecks the minimised request's SHA-256 integrity hash, the reviewed-input assertions, the criterion allow-list and the exact provenance-ID list. A caller cannot silently mutate the request after it has been built. Any returned value is treated as untrusted. E22 validates:
 - the recommendation is one of \`possible_match\`, \`not_a_match\` or \`insufficient_evidence\`;
 - the advisory score is an integer from 0 to 100 and is labelled ordinal, not a probability;
 - rationale is expressed as allow-listed criteria and controlled reason codes;
