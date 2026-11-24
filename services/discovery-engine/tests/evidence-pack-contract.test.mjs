@@ -15,6 +15,7 @@ const [migration, edge, workspace, manager, packageJson, integration, roadmap, d
   read("docs/AXIVESTRA-REVISED-DISCOVERY-ROADMAP-E05-E16.md"),
   read("docs/AXIVESTRA-DISCOVERY-E21-EVIDENCE-OPERATIONS.md")
 ]);
+const packageManifest = JSON.parse(packageJson);
 
 test("E21 creates a company-scoped evidence pack and immutable review ledger", () => {
   for (const table of ["discovery_evidence_packs","discovery_evidence_pack_items","discovery_evidence_pack_events"]) {
@@ -72,8 +73,8 @@ test("E21 evidence manager is connected to the existing discovery workspace", ()
   assert.match(workspace, /metadata\/provenance bundle exported/);
   assert.match(manager, /DiscoveryEvidenceWorkspace/);
   assert.match(manager, /<DiscoveryEvidenceWorkspace companyId=\{companyId\} companyRole=\{companyRole\}\/>/);
-  assert.match(packageJson.scripts.test, /evidence-pack-contract\.test\.mjs/);
-  assert.match(packageJson.scripts["test:discovery"], /evidence-pack-contract\.test\.mjs/);
+  assert.match(packageManifest.scripts.test, /evidence-pack-contract\.test\.mjs/);
+  assert.match(packageManifest.scripts["test:discovery"], /evidence-pack-contract\.test\.mjs/);
   assert.match(integration, /20261123260000_axivestra_evidence_pack_management\.sql/);
   assert.match(integration, /E21 evidence pack lifecycle/);
   assert.match(roadmap, /technical E21 evidence operations/i);
