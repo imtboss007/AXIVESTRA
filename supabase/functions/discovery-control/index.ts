@@ -287,7 +287,7 @@ Deno.serve(async request => {
 
 
     if (action === "orchestration.list") {
-      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult, adapterContractResult, adapterApprovalResult, adapterEventResult, schedulePreviewResult, stageQueueContractResult, executionResult, attemptResult, failurePolicyResult] = await Promise.all([
+      const [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult, adapterContractResult, adapterApprovalResult, adapterEventResult, schedulePreviewResult, stageQueueContractResult, executionResult, attemptResult, failurePolicyResult, operationsResult] = await Promise.all([
         admin.from("discovery_orchestration_workflows").select("workflow_key,label,description,stage_keys")
           .eq("active", true).order("label"),
         admin.from("discovery_orchestration_stage_registry").select("stage_key,technical_stage,capability_name,description,dependency_stage_keys,permission_class,adapter_key,dispatch_ready,enabled_by_default")
@@ -324,9 +324,11 @@ Deno.serve(async request => {
         userClient.from("discovery_orchestration_attempt_inbox").select("attempt_id,execution_id,attempt_number,status,error_code,failure_class,retryable,started_at,finished_at,next_retry_at,run_id,step_id,stage_key,adapter_key")
           .eq("company_id", companyId).order("started_at", { ascending: false }).limit(1000),
         admin.from("discovery_orchestration_failure_policies").select("error_code,failure_class,retryable,base_delay_seconds,max_delay_seconds,max_attempts,safe_summary")
-          .eq("enabled", true).order("failure_class").order("error_code")
+          .eq("enabled", true).order("failure_class").order("error_code"),
+        userClient.from("discovery_orchestration_operations_inbox").select("*")
+          .eq("company_id", companyId).order("updated_at", { ascending: false }).limit(500)
       ]);
-      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult, adapterContractResult, adapterApprovalResult, adapterEventResult, schedulePreviewResult, stageQueueContractResult, executionResult, attemptResult, failurePolicyResult]) {
+      for (const result of [workflowResult, stageResult, runResult, stepResult, eventResult, preflightResult, profileResult, sourceResult, profileSourceResult, contextEventResult, adapterContractResult, adapterApprovalResult, adapterEventResult, schedulePreviewResult, stageQueueContractResult, executionResult, attemptResult, failurePolicyResult, operationsResult]) {
         if (result.error) throw result.error;
       }
       let workerIdentities: Record<string, unknown>[] = [];
@@ -370,10 +372,11 @@ Deno.serve(async request => {
         executions: executionResult.data || [],
         attempts: attemptResult.data || [],
         failurePolicies: failurePolicyResult.data || [],
+        operations: operationsResult.data || [],
         workerIdentities,
         workerEvents,
         companyWorkerGrant,
-        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500, contextEvents: 800, adapterContracts: 200, adapterApprovals: 200, adapterEvents: 500, schedulePreview: 500, stageQueueContracts: 9, executions: 500, attempts: 1000, failurePolicies: 100, workerIdentities: 100, workerEvents: 300 }
+        limits: { runs: 40, steps: 500, events: 800, preflight: 500, profiles: 200, sources: 300, profileSources: 500, contextEvents: 800, adapterContracts: 200, adapterApprovals: 200, adapterEvents: 500, schedulePreview: 500, stageQueueContracts: 9, executions: 500, attempts: 1000, failurePolicies: 100, operations: 500, workerIdentities: 100, workerEvents: 300 }
       });
     }
 
