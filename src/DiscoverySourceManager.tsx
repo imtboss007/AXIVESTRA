@@ -114,10 +114,14 @@ function StatusPill({ status }: { status: SourceStatus | "enabled" | "disabled" 
 
 export default function DiscoverySourceManager({
   companyId,
-  companyRole
+  companyRole,
+  selectedWorkspaceKey,
+  selectedMode
 }: {
   companyId?: string;
   companyRole?: string;
+  selectedWorkspaceKey?: string;
+  selectedMode?: "LENDER" | "CUSTOMER";
 }) {
   const canManage = companyRole === "owner" || companyRole === "admin";
   const [sources, setSources] = useState<Source[]>([]);
@@ -129,8 +133,8 @@ export default function DiscoverySourceManager({
   const [notice, setNotice] = useState("");
   const [sourceDraft, setSourceDraft] = useState(initialSourceDraft);
   const [profileDraft, setProfileDraft] = useState({
-    workspaceKey: "property_loans",
-    discoveryMode: "LENDER",
+    workspaceKey: selectedWorkspaceKey || "property_loans",
+    discoveryMode: selectedMode || "LENDER",
     purpose: "",
     jurisdiction: "IN"
   });
@@ -176,6 +180,16 @@ export default function DiscoverySourceManager({
   }, [companyId, invoke]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!selectedWorkspaceKey) return;
+    setProfileDraft(current => ({
+      ...current,
+      workspaceKey: selectedWorkspaceKey,
+      discoveryMode: selectedMode || current.discoveryMode,
+      purpose: ""
+    }));
+  }, [selectedWorkspaceKey, selectedMode]);
 
   useEffect(() => {
     setCriteriaText(JSON.stringify(getDefaultWorkspaceCriteria(profileDraft.workspaceKey, profileDraft.discoveryMode), null, 2));
@@ -554,7 +568,7 @@ export default function DiscoverySourceManager({
           </article>;
         })}</div>}
     </section>
-    <DiscoveryJobQueue companyId={companyId} companyRole={companyRole} sources={sources} profiles={profiles} links={links}/>
+    <DiscoveryJobQueue companyId={companyId} companyRole={companyRole} sources={sources} profiles={profiles} links={links} initialWorkspaceKey={selectedWorkspaceKey} initialMode={selectedMode}/>
     <DiscoveryExtractionResults companyId={companyId} companyRole={companyRole} sources={sources}/>
     <DiscoveryEvidenceWorkspace companyId={companyId} companyRole={companyRole}/>
     <DiscoveryAiMatchingReviewWorkspace companyId={companyId} companyRole={companyRole}/>
