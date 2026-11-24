@@ -132,6 +132,52 @@ test("profile is disabled unless explicitly enabled and has an approved source a
   assert.equal(normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers", enabled: true }, 1).enabled, true);
 });
 
+test("server profile normalization enforces the explicit E11 match criteria contract", () => {
+  const profile = normalizeProfile({
+    workspaceKey: "property_loans",
+    discoveryMode: "LENDER",
+    purpose,
+    enabled: false,
+    criteria: {
+      schemaVersion: 1,
+      workspaceKey: "property_loans",
+      mode: "LENDER",
+      targetClasses: ["bank"],
+      requiredFields: ["institution_name"],
+      sourceRequiredFields: [],
+      preferredFields: ["ticket_size_band"],
+      matchDimensions: ["ticket"],
+      sourcePriorities: ["regulator_register"],
+      guardrails: ["Verify current licence status."],
+      disabledByPolicy: false,
+      matchCriteria: {
+        geography: { value: ["Karnataka"], weight: 2 },
+        ticket: { value: { min: 1000000, max: 50000000 }, weight: 3, required: true },
+        evidence_freshness: { maxAgeDays: 90, weight: 1 }
+      }
+    }
+  });
+  assert.equal(profile.criteria.matchCriteria.ticket.required, true);
+  assert.equal(profile.criteria.matchCriteria.evidence_freshness.maxAgeDays, 90);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "property_loans", discoveryMode: "LENDER", purpose, enabled: false,
+    criteria: { matchCriteria: { private_credit_score: { value: 700, weight: 1 } } }
+  }), /Unsupported E11 match criterion/);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "property_loans", discoveryMode: "LENDER", purpose, enabled: false,
+    criteria: { matchCriteria: { ticket: { value: { min: 50, max: 5 } } } }
+  }), /valid non-negative min\/max range/);
+});
+
+test("server refuses protected Litigation and Investor Relations lender profiles", () => {
+  for (const workspaceKey of ["litigation", "investor_relations"]) {
+    assert.throws(() => normalizeProfile({
+      workspaceKey, discoveryMode: "LENDER", purpose: "Find approved institutional funding providers",
+      enabled: true, criteria: { disabledByPolicy: false }
+    }, 1), /disabled by discovery policy/);
+  }
+});
+
 test("personal-loan customer discovery cannot be enabled or attached to internet sources", () => {
   assert.throws(() => normalizeProfile({ workspaceKey: "personal_loan", discoveryMode: "CUSTOMER", purpose: "Find borrowers", enabled: true }, 2), /cannot scrape or harvest individuals/);
   assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external person-discovery/);
@@ -237,7 +283,7 @@ test("source attachment enforces exact approved purpose and field allow-lists", 
   };
   assert.equal(assertSourceCanBeAttached(profile, approvedSource()), true);
   assert.throws(() => assertSourceCanBeAttached({ ...profile, purpose: "lead generation" }, approvedSource()), /exact purpose/);
-  assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { requiredFields: ["private_credit_score"] } }, approvedSource()), /field allow-list/);
+  assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { sourceRequiredFields: ["private_credit_score"] } }, approvedSource()), /explicitly required from this source/);
 });
 
 test("connector search endpoint is checked against exact approved host and paths", async () => {
