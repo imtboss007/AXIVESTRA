@@ -170,13 +170,25 @@ test("server profile normalization enforces the explicit E11 match criteria cont
   }), /valid non-negative min\/max range/);
 });
 
-test("server refuses protected Litigation and Investor Relations lender profiles", () => {
-  for (const workspaceKey of ["litigation", "investor_relations"]) {
-    assert.throws(() => normalizeProfile({
-      workspaceKey, discoveryMode: "LENDER", purpose: "Find approved institutional funding providers",
-      enabled: true, criteria: { disabledByPolicy: false }
-    }, 1), /disabled by discovery policy/);
-  }
+test("server blocks Litigation lender discovery but allows explicitly configured Investor Relations fund finance", () => {
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "litigation", discoveryMode: "LENDER", purpose: "Find approved institutional funding providers",
+    enabled: true, criteria: { disabledByPolicy: false }
+  }, 1), /disabled by discovery policy/);
+  const ir = normalizeProfile({
+    workspaceKey: "investor_relations", discoveryMode: "LENDER",
+    purpose: "Approved fund finance provider research",
+    enabled: true, criteria: {
+      schemaVersion: 1, workspaceKey: "investor_relations", mode: "LENDER",
+      targetClasses: ["optional_fund_or_portfolio_finance_provider"],
+      requiredFields: ["institution_name"], sourceRequiredFields: [],
+      preferredFields: ["facility_type"], matchDimensions: ["facility_type"],
+      sourcePriorities: ["official_lender_page"], guardrails: ["Use only for an explicitly approved fund-finance workflow."],
+      disabledByPolicy: false, matchCriteria: {}
+    }
+  }, 1);
+  assert.equal(ir.enabled, true);
+  assert.equal(ir.criteria.disabledByPolicy, false);
 });
 
 test("restricted profile modes cannot attach sources even when a legacy row is marked enabled", () => {
