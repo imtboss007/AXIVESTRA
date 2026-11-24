@@ -121,9 +121,12 @@ export default function ThemeStudio() {
         </label>)}
       </div>
     </div>
-    <div className="ax-theme-studio__preview" aria-label="Theme preview">
-      <div><span>LIVE PREVIEW</span><strong>Asset Intelligence</strong><small>Assets · Capital · Relationships</small></div>
-      <div className="ax-theme-studio__preview-metrics"><span><small>Recorded exposure</small><strong>₹2.45 Cr</strong></span><span><small>Open actions</small><strong>08</strong></span></div>
+    <div className="ax-theme-studio__contrast-note" role="note">
+      **Readability guard:** text and button foregrounds automatically switch to a high-contrast colour when the chosen pair falls below 4.5:1. Your saved HEX palette values are preserved.
+    </div>
+    <div className="ax-theme-studio__preview" aria-label="Theme style preview">
+      <div><span>STYLE PREVIEW · SAMPLE ONLY</span><strong>Asset Intelligence</strong><small>Assets · Capital · Relationships · Not live business data</small></div>
+      <div className="ax-theme-studio__preview-metrics"><span><small>Recorded exposure</small><strong>₹—</strong></span><span><small>Open actions</small><strong>—</strong></span></div>
       <div className="ax-theme-studio__preview-bars">{swatches.map((colour,index)=><i key={index} style={{backgroundColor:colour,height:(22+index*10)+"px"}}/>)}</div>
     </div>
     <div className="ax-theme-studio__footer">
