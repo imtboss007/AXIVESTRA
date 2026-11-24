@@ -14,6 +14,19 @@ type StageQueueContract = { stage_key: string; mapping_version: string; queue_mo
 type ExecutionRecord = { execution_id: string; run_id: string; step_id: string; stage_key: string; adapter_key: string; state: string; attempt_count: number; max_attempts: number; available_at: string; last_error_code: string | null; last_error_summary: string | null; updated_at: string };
 type AttemptRecord = { attempt_id: string; execution_id: string; attempt_number: number; status: string; error_code: string | null; failure_class: string | null; retryable: boolean; started_at: string; finished_at: string | null; next_retry_at: string | null; run_id: string; step_id: string; stage_key: string; adapter_key: string };
 type FailurePolicy = { error_code: string; failure_class: string; retryable: boolean; base_delay_seconds: number; max_delay_seconds: number; max_attempts: number; safe_summary: string };
+type OperationalRecord = {
+  execution_id: string; run_id: string; step_id: string; stage_key: string; adapter_key: string;
+  state: string; attempt_count: number; max_attempts: number; created_at: string; updated_at: string;
+  available_at: string; queue_age_seconds: number | null; retry_wait_seconds: number | null;
+  last_error_code: string | null; last_error_summary: string | null; lease_id: string | null;
+  lease_state: "not_leased" | "active" | "expired" | "released"; worker_identity_id: string | null;
+  worker_identity: string | null; worker_status: string | null; worker_expires_at: string | null;
+  leased_at: string | null; lease_expires_at: string | null; lease_heartbeat_at: string | null;
+  lease_heartbeat_age_seconds: number | null; stage_adapter_key: string | null;
+  platform_contract_version: string | null; platform_adapter_enabled: boolean | null;
+  company_approval_contract_version: string | null; company_approval_status: string | null;
+  adapter_readiness_state: string;
+};
 type Profile = { id: string; workspace_key: string; discovery_mode: string; jurisdiction: string; purpose: string; enabled: boolean };
 type Source = { id: string; name: string; status: string; allowed_purposes: string[]; allowed_fields: string[] };
 type ProfileSource = { profile_id: string; source_id: string };
@@ -23,7 +36,7 @@ type WorkerEvent = { id: string; worker_identity_id: string; event_type: string;
 type CompanyWorkerGrant = { enabled: boolean; expires_at: string; updated_at: string; reason: string };
 type Event = { id: string; run_id: string; event_type: string; previous_status: string | null; new_status: string; reason: string; occurred_at: string; actor_user_id: string | null };
 type Run = { id: string; workflow_key: string; workflow_label: string; status: string; dispatch_state: string; requested_by: string; approved_by: string | null; approved_at: string | null; decision_reason: string | null; stage_count: number; unavailable_adapter_count: number; disabled_stage_count: number; all_stage_gates_ready: boolean; created_at: string };
-type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; adapterContracts?: AdapterContract[]; adapterApprovals?: AdapterApproval[]; adapterEvents?: AdapterEvent[]; schedulePreview?: SchedulePreview[]; stageQueueContracts?: StageQueueContract[]; executions?: ExecutionRecord[]; attempts?: AttemptRecord[]; failurePolicies?: FailurePolicy[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
+type ApiResponse = { ok?: boolean; error?: string; message?: string; workflows?: Workflow[]; stages?: Stage[]; runs?: Run[]; steps?: Step[]; events?: Event[]; preflight?: Preflight[]; profiles?: Profile[]; sources?: Source[]; profileSources?: ProfileSource[]; contextEvents?: ContextEvent[]; adapterContracts?: AdapterContract[]; adapterApprovals?: AdapterApproval[]; adapterEvents?: AdapterEvent[]; schedulePreview?: SchedulePreview[]; stageQueueContracts?: StageQueueContract[]; executions?: ExecutionRecord[]; attempts?: AttemptRecord[]; failurePolicies?: FailurePolicy[]; operations?: OperationalRecord[]; workerIdentities?: WorkerIdentity[]; workerEvents?: WorkerEvent[]; companyWorkerGrant?: CompanyWorkerGrant | null; workerToken?: string; worker?: WorkerIdentity; runId?: string };
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : "The orchestration request failed.";
@@ -35,6 +48,15 @@ function formatDate(value: string | null | undefined) {
 }
 function statusLabel(value: string) {
   return value.replaceAll("_", " ");
+}
+function formatDuration(seconds: number | null | undefined) {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return "Not queued";
+  const value = Math.max(0, Math.floor(seconds));
+  if (value < 60) return value + "s";
+  if (value < 3600) return Math.floor(value / 60) + "m " + (value % 60) + "s";
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  return hours + "h " + minutes + "m";
 }
 
 export default function DiscoveryOrchestrationWorkspace({
@@ -63,6 +85,7 @@ export default function DiscoveryOrchestrationWorkspace({
   const [executions, setExecutions] = useState<ExecutionRecord[]>([]);
   const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [failurePolicies, setFailurePolicies] = useState<FailurePolicy[]>([]);
+  const [operations, setOperations] = useState<OperationalRecord[]>([]);
   const [adapterReviewReason, setAdapterReviewReason] = useState("Reviewed exact adapter version, permission class and source/purpose/personal-data checks for this company.");
   const [workerIdentities, setWorkerIdentities] = useState<WorkerIdentity[]>([]);
   const [workerEvents, setWorkerEvents] = useState<WorkerEvent[]>([]);
@@ -123,6 +146,7 @@ export default function DiscoveryOrchestrationWorkspace({
       setExecutions(result.executions || []);
       setAttempts(result.attempts || []);
       setFailurePolicies(result.failurePolicies || []);
+      setOperations(result.operations || []);
       setWorkerIdentities(result.workerIdentities || []);
       setWorkerEvents(result.workerEvents || []);
       setCompanyWorkerGrant(result.companyWorkerGrant || null);
@@ -336,6 +360,27 @@ export default function DiscoveryOrchestrationWorkspace({
   const contextEventsFor = (runId: string) => contextEvents.filter(event => event.run_id === runId).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
   const preflightFor = (stepId: string) => preflight.find(item => item.step_id === stepId);
   const stagesByKey = new Map(stages.map(stage => [stage.stage_key, stage]));
+  const queuedOperations = operations.filter(item =>
+    (item.state === "ready" || item.state === "retry_wait") && Date.parse(item.available_at) <= Date.now()
+  );
+  const oldestQueueAgeSeconds = queuedOperations.reduce(
+    (oldest, item) => Math.max(oldest, item.queue_age_seconds || 0), 0
+  );
+  const activeLeaseCount = operations.filter(item => item.lease_state === "active").length;
+  const expiredLeaseCount = operations.filter(item => item.lease_state === "expired").length;
+  const terminalFailureCount = executions.filter(item => item.state === "failed").length;
+  const adapterExceptions = new Map<string, string>();
+  for (const item of operations) {
+    if (item.adapter_readiness_state !== "current") {
+      adapterExceptions.set(item.adapter_key, item.adapter_readiness_state);
+    }
+  }
+  for (const contract of adapterContracts) {
+    const approval = adapterApprovals.find(item => item.adapter_key === contract.adapter_key);
+    if (approval?.status === "approved" && approval.contract_version !== contract.contract_version) {
+      adapterExceptions.set(contract.adapter_key, "company_approval_stale");
+    }
+  }
 
   if (!companyId) {
     return <section className="discovery-orchestration"><div className="discovery-empty-state"><ShieldCheck size={26}/><h2>Company workspace required</h2><p>Agent orchestration plans and approvals are isolated by company.</p></div></section>;
@@ -374,6 +419,44 @@ export default function DiscoveryOrchestrationWorkspace({
       <article><strong>{runs.filter(run => run.status === "approved_not_dispatched").length}</strong><span>Approved · not dispatched</span></article>
       <article><strong>{stages.length}</strong><span>Registered stages</span></article>
     </div>
+
+    <section className="discovery-orchestration-worker-panel" aria-label="E20.7 execution console and operational health">
+      <div className="discovery-orchestration-section-head">
+        <div><span className="section-kicker">E20.7 · OPERATIONS CONSOLE</span><h3>Execution health & live queue telemetry</h3></div>
+        <small>Company-scoped · read-only snapshot</small>
+      </div>
+      <p>Operational telemetry is derived from durable execution, attempt and lease records. Queue age, retry delay, lease heartbeat, worker lifecycle and adapter-version readiness are observable here; this console never claims work or changes dispatch state.</p>
+      <div className="discovery-orchestration-summary">
+        <article><strong>{queuedOperations.length}</strong><span>Eligible queue items</span></article>
+        <article><strong>{formatDuration(queuedOperations.length ? oldestQueueAgeSeconds : null)}</strong><span>Oldest queue age</span></article>
+        <article><strong>{activeLeaseCount}</strong><span>Active leases</span></article>
+        <article><strong>{expiredLeaseCount}</strong><span>Expired leases</span></article>
+        <article><strong>{terminalFailureCount}</strong><span>Terminal failures</span></article>
+        <article><strong>{adapterExceptions.size}</strong><span>Adapter/version exceptions</span></article>
+      </div>
+      <div className="discovery-orchestration-stage-grid">
+        {operations.map(item => <article key={item.execution_id}>
+          <div><b>{stagesByKey.get(item.stage_key)?.technical_stage || item.stage_key} · {item.stage_key}</b><span>{statusLabel(item.state)}</span></div>
+          <small>{item.adapter_key} · attempt {item.attempt_count}/{item.max_attempts}</small>
+          <small>Queue age: {formatDuration(item.queue_age_seconds)} · retry wait: {item.retry_wait_seconds === null ? "—" : formatDuration(item.retry_wait_seconds)}</small>
+          <small>Lease: {statusLabel(item.lease_state)} · worker: {item.worker_identity || "None"}{item.worker_status ? " (" + statusLabel(item.worker_status) + ")" : ""}</small>
+          {item.lease_heartbeat_age_seconds !== null && <small>Last heartbeat {formatDuration(item.lease_heartbeat_age_seconds)} ago · expires {formatDate(item.lease_expires_at)}</small>}
+          <small>Platform version: {item.platform_contract_version || "Missing"} · company-approved: {item.company_approval_contract_version || "Not approved"} · {statusLabel(item.adapter_readiness_state)}</small>
+          {item.last_error_code && <p><b>{item.last_error_code}</b> · {item.last_error_summary || "No safe summary recorded"}</p>}
+          <small>Updated {formatDate(item.updated_at)} · run {item.run_id}</small>
+        </article>)}
+        {!operations.length && <p className="discovery-empty-inline">No durable execution records exist yet. Queue age and lease metrics will appear when governed execution records exist; dispatch remains OFF.</p>}
+      </div>
+      <details className="discovery-orchestration-history">
+        <summary><ShieldCheck size={13}/>Adapter/version drift and readiness exceptions ({adapterExceptions.size})</summary>
+        {Array.from(adapterExceptions.entries()).map(([adapterKey, state]) => <div key={adapterKey}>
+          <b>{adapterKey} · {statusLabel(state)}</b>
+          <small>{adapterContracts.find(item => item.adapter_key === adapterKey)?.contract_version || operations.find(item => item.adapter_key === adapterKey)?.platform_contract_version || "No current platform version"} · company approval {adapterApprovals.find(item => item.adapter_key === adapterKey)?.contract_version || "missing"}</small>
+        </div>)}
+        {!adapterExceptions.size && <p>No adapter-key or approved-version drift is visible in the current company snapshot.</p>}
+      </details>
+      <div className="discovery-orchestration-preflight-banner"><ShieldCheck size={13}/>Telemetry is observational only. The E20 preflight hard gate remains false and all nine existing E04–E12 queue bridges remain OFF.</div>
+    </section>
 
     <section className="discovery-orchestration-worker-panel" aria-label="Scoped orchestration worker grants">
       <div className="discovery-orchestration-section-head">
@@ -472,7 +555,7 @@ export default function DiscoveryOrchestrationWorkspace({
             <span className={"discovery-orchestration-worker-status status-" + (expired ? "expired" : worker.status)}>{expired ? "expired" : worker.status}</span>
             <p>Stages: {worker.stage_keys.map(key => stages.find(stage => stage.stage_key === key)?.technical_stage || key).join(", ")}</p>
             <p>{worker.max_active_leases} simultaneous lease(s) · {worker.lease_seconds}s lease · expires {formatDate(worker.expires_at)}</p>
-            <small>Last used: {formatDate(worker.last_used_at)} · {worker.reason}</small>
+            <small>Last used: {formatDate(worker.last_used_at)} · {operations.filter(item => item.worker_identity_id === worker.id && item.lease_state === "active").length} active lease(s) · {worker.reason}</small>
             {canManage && <div className="discovery-orchestration-worker-actions">
               {worker.status === "active" && !expired && <button type="button" className="secondary-button" onClick={() => void controlWorker(worker,"paused")} disabled={Boolean(busy)}>Pause worker</button>}
               {worker.status === "paused" && !expired && <button type="button" className="secondary-button" onClick={() => void controlWorker(worker,"active")} disabled={Boolean(busy)}>Resume worker</button>}
