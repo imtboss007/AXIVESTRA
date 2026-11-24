@@ -1,15 +1,15 @@
 # AXIVESTRA E11 — Matching & Explainable Scoring
 
-**Status:** Deterministic scoring engine implemented on `feat/discovery-e11-explainable-matching`, based on E10. No AI model, external scoring provider, production activation or deployment.
+**Status:** Deterministic scoring engine and an owner/admin-triggered, evidence-bound scoring workflow are staged on `feat/discovery-e11-explainable-matching`. It is not merged or deployed. No AI model, external scoring provider, production activation or deployment.
 
 ## Matrix scope
 
-E11 scores fit against workspace criteria: geography, type, ticket, instrument, collateral, stage, mandate and evidence freshness. It explains positive and negative factors. Output: match score components, rationale and confidence. The matrix directs business rules first; AI suggestions are optional and must be behind schema/evaluation. Priority: configurable and human-reviewable.
+E11 scores fit against workspace-specific LENDER or CUSTOMER criteria: geography, type, sector, ticket, instrument, collateral, stage, mandate and evidence freshness. Ticket thresholds require an explicit three-letter currency code. Debt and equity instruments remain separate. It explains positive and negative factors. Output: match score components, rationale and confidence. The matrix directs business rules first; AI suggestions are optional and must be behind schema/evaluation. Priority: configurable and human-reviewable.
 
 ## Implemented
 
 - Pure deterministic weighted rules; each workspace supplies its own criteria and weights.
-- All eight matrix criteria are supported. Ticket ranges are checked for overlap; evidence freshness uses the newest available source publication/capture timestamp.
+- All nine deterministic criteria are supported. Ticket ranges are checked for overlap and matching currency; incomparable currencies remain unknown. Evidence freshness uses the newest available source publication/capture timestamp.
 - Every criterion returns match, mismatch or unknown, a weighted component and an explanation.
 - Missing facts remain unknown: they do not receive points and reduce confidence.
 - Required criterion mismatches are explicit blockers; score and eligibility are separate.
@@ -28,3 +28,16 @@ Score is the sum of weights for matching criteria divided by the total configure
 ## Not activated
 
 No workspace database schema, scoring queue, AI provider, automatic lead approval or investment execution is introduced in this first E11 engine slice. Persisted review workflow remains an E15 gate; E16 should evaluate synthetic cases and false-match rates before any model suggestion is considered.
+
+## Workspace profile and persisted scoring workflow
+
+- Each of the 16 workspaces has separate LENDER and CUSTOMER profile defaults, target classes, required/preferred fields, source priorities and guardrails. Profile defaults do not invent match thresholds; `matchCriteria` starts empty until an owner/admin configures explicit values and weights.
+- The supported criteria contract is `geography`, `type`, `sector`, `ticket`, `instrument`, `collateral`, `stage`, `mandate` and `evidence_freshness`. A configured ticket range must include `currencyCode` (ISO-style three-letter code), `min` and/or `max`, with non-negative finite bounds.
+- The Discovery Intelligence Hub exposes an E11 scoring desk. It lists canonical organisations with owner-accepted E10 observations from sources attached to that exact profile and still approved for that profile's purpose. Pending/conflicting E10 observations do not enter the candidate snapshot.
+- The shared deterministic matcher is used by both the Node test suite and the Supabase Edge Function. The score writer checks company owner/admin membership, profile scope, the exact stored criteria snapshot, active canonical entity and each accepted evidence/source reference before persisting.
+- A score, factor components and an append-only audit receipt are saved atomically. Results preserve LENDER/CUSTOMER mode; a new score supersedes an earlier pending score for the same entity/workspace/mode without deleting history. The existing E15 review desk remains the human approval step before a lead is created.
+- Personal Loan CUSTOMER, Litigation LENDER and Investor Relations LENDER external-discovery profiles remain policy-restricted. No contact, outreach, lending approval, investment recommendation, legal conclusion or CRM lead is created by scoring.
+
+## Activation boundary
+
+This implementation is staged on the feature branch only. It needs the new migrations applied to a non-production test environment and the authenticated Edge Function deployed before an authenticated user can use it. E10 accepted observations, approved source registrations and enabled profiles are prerequisites. E03 SearXNG search remains optional and inactive unless its self-hosted endpoint and credentials are deliberately configured; E04/E05/E10 workers remain disabled by default and subject to their existing source and company permission gates. No production migration, source, worker, provider or deployment has been activated by this change.
