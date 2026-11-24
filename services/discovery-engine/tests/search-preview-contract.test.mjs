@@ -18,6 +18,7 @@ test("E03 search preview is disabled unless the server-side SearXNG feature flag
   assert.match(action, /\.eq\("company_id", companyId\)/);
   assert.match(action, /\.eq\("status", "approved"\)/);
   assert.match(action, /assertSourceCanBeAttached/);
+  assert.match(action, /source\.connector_key === "manual_research"/);
 });
 
 test("E03 returns unverified search candidates and never queues or fetches them automatically", () => {
