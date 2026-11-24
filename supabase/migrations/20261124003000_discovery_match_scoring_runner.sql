@@ -5,6 +5,10 @@
 
 begin;
 
+alter table public.discovery_match_results
+  add column if not exists discovery_mode text
+  check (discovery_mode is null or discovery_mode in ('LENDER','CUSTOMER'));
+
 create or replace function public.record_discovery_match_score(
   p_company_id uuid,
   p_actor_user_id uuid,
@@ -35,6 +39,7 @@ declare
   v_criterion text;
   v_evidence_count integer;
   v_component_count integer := 0;
+  v_superseded_count integer := 0;
 begin
   if p_company_id is null or p_actor_user_id is null or p_profile_id is null
     or p_canonical_entity_id is null then
@@ -123,12 +128,21 @@ begin
     end if;
   end loop;
 
+  update public.discovery_match_results
+    set review_state='superseded'
+    where company_id=p_company_id
+      and canonical_entity_id=p_canonical_entity_id
+      and workspace_key=v_profile.workspace_key
+      and discovery_mode=v_profile.discovery_mode
+      and review_state='pending_review';
+  get diagnostics v_superseded_count = row_count;
+
   insert into public.discovery_match_results(
-    company_id,canonical_entity_id,workspace_key,criteria_version,
+    company_id,canonical_entity_id,workspace_key,discovery_mode,criteria_version,
     criteria_snapshot,candidate_snapshot,score,confidence,eligible,method,
     positive_factors,negative_factors,unknown_criteria,blockers,created_by
   ) values (
-    p_company_id,p_canonical_entity_id,v_profile.workspace_key,p_criteria_version,
+    p_company_id,p_canonical_entity_id,v_profile.workspace_key,v_profile.discovery_mode,p_criteria_version,
     p_criteria_snapshot,p_candidate_snapshot,p_score,p_confidence,p_eligible,
     'deterministic_weighted_rules_v1',
     p_positive_factors,p_negative_factors,p_unknown_criteria,p_blockers,p_actor_user_id
@@ -172,7 +186,8 @@ begin
       'canonicalEntityId',p_canonical_entity_id,
       'score',p_score,'confidence',p_confidence,
       'eligible',p_eligible,'criteriaVersion',p_criteria_version,
-      'componentCount',v_component_count,'evidenceReferenceCount',v_evidence_count
+      'componentCount',v_component_count,'evidenceReferenceCount',v_evidence_count,
+      'supersededPendingScoreCount',v_superseded_count
     )
   );
 
