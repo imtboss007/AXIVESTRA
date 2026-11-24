@@ -149,6 +149,7 @@ Deno.serve(async request => {
         .select("*").eq("company_id", companyId).eq("status", "approved").in("id", sourceIds).limit(100);
       if (sourcesError) throw sourcesError;
       const eligibleSources = (sources || []).filter((source: Record<string, unknown>) => {
+        if (source.connector_key === "manual_research") return false;
         try { assertSourceCanBeAttached(profile, source); return true; } catch { return false; }
       });
       if (!eligibleSources.length) return jsonResponse(409, { error: "This profile has no currently approved and purpose-matched source attached." });
