@@ -20,6 +20,7 @@ test("legacy E05 contact backfill is resumable, idempotent, secret-backed and dr
   assert.match(backfill, /is\("raw_value_ciphertext", null\)/);
   assert.match(backfill, /AES|encryptContactValue|encryptContactValue/);
   assert.match(backfill, /remainingLegacyRows/);
+  assert.match(backfill, /offset = apply \? 0 : offset \+ rows\.length/);
   assert.match(backfill, /if \(!apply\)/);
   assert.doesNotMatch(backfill, /console\.log\([^\n]*raw/);
 });
