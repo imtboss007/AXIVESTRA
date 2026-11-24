@@ -314,8 +314,7 @@ function normalizeProfileCriteria(criteria, workspaceKey, discoveryMode) {
   result.matchCriteria = validateProfileMatchCriteria(result.matchCriteria);
   const policyDisabled =
     (workspaceKey === "personal_loan" && discoveryMode === "CUSTOMER") ||
-    (workspaceKey === "litigation" && discoveryMode === "LENDER") ||
-    (workspaceKey === "investor_relations" && discoveryMode === "LENDER");
+    (workspaceKey === "litigation" && discoveryMode === "LENDER");
   if (policyDisabled) result.disabledByPolicy = true;
   if (discoveryMode === "CUSTOMER" && workspaceKey === "personal_loan" && result.disabledByPolicy !== true) {
     result.disabledByPolicy = true;
@@ -356,7 +355,6 @@ export function assertSourceCanBeAttached(profile, source) {
   const restrictedMode =
     (profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER") ||
     (profile.workspace_key === "litigation" && profile.discovery_mode === "LENDER") ||
-    (profile.workspace_key === "investor_relations" && profile.discovery_mode === "LENDER") ||
     profile.criteria?.disabledByPolicy === true;
   if (restrictedMode) {
     throw new Error("This workspace/mode is disabled by discovery policy and cannot use external source discovery.");
