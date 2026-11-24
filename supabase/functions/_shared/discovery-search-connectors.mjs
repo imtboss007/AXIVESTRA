@@ -10,17 +10,18 @@ function cleanText(value, limit) {
 }
 
 function isPublicSearchHost(hostname) {
-  const host = String(hostname || "").toLowerCase().replace(/^\\[|\\]$/g, "");
+  const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
   if (!host || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") ||
       host.endsWith(".home") || host.includes(":")) return false;
-  if (/^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(host)) return false;
+  // IP literals are intentionally excluded; source approval is based on HTTPS hostnames.
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return false;
   return true;
 }
 
 function redactSnippet(value) {
   return cleanText(value, MAX_SNIPPET)
-    .replace(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, "[email redacted]")
-    .replace(/(?:\\+?\\d[\\d .()\\-]{7,}\\d)/g, "[phone redacted]");
+    .replace(/[A-Z0-9.!#$%&'*+/=?^_\x60{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email redacted]")
+    .replace(/(?:\+?\d[\d .()\-]{7,}\d)/g, "[phone redacted]");
 }
 
 function normalizeUrl(value) {
@@ -28,8 +29,6 @@ function normalizeUrl(value) {
   let url;
   try { url = new URL(value); } catch { return null; }
   if (url.protocol !== "https:" || url.username || url.password || !isPublicSearchHost(url.hostname)) return null;
-  if (!url.hostname || url.hostname === "localhost" || /^127\./.test(url.hostname) ||
-      url.hostname === "::1" || url.hostname.endsWith(".local")) return null;
   url.hash = "";
   return url;
 }
@@ -108,8 +107,7 @@ export async function searchSearxng({
   }
   const endpoint = new URL(baseUrl);
   if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password ||
-      endpoint.search || endpoint.hash || endpoint.hostname === "localhost" ||
-      /^127\./.test(endpoint.hostname) || endpoint.hostname.endsWith(".local")) {
+      endpoint.search || endpoint.hash || !isPublicSearchHost(endpoint.hostname)) {
     throw new Error("SearXNG must use a configured HTTPS service endpoint without embedded credentials.");
   }
   const text = cleanText(query, MAX_QUERY_CHARS);
