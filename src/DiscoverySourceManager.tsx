@@ -4,6 +4,7 @@ import { supabase } from "./lib/supabase";
 import DiscoveryJobQueue from "./DiscoveryJobQueue";
 import DiscoveryExtractionResults from "./DiscoveryExtractionResults";
 import DiscoveryEvidenceWorkspace from "./DiscoveryEvidenceWorkspace";
+import DiscoveryAiMatchingReviewWorkspace from "./DiscoveryAiMatchingReviewWorkspace";
 import DiscoveryLeadWorkspace from "./DiscoveryLeadWorkspace";
 import DiscoveryVerificationWorkspace from "./DiscoveryVerificationWorkspace";
 import DiscoveryOrchestrationWorkspace from "./DiscoveryOrchestrationWorkspace";
@@ -478,6 +479,7 @@ export default function DiscoverySourceManager({
     <DiscoveryJobQueue companyId={companyId} companyRole={companyRole} sources={sources} profiles={profiles} links={links}/>
     <DiscoveryExtractionResults companyId={companyId} companyRole={companyRole} sources={sources}/>
     <DiscoveryEvidenceWorkspace companyId={companyId} companyRole={companyRole}/>
+    <DiscoveryAiMatchingReviewWorkspace companyId={companyId} companyRole={companyRole}/>
     <DiscoveryVerificationWorkspace companyId={companyId} companyRole={companyRole}/>
     <DiscoveryOrchestrationWorkspace companyId={companyId} companyRole={companyRole}/>
     <DiscoveryLeadWorkspace companyId={companyId} companyRole={companyRole}/>
