@@ -8,6 +8,7 @@ import DiscoveryAiMatchingReviewWorkspace from "./DiscoveryAiMatchingReviewWorks
 import DiscoveryLeadWorkspace from "./DiscoveryLeadWorkspace";
 import DiscoveryVerificationWorkspace from "./DiscoveryVerificationWorkspace";
 import DiscoveryOrchestrationWorkspace from "./DiscoveryOrchestrationWorkspace";
+import DiscoveryMatchScoringWorkspace from "./DiscoveryMatchScoringWorkspace";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import { getDefaultWorkspaceCriteria, validateWorkspaceCriteria } from "./lib/discovery-profiles.mjs";
 import { OFFICIAL_SOURCE_STARTERS, toSourceDraft } from "./lib/discovery-source-catalogue.mjs";
@@ -584,6 +585,7 @@ export default function DiscoverySourceManager({
     <DiscoveryEvidenceWorkspace companyId={companyId} companyRole={companyRole}/>
     <DiscoveryAiMatchingReviewWorkspace companyId={companyId} companyRole={companyRole}/>
     <DiscoveryVerificationWorkspace companyId={companyId} companyRole={companyRole}/>
+    <DiscoveryMatchScoringWorkspace companyId={companyId} companyRole={companyRole} profiles={profiles}/>
     <DiscoveryOrchestrationWorkspace companyId={companyId} companyRole={companyRole}/>
     <DiscoveryLeadWorkspace companyId={companyId} companyRole={companyRole}/>
     <div className="discovery-footer-note">Source governance, candidate URL queueing and fetch controls are company-scoped. E04 fetches only explicit allow-listed URLs; it does not search the internet, expand links, harvest private individuals, conduct outreach or make automated lending/property decisions.</div>
