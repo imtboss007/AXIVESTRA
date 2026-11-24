@@ -54,7 +54,7 @@ test("E05 leaves non-contact facts unchanged when no contact values are present"
 });
 
 test("database migration requires encrypted contact facts and only stores a masked value", async () => {
-  const migration = await readFile(new URL("../../supabase/migrations/20261124001000_discovery_extracted_contact_encryption.sql", import.meta.url), "utf8");
+  const migration = await readFile(new URL("../../../supabase/migrations/20261124001000_discovery_extracted_contact_encryption.sql", import.meta.url), "utf8");
   assert.match(migration, /raw_value_ciphertext text/);
   assert.match(migration, /raw_value_fingerprint ~ '\^\[a-f0-9\]\{64\}\$'/);
   assert.match(migration, /E05 refuses plaintext or incomplete encrypted contact facts/);
