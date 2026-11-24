@@ -126,6 +126,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationRetryRecoveryMigration);
     const orchestrationExecutionConsoleMigration = await readFile(new URL("../../supabase/migrations/20261123250000_axivestra_orchestration_execution_console.sql", import.meta.url), "utf8");
     await pool.query(orchestrationExecutionConsoleMigration);
+    const evidencePackManagementMigration = await readFile(new URL("../../supabase/migrations/20261123260000_axivestra_evidence_pack_management.sql", import.meta.url), "utf8");
+    await pool.query(evidencePackManagementMigration);
     const executionConsoleAcl=await pool.query(
       "select has_table_privilege('authenticated','public.discovery_orchestration_operations_inbox','select') as safe_console_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as raw_worker_select"
     );
@@ -1563,7 +1565,7 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       [companyId,extractionRunId,evidenceId,personMentionId,extractedEntity.rows[0].id]
     );
     const sourceFieldLineage = await pool.query(
-      "select field_name,evidence_id,extraction_run_id,evidence_content_hash,source_span,source_name_snapshot,source_attribution_snapshot,evidence_retained from public.discovery_field_provenance where company_id=$1 and extraction_run_id=$2 and origin_table='discovery_extracted_facts' and field_name in ('job_title','employer_entity_id') order by field_name",
+      "select provenance_event_id,field_name,evidence_id,extraction_run_id,evidence_content_hash,source_span,source_name_snapshot,source_attribution_snapshot,evidence_retained from public.discovery_field_provenance where company_id=$1 and extraction_run_id=$2 and origin_table='discovery_extracted_facts' and field_name in ('job_title','employer_entity_id') order by field_name",
       [companyId,extractionRunId]
     );
     assert.equal(sourceFieldLineage.rows.length,2,"E13 must append lineage for each extracted field");
@@ -1578,6 +1580,91 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(employerLineage.source_span.locator,"$/officers/0/company");
     assert.ok(sourceFieldLineage.rows.every(row=>row.evidence_retained===true),
       "raw evidence is retained until a purge receipt is recorded");
+
+    // E21 evidence pack lifecycle: curated citations reuse existing E04/E13 records only.
+    let e21EvidencePackId="";
+    let e21EvidencePackItemId="";
+    const e21EvidencePackClient=await pool.connect();
+    try {
+      await e21EvidencePackClient.query("set role authenticated");
+      await e21EvidencePackClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const createdPack=await e21EvidencePackClient.query(
+        "select public.create_discovery_evidence_pack($1,'Company identity review bundle','Evidence reviewed to support company identity and professional-role verification.') as id",
+        [companyId]
+      );
+      e21EvidencePackId=createdPack.rows[0].id;
+      const jobTitleLineage=sourceFieldLineage.rows.find(row=>row.field_name==="job_title");
+      const addedItem=await e21EvidencePackClient.query(
+        "select public.add_discovery_evidence_pack_item($1,$2,$3,'Included as source-backed evidence for the reviewed professional role.') as id",
+        [companyId,e21EvidencePackId,jobTitleLineage.provenance_event_id]
+      );
+      e21EvidencePackItemId=addedItem.rows[0].id;
+      const duplicateItem=await e21EvidencePackClient.query(
+        "select public.add_discovery_evidence_pack_item($1,$2,$3,'Repeated idempotent inclusion request for the same provenance event.') as id",
+        [companyId,e21EvidencePackId,jobTitleLineage.provenance_event_id]
+      );
+      assert.equal(duplicateItem.rows[0].id,e21EvidencePackItemId,"repeated inclusion returns the existing active citation");
+      const safeItems=await e21EvidencePackClient.query(
+        "select item_id,field_name,evidence_id,evidence_content_hash,evidence_retained from public.discovery_evidence_pack_item_inbox where company_id=$1 and pack_id=$2 and removed_at is null",
+        [companyId,e21EvidencePackId]
+      );
+      assert.equal(safeItems.rows.length,1);
+      assert.equal(safeItems.rows[0].field_name,"job_title");
+      assert.equal(safeItems.rows[0].evidence_retained,true);
+      assert.equal(Object.hasOwn(safeItems.rows[0],"raw_value"),false);
+      assert.equal(Object.hasOwn(safeItems.rows[0],"raw_blob_ref"),false);
+      const submittedPack=await e21EvidencePackClient.query(
+        "select public.submit_discovery_evidence_pack($1,$2,'Submitted for owner review of source attribution, evidence hash and provenance locator.') as event_id",
+        [companyId,e21EvidencePackId]
+      );
+      assert.ok(submittedPack.rows[0].event_id);
+      await assert.rejects(
+        e21EvidencePackClient.query(
+          "select public.add_discovery_evidence_pack_item($1,$2,$3,'Attempt to change a submitted evidence pack item.')",
+          [companyId,e21EvidencePackId,jobTitleLineage.provenance_event_id]
+        ),
+        /Only draft evidence packs can be changed/
+      );
+      await e21EvidencePackClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      await assert.rejects(
+        e21EvidencePackClient.query(
+          "select public.review_discovery_evidence_pack($1,$2,'approved','Viewer cannot approve evidence packs.')",
+          [companyId,e21EvidencePackId]
+        ),
+        /Only company owners\/admins can review evidence packs/
+      );
+      await e21EvidencePackClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+      const approvedPack=await e21EvidencePackClient.query(
+        "select public.review_discovery_evidence_pack($1,$2,'approved','Owner approved the citation list, attribution, evidence hash and retention state.') as event_id",
+        [companyId,e21EvidencePackId]
+      );
+      assert.ok(approvedPack.rows[0].event_id);
+      const approvedSummary=await e21EvidencePackClient.query(
+        "select status,item_count,event_count from public.discovery_evidence_pack_inbox where company_id=$1 and id=$2",
+        [companyId,e21EvidencePackId]
+      );
+      assert.deepEqual(approvedSummary.rows,[{status:"approved",item_count:1,event_count:4}]);
+      const exportReceipt=await e21EvidencePackClient.query(
+        "select public.record_discovery_evidence_pack_export($1,$2,$3,1) as event_id",
+        [companyId,e21EvidencePackId,"a".repeat(64)]
+      );
+      assert.ok(exportReceipt.rows[0].event_id);
+      await assert.rejects(
+        pool.query("update public.discovery_evidence_pack_events set reason='tampered' where id=$1",[exportReceipt.rows[0].event_id]),
+        /append-only/
+      );
+      await assert.rejects(
+        e21EvidencePackClient.query(
+          "select public.record_discovery_evidence_pack_export($1,$2,$3,2)",
+          [companyId,e21EvidencePackId,"b".repeat(64)]
+        ),
+        /Evidence pack changed during export/
+      );
+    } finally {
+      await e21EvidencePackClient.query("reset role");
+      await e21EvidencePackClient.query("select set_config('request.jwt.claim.sub','',false)");
+      e21EvidencePackClient.release();
+    }
 
     const roleClaim = await pool.query(
       "select * from public.claim_discovery_professional_role_job($1,90)",
@@ -2190,6 +2277,13 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     assert.equal(purgedLineage.rows[0].evidence_retained,false,
       "E13 must mark raw evidence as no longer retained after the terminal purge receipt");
     assert.match(purgedLineage.rows[0].evidence_content_hash,/^[a-f0-9]{64}$/);
+    const purgedPackCitation=await pool.query(
+      "select evidence_retained,evidence_content_hash,field_name from public.discovery_evidence_pack_item_inbox where company_id=$1 and pack_id=$2 and item_id=$3",
+      [companyId,e21EvidencePackId,e21EvidencePackItemId]
+    );
+    assert.deepEqual(purgedPackCitation.rows,[{
+      evidence_retained:false,evidence_content_hash:"a".repeat(64),field_name:"job_title"
+    }],"E21 pack citation preserves its historical hash but reflects the E04 raw-evidence purge");
     await assert.rejects(
       pool.query("update public.discovery_provenance_events set decision='tampered' where id=$1",
         [purgedLineage.rows[0].provenance_event_id]),
