@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8");
 const workbench = fs.readFileSync(path.join(root, "src", "ModuleWorkbench.tsx"), "utf8");
 const moduleFieldsStart = app.indexOf("const moduleFields: Record<string, ModuleField[]> = {");
-const moduleFieldsEnd = app.indexOf("\nconst moduleContactFields:", moduleFieldsStart);
+const moduleFieldsEnd = app.indexOf("\ntype ModuleContactField", moduleFieldsStart);
 assert.ok(moduleFieldsStart >= 0 && moduleFieldsEnd > moduleFieldsStart, "Existing module field map must remain in App.tsx");
 const source = app.slice(moduleFieldsStart, moduleFieldsEnd);
 
@@ -33,7 +33,7 @@ for (const [moduleName, keys] of Object.entries(requiredByModule)) {
   const marker = '"' + moduleName + '": [';
   const start = source.indexOf(marker);
   assert.ok(start >= 0, "Missing existing workspace: " + moduleName);
-  const end = source.indexOf("\n  ],", start);
+  const end = source.indexOf("\n  ]", start);
   assert.ok(end > start, "Malformed module field list: " + moduleName);
   const block = source.slice(start, end);
   const keyMatches = [...block.matchAll(/key:\s*"([^"]+)"/g)].map(match => match[1]);
