@@ -137,6 +137,21 @@ test("personal-loan customer discovery cannot be enabled or attached to internet
   assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external person-discovery/);
 });
 
+test("source-specific required fields do not force every source to provide the full workspace qualification set", () => {
+  const source = approvedSource();
+  const profile = {
+    workspace_key: "property_loans",
+    discovery_mode: "LENDER",
+    purpose,
+    criteria: { requiredFields: ["institution_name", "product_type", "jurisdiction"], sourceRequiredFields: ["institution_name"] }
+  };
+  assert.equal(assertSourceCanBeAttached(profile, source), true);
+  assert.throws(() => assertSourceCanBeAttached({
+    ...profile,
+    criteria: { ...profile.criteria, sourceRequiredFields: ["institution_name", "product_type"] }
+  }, source), /does not allow every field explicitly required from this source/);
+});
+
 test("source path policy enforces exact host and path boundaries", () => {
   const source = approvedSource();
   assert.equal(assertAllowedSourceUrl(source, endpoint + "/123").hostname, "registry.example.gov.in");
