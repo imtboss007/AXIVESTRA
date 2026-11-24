@@ -157,8 +157,8 @@ export default function DiscoveryJobQueue({
     }
     setSourceId(matchingSource.id);
     setCandidateText(current => {
-      const rows = current.split(/\\r?\\n/).map(value => value.trim()).filter(Boolean);
-      return rows.includes(candidate.url) ? current : [...rows, candidate.url].join("\\n");
+      const rows = current.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+      return rows.includes(candidate.url) ? current : [...rows, candidate.url].join("\n");
     });
     setNotice("Candidate URL added to the E04 draft under " + matchingSource.name + ". It has not been fetched or verified.");
   };
