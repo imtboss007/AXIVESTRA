@@ -200,7 +200,7 @@ export default function DiscoveryJobQueue({
             <textarea rows={5} value={candidateText} onChange={event => setCandidateText(event.target.value)} disabled={!selectedSource || busy === "enqueue"} placeholder={"https://approved-source.example/api/v1/record/123"} />
           </label>
           {selectedSource && <div className="discovery-source-url-actions">
-            <button type="button" className="secondary-button" onClick={() => setCandidateText(current => current.trim() ? current + "\\n" + selectedSource.canonical_url : selectedSource.canonical_url)} disabled={busy === "enqueue"}>
+            <button type="button" className="secondary-button" onClick={() => setCandidateText(current => current.trim() ? current + "\n" + selectedSource.canonical_url : selectedSource.canonical_url)} disabled={busy === "enqueue"}>
               Use registered source entry URL
             </button>
             <small>This adds only the exact registered entry point. It does not expand links, submit search forms or bypass CAPTCHA or access controls.</small>
