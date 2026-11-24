@@ -23,6 +23,39 @@ test("the lender/customer profile catalogue covers all 16 existing AXIVESTRA wor
   }
 });
 
+test("E11 match criteria are optional, typed and limited to the eight supported scorer dimensions", () => {
+  const defaults = getDefaultWorkspaceCriteria("property_loans", "LENDER");
+  assert.deepEqual(defaults.matchCriteria, {});
+  const configured = validateWorkspaceCriteria({
+    ...defaults,
+    matchCriteria: {
+      geography: { value: ["Karnataka", "India"], weight: 2 },
+      ticket: { value: { min: 1000000, max: 50000000 }, weight: 3, required: true },
+      evidence_freshness: { maxAgeDays: 90, weight: 1 }
+    }
+  }, "property_loans", "LENDER");
+  assert.equal(configured.matchCriteria.geography.weight, 2);
+  assert.equal(configured.matchCriteria.ticket.required, true);
+  assert.equal(configured.matchCriteria.evidence_freshness.maxAgeDays, 90);
+  assert.throws(() => validateWorkspaceCriteria({
+    ...defaults, matchCriteria: { private_credit_score: { value: 700, weight: 2 } }
+  }, "property_loans", "LENDER"), /Unsupported E11 match criterion/);
+  assert.throws(() => validateWorkspaceCriteria({
+    ...defaults, matchCriteria: { ticket: { value: { min: 100, max: 50 } } }
+  }, "property_loans", "LENDER"), /non-negative min\/max range/);
+  assert.throws(() => validateWorkspaceCriteria({
+    ...defaults, matchCriteria: { evidence_freshness: { maxAgeDays: 99999 } }
+  }, "property_loans", "LENDER"), /maxAgeDays must be between/);
+});
+
+test("match criteria are not silently generated from target classes or guardrails", () => {
+  for (const workspaceKey of DISCOVERY_WORKSPACE_KEYS) {
+    for (const mode of ["LENDER", "CUSTOMER"]) {
+      assert.deepEqual(getDefaultWorkspaceCriteria(workspaceKey, mode).matchCriteria, {});
+    }
+  }
+});
+
 test("debt and equity provider classes remain distinct", () => {
   const equity = getDefaultWorkspaceCriteria("equity", "LENDER");
   const property = getDefaultWorkspaceCriteria("property_loans", "LENDER");
