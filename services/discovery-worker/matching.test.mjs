@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {scoreDiscoveryMatch,E11_MATCH_CRITERIA,buildE11CandidateFromAcceptedObservations} from "./matching.mjs";
 
 const candidate={
- geography:["India","Karnataka"],type:"manufacturing",ticket:{min:5,max:20},
+ geography:["India","Karnataka"],type:"manufacturing",sector:["industrial"],ticket:{min:5,max:20},
  instrument:["equity","debt"],collateral:["real_estate"],stage:["growth"],mandate:["SME"]
 };
 const evidence=[{evidence_id:"ev-1",source_id:"src-1",source_published_at:"2026-11-20T00:00:00Z"}];
@@ -19,7 +19,7 @@ const criteria={
  evidence_freshness:{maxAgeDays:30,weight:2}
 };
 
-test("E11 scores all eight matrix criteria and explains each component",()=>{
+test("E11 scores all nine configured criteria and explains each component",()=>{
  const result=scoreDiscoveryMatch({candidate,criteria,evidence,now:"2026-11-22T00:00:00Z"});
  assert.deepEqual(result.components.map(x=>x.criterion),E11_MATCH_CRITERIA);
  assert.equal(result.score,100);
