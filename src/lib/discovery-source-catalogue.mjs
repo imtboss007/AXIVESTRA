@@ -43,12 +43,12 @@ export const OFFICIAL_SOURCE_STARTERS = Object.freeze([
   {
     id: "nhb-hfc-register",
     name: "NHB — Housing Finance Companies with Certificate of Registration",
-    canonicalUrl: "https://www.nhb.org.in/list-of-housing-finance-companies-granted-certificate/",
+    canonicalUrl: "https://www.nhb.org.in/supervision/list-of-hfcs-in-india/",
     domain: "www.nhb.org.in",
     sourceType: "permitted_public_page",
     renderMode: "http",
     jurisdiction: "IN",
-    allowedPaths: ["/list-of-housing-finance-companies-granted-certificate/"],
+    allowedPaths: ["/supervision/list-of-hfcs-in-india/"],
     allowedPurposes: ["housing finance provider discovery", "lender institution verification"],
     allowedFields: ["institution_name", "registered_office_address", "certificate_status"],
     fieldSchema: {
@@ -57,7 +57,7 @@ export const OFFICIAL_SOURCE_STARTERS = Object.freeze([
       certificate_status: { type: "string", aliases: ["Certificate of Registration", "CoR Status"] }
     },
     attribution: "Source: National Housing Bank — HFC register.",
-    policyNotes: "Official NHB directory starting point. It is not a credit approval list or a guarantee of current product availability. Administrator must review terms and date/freshness before approval.",
+    policyNotes: "Official NHB HFC register page; the page identifies the list as of 31 March 2026. It is not a credit approval list or a guarantee of current product availability. Administrator must review terms and date/freshness before approval.",
     category: "LENDER",
     description: "NHB's public HFC certificate register starting point; validate current regulatory status independently."
   },
