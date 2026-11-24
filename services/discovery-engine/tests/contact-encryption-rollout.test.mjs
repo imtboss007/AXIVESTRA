@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const migration = await readFile(new URL("../../supabase/migrations/20261124001000_discovery_extracted_contact_encryption.sql", import.meta.url), "utf8");
-const backfill = await readFile(new URL("../../scripts/backfill-discovery-contact-facts.mjs", import.meta.url), "utf8");
-const handler = await readFile(new URL("../../supabase/functions/discovery-control/index.ts", import.meta.url), "utf8");
-const redaction = await readFile(new URL("../../supabase/functions/_shared/discovery-contact-redaction.mjs", import.meta.url), "utf8");
+const migration = await readFile(new URL("../../../supabase/migrations/20261124001000_discovery_extracted_contact_encryption.sql", import.meta.url), "utf8");
+const backfill = await readFile(new URL("../../../scripts/backfill-discovery-contact-facts.mjs", import.meta.url), "utf8");
+const handler = await readFile(new URL("../../../supabase/functions/discovery-control/index.ts", import.meta.url), "utf8");
+const redaction = await readFile(new URL("../../../supabase/functions/_shared/discovery-contact-redaction.mjs", import.meta.url), "utf8");
 
 test("E05 encryption constraint is added NOT VALID so existing installations are not blocked during schema rollout", () => {
   assert.match(migration, /add constraint discovery_extracted_facts_contact_encryption_check check \([\s\S]*?\) not valid/);
