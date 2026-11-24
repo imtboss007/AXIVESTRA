@@ -6,7 +6,7 @@ const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
-  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, adapterMigration, retryMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
+  const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, adapterMigration, retryMigration, consoleMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
     read("supabase/migrations/20261123130000_axivestra_agent_orchestration.sql"),
     read("supabase/migrations/20261123150000_axivestra_orchestration_preflight.sql"),
     read("supabase/migrations/20261123170000_axivestra_orchestration_execution_contracts.sql"),
@@ -14,6 +14,7 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
     read("supabase/migrations/20261123210000_axivestra_orchestration_worker_identity_leases.sql"),
     read("supabase/migrations/20261123230000_axivestra_orchestration_adapter_approvals.sql"),
     read("supabase/migrations/20261123240000_axivestra_orchestration_retry_recovery.sql"),
+    read("supabase/migrations/20261123250000_axivestra_orchestration_execution_console.sql"),
     read("supabase/functions/discovery-control/index.ts"),
     read("supabase/functions/discovery-orchestration-worker/index.ts"),
     read("supabase/config.toml"),
@@ -175,6 +176,25 @@ test("E20 creates dependency-aware, company-scoped orchestration plans without d
   assert.match(retryMigration, /create or replace view public\.discovery_orchestration_execution_inbox/);
   assert.match(retryMigration, /pf\.dispatch_permitted=true and cardinality\(pf\.blocker_codes\)=0/);
   assert.doesNotMatch(retryMigration, /retry after .*error message/i);
+  // E20.7's safe company-scoped operations projection is telemetry only.
+  assert.match(consoleMigration, /create or replace view public\.discovery_orchestration_operations_inbox/);
+  assert.match(consoleMigration, /queue_age_seconds/);
+  assert.match(consoleMigration, /retry_wait_seconds/);
+  assert.match(consoleMigration, /lease_heartbeat_age_seconds/);
+  assert.match(consoleMigration, /company_approval_stale/);
+  assert.match(consoleMigration, /stage_adapter_mismatch/);
+  assert.match(consoleMigration, /where public\.is_company_member\(e\.company_id\)/);
+  assert.match(consoleMigration, /grant select on public\.discovery_orchestration_operations_inbox to authenticated,service_role/);
+  assert.doesNotMatch(consoleMigration, /lease_token_hash|credential_hash|raw_source_body|http\(|enqueue_discovery_/i);
+  assert.match(integration, /20261123250000_axivestra_orchestration_execution_console\.sql/);
+  assert.match(integration, /discovery_orchestration_operations_inbox/);
+  assert.match(integration, /company_approval_stale/);
+  assert.match(edge, /operationsResult/);
+  assert.match(edge, /discovery_orchestration_operations_inbox/);
+  assert.match(workspace, /E20\.7 · OPERATIONS CONSOLE/);
+  assert.match(workspace, /Oldest queue age/);
+  assert.match(workspace, /Adapter\/version drift and readiness exceptions/);
+  assert.match(workspace, /active lease\(s\)/);
   assert.match(integration, /20261123240000_axivestra_orchestration_retry_recovery\.sql/);
   assert.match(integration, /REMOTE_5XX/);
   assert.match(integration, /duplicateFailureOutcome/);

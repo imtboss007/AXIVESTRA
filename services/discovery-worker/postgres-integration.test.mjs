@@ -124,6 +124,24 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(orchestrationAdapterApprovalMigration);
     const orchestrationRetryRecoveryMigration = await readFile(new URL("../../supabase/migrations/20261123240000_axivestra_orchestration_retry_recovery.sql", import.meta.url), "utf8");
     await pool.query(orchestrationRetryRecoveryMigration);
+    const orchestrationExecutionConsoleMigration = await readFile(new URL("../../supabase/migrations/20261123250000_axivestra_orchestration_execution_console.sql", import.meta.url), "utf8");
+    await pool.query(orchestrationExecutionConsoleMigration);
+    const executionConsoleAcl=await pool.query(
+      "select has_table_privilege('authenticated','public.discovery_orchestration_operations_inbox','select') as safe_console_select,has_table_privilege('authenticated','public.discovery_orchestration_execution_leases','select') as raw_lease_select,has_table_privilege('authenticated','public.discovery_orchestration_worker_identities','select') as raw_worker_select"
+    );
+    assert.equal(executionConsoleAcl.rows[0].safe_console_select,true,"company members can read the safe E20.7 operations projection");
+    assert.equal(executionConsoleAcl.rows[0].raw_lease_select,false,"the console must not restore raw lease-table access");
+    assert.equal(executionConsoleAcl.rows[0].raw_worker_select,false,"the console must not restore raw worker-credential access");
+
+    const consoleColumns=await pool.query(
+      "select column_name from information_schema.columns where table_schema='public' and table_name='discovery_orchestration_operations_inbox'"
+    );
+    const consoleColumnNames=consoleColumns.rows.map(row=>row.column_name);
+    assert.ok(consoleColumnNames.includes("queue_age_seconds"));
+    assert.ok(consoleColumnNames.includes("lease_heartbeat_age_seconds"));
+    assert.ok(consoleColumnNames.includes("adapter_readiness_state"));
+    assert.equal(consoleColumnNames.includes("lease_token_hash"),false);
+    assert.equal(consoleColumnNames.includes("credential_hash"),false);
 
     const retryPolicyCatalogue=await pool.query(
       "select count(*)::int as count,bool_and((retryable and base_delay_seconds>0 and max_delay_seconds>=base_delay_seconds) or (not retryable and base_delay_seconds=0 and max_delay_seconds=0)) as policy_bounds_valid from public.discovery_orchestration_failure_policies"
@@ -855,6 +873,35 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
           );
           assert.equal(safeLease.rows.length,1);
           assert.equal(Object.hasOwn(safeLease.rows[0],"lease_token_hash"),false);
+          const consoleRow=await memberLeaseClient.query(
+            "select state,lease_state,worker_identity_id,worker_status,platform_contract_version,company_approval_contract_version,company_approval_status,adapter_readiness_state,lease_heartbeat_age_seconds from public.discovery_orchestration_operations_inbox where company_id=$1 and execution_id=$2",
+            [companyId,executionId]
+          );
+          assert.equal(consoleRow.rows.length,1);
+          assert.equal(consoleRow.rows[0].lease_state,"active");
+          assert.equal(consoleRow.rows[0].worker_identity_id,workerIdentityId);
+          assert.equal(consoleRow.rows[0].worker_status,"active");
+          assert.equal(consoleRow.rows[0].platform_contract_version,"test-v1");
+          assert.equal(consoleRow.rows[0].company_approval_contract_version,"test-v1");
+          assert.equal(consoleRow.rows[0].company_approval_status,"approved");
+          assert.equal(consoleRow.rows[0].adapter_readiness_state,"current");
+          assert.ok(consoleRow.rows[0].lease_heartbeat_age_seconds>=0);
+          assert.equal(Object.hasOwn(consoleRow.rows[0],"lease_token_hash"),false);
+          await pool.query(
+            "update public.discovery_orchestration_adapter_contracts set contract_version='test-v2' where adapter_key='e05-test-adapter'"
+          );
+          const staleAdapter=await memberLeaseClient.query(
+            "select platform_contract_version,company_approval_contract_version,adapter_readiness_state from public.discovery_orchestration_operations_inbox where company_id=$1 and execution_id=$2",
+            [companyId,executionId]
+          );
+          assert.deepEqual(staleAdapter.rows,[{
+            platform_contract_version:"test-v2",
+            company_approval_contract_version:"test-v1",
+            adapter_readiness_state:"company_approval_stale"
+          }],"the operations console must detect a company approval tied to an older adapter version");
+          await pool.query(
+            "update public.discovery_orchestration_adapter_contracts set contract_version='test-v1' where adapter_key='e05-test-adapter'"
+          );
           await assert.rejects(
             memberLeaseClient.query("select lease_token_hash from public.discovery_orchestration_execution_leases where company_id=$1 and id=$2",[companyId,leaseOne.rows[0].id]),
             /permission denied/
@@ -893,6 +940,15 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         );
         assert.equal(releasedState.rows[0].state,"retry_wait");
         assert.ok(releasedState.rows[0].released_at);
+        const queuedConsoleRow=await orchestrationClient.query(
+          "select state,queue_age_seconds,retry_wait_seconds,lease_state from public.discovery_orchestration_operations_inbox where company_id=$1 and execution_id=$2",
+          [companyId,executionId]
+        );
+        assert.equal(queuedConsoleRow.rows.length,1);
+        assert.equal(queuedConsoleRow.rows[0].state,"retry_wait");
+        assert.ok(queuedConsoleRow.rows[0].queue_age_seconds>=0,"the console reports the age of a queued retry");
+        assert.ok(queuedConsoleRow.rows[0].retry_wait_seconds>=0,"the console reports its bounded retry delay");
+        assert.equal(queuedConsoleRow.rows[0].lease_state,"released");
         const releasedAttempt=await workerServiceClient.query(
           "select status,error_code,failure_class,retryable,next_retry_at from public.discovery_orchestration_execution_attempts where company_id=$1 and lease_id=$2",
           [companyId,leaseOne.rows[0].id]
