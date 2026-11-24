@@ -149,6 +149,40 @@ const cssVariables: Array<[keyof ThemePalette,string]> = [
   ["buttonText","--ax-theme-button-text"],["chart","--ax-theme-chart"],["graph","--ax-theme-graph"]
 ];
 
+export function getContrastRatio(foreground: string, background: string): number {
+  const luminance = (hex: string): number => {
+    const channels = [1,3,5].map(start => parseInt(hex.slice(start,start+2),16)/255);
+    const linear = channels.map(value => value <= 0.04045 ? value/12.92 : Math.pow((value+0.055)/1.055,2.4));
+    return 0.2126*linear[0] + 0.7152*linear[1] + 0.0722*linear[2];
+  };
+  const first = luminance(foreground), second = luminance(background);
+  return (Math.max(first,second)+0.05)/(Math.min(first,second)+0.05);
+}
+
+export function getReadableForeground(preferred: string, background: string, minimum = 4.5): string {
+  if (getContrastRatio(preferred,background) >= minimum) return preferred;
+  const candidates = ["#FFFFFF","#111111"];
+  return candidates.reduce((best,candidate) =>
+    getContrastRatio(candidate,background) > getContrastRatio(best,background) ? candidate : best
+  );
+}
+
+const readableVariables: Array<[string,keyof ThemePalette,keyof ThemePalette]> = [
+  ["--ax-theme-readable-text-background","text","background"],
+  ["--ax-theme-readable-muted-background","muted","background"],
+  ["--ax-theme-readable-text-surface","text","surface"],
+  ["--ax-theme-readable-muted-surface","muted","surface"],
+  ["--ax-theme-readable-text-raised","text","raised"],
+  ["--ax-theme-readable-muted-raised","muted","raised"],
+  ["--ax-theme-readable-text-panel","text","panel"],
+  ["--ax-theme-readable-muted-panel","muted","panel"],
+  ["--ax-theme-readable-text-sidebar","text","sidebar"],
+  ["--ax-theme-readable-muted-sidebar","muted","sidebar"],
+  ["--ax-theme-readable-button-text","buttonText","primary"],
+  ["--ax-theme-readable-primary-surface","primary","surface"],
+  ["--ax-theme-readable-accent-surface","accent","surface"]
+];
+
 export function applyThemePreferences(preferences: ThemePreferences, target?: HTMLElement | null): "dark" | "light" | null {
   const root = target ?? (typeof document !== "undefined" ? document.querySelector<HTMLElement>(".ax-modern-shell") : null);
   const clean = normalizeThemePreferences(preferences);
@@ -159,6 +193,9 @@ export function applyThemePreferences(preferences: ThemePreferences, target?: HT
   root.setAttribute("data-ax-theme-mode",mode);
   root.style.colorScheme = mode;
   for (const [field,variable] of cssVariables) root.style.setProperty(variable,palette[field]);
+  for (const [variable,foregroundField,backgroundField] of readableVariables) {
+    root.style.setProperty(variable,getReadableForeground(palette[foregroundField],palette[backgroundField]));
+  }
   return mode;
 }
 
@@ -169,6 +206,7 @@ export function clearThemeApplication(target?: HTMLElement | null): void {
   root.removeAttribute("data-ax-theme-mode");
   root.style.colorScheme = "normal";
   for (const [,variable] of cssVariables) root.style.removeProperty(variable);
+  for (const [variable] of readableVariables) root.style.removeProperty(variable);
 }
 
 export function clearSavedThemePreferences(): void {
