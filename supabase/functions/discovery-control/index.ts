@@ -153,7 +153,7 @@ Deno.serve(async request => {
       });
       if (!eligibleSources.length) return jsonResponse(409, { error: "This profile has no currently approved and purpose-matched source attached." });
 
-      const filters = isObject(payload.filters) ? {
+      const filters = payload.filters && typeof payload.filters === "object" && !Array.isArray(payload.filters) ? {
         location: typeof payload.filters.location === "string" ? payload.filters.location.slice(0, 120) : "",
         sector: typeof payload.filters.sector === "string" ? payload.filters.sector.slice(0, 100) : "",
         product: typeof payload.filters.product === "string" ? payload.filters.product.slice(0, 100) : "",
