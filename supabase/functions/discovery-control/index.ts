@@ -139,6 +139,184 @@ Deno.serve(async request => {
       return jsonResponse(200, { ok: true, jobs: data || [] });
     }
 
+    if (action === "evidence.packs.list") {
+      const packId = typeof payload.packId === "string" ? payload.packId : "";
+      if (packId && !isUuid(packId)) return jsonResponse(400, { error: "A valid evidence pack ID is required." });
+      const [packResult, candidateResult] = await Promise.all([
+        userClient.from("discovery_evidence_pack_inbox").select("*")
+          .eq("company_id", companyId).order("created_at", { ascending: false }).limit(100),
+        userClient.from("discovery_evidence_candidate_inbox").select("*")
+          .eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(500)
+      ]);
+      for (const result of [packResult, candidateResult]) if (result.error) throw result.error;
+      let items: Record<string, unknown>[] = [];
+      let events: Record<string, unknown>[] = [];
+      if (packId) {
+        const [itemResult, eventResult] = await Promise.all([
+          userClient.from("discovery_evidence_pack_item_inbox").select("*")
+            .eq("company_id", companyId).eq("pack_id", packId).order("added_at", { ascending: false }).limit(500),
+          userClient.from("discovery_evidence_pack_event_inbox").select("*")
+            .eq("company_id", companyId).eq("pack_id", packId).order("occurred_at", { ascending: false }).limit(500)
+        ]);
+        for (const result of [itemResult, eventResult]) if (result.error) throw result.error;
+        items = itemResult.data || [];
+        events = eventResult.data || [];
+      }
+      return jsonResponse(200, {
+        ok: true,
+        packs: packResult.data || [],
+        candidates: candidateResult.data || [],
+        items,
+        events,
+        limits: { packs: 100, candidates: 500, items: 500, events: 500 }
+      });
+    }
+
+    if (action === "evidence.packs.create") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can create evidence packs." });
+      const title = typeof payload.title === "string" ? payload.title.trim() : "";
+      const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : "";
+      if (title.length < 3 || title.length > 160 || purpose.length < 10 || purpose.length > 1000) {
+        return jsonResponse(400, { error: "Provide a 3–160 character title and a 10–1000 character evidence-pack purpose." });
+      }
+      const { data, error } = await userClient.rpc("create_discovery_evidence_pack", {
+        p_company_id: companyId, p_title: title, p_purpose: purpose
+      });
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, packId: data });
+    }
+
+    if (action === "evidence.packs.add") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can curate evidence packs." });
+      if (!isUuid(payload.packId) || !isUuid(payload.provenanceEventId)) {
+        return jsonResponse(400, { error: "A valid pack ID and provenance event ID are required." });
+      }
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "An inclusion reason of 10–1000 characters is required." });
+      const { data, error } = await userClient.rpc("add_discovery_evidence_pack_item", {
+        p_company_id: companyId, p_pack_id: payload.packId,
+        p_provenance_event_id: payload.provenanceEventId, p_reason: reason
+      });
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, itemId: data });
+    }
+
+    if (action === "evidence.packs.remove") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can curate evidence packs." });
+      if (!isUuid(payload.packId) || !isUuid(payload.itemId)) return jsonResponse(400, { error: "A valid pack ID and item ID are required." });
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A removal reason of 10–1000 characters is required." });
+      const { data, error } = await userClient.rpc("remove_discovery_evidence_pack_item", {
+        p_company_id: companyId, p_pack_id: payload.packId, p_item_id: payload.itemId, p_reason: reason
+      });
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, eventId: data });
+    }
+
+    if (action === "evidence.packs.submit") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can submit evidence packs." });
+      if (!isUuid(payload.packId)) return jsonResponse(400, { error: "A valid evidence pack ID is required." });
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A submission reason of 10–1000 characters is required." });
+      const { data, error } = await userClient.rpc("submit_discovery_evidence_pack", {
+        p_company_id: companyId, p_pack_id: payload.packId, p_reason: reason
+      });
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, eventId: data });
+    }
+
+    if (action === "evidence.packs.review") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can review evidence packs." });
+      if (!isUuid(payload.packId) || (payload.decision !== "approved" && payload.decision !== "rejected")) {
+        return jsonResponse(400, { error: "Provide a valid evidence pack ID and approve/reject decision." });
+      }
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A review reason of 10–1000 characters is required." });
+      const { data, error } = await userClient.rpc("review_discovery_evidence_pack", {
+        p_company_id: companyId, p_pack_id: payload.packId, p_decision: payload.decision, p_reason: reason
+      });
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, eventId: data });
+    }
+
+    if (action === "evidence.packs.reopen") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can reopen evidence packs." });
+      if (!isUuid(payload.packId)) return jsonResponse(400, { error: "A valid evidence pack ID is required." });
+      const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
+      if (reason.length < 10 || reason.length > 1000) return jsonResponse(400, { error: "A reopening reason of 10–1000 characters is required." });
+      const { data, error } = await userClient.rpc("reopen_discovery_evidence_pack", {
+        p_company_id: companyId, p_pack_id: payload.packId, p_reason: reason
+      });
+      if (error) throw error;
+      return jsonResponse(200, { ok: true, eventId: data });
+    }
+
+    if (action === "evidence.packs.export") {
+      if (!canManage) return jsonResponse(403, { error: "Only company owners/admins can export evidence packs." });
+      if (!isUuid(payload.packId)) return jsonResponse(400, { error: "A valid evidence pack ID is required." });
+      const [{ data: pack, error: packError }, { data: items, error: itemsError }] = await Promise.all([
+        userClient.from("discovery_evidence_pack_inbox").select("*")
+          .eq("company_id", companyId).eq("id", payload.packId).maybeSingle(),
+        userClient.from("discovery_evidence_pack_item_inbox").select("*")
+          .eq("company_id", companyId).eq("pack_id", payload.packId)
+          .is("removed_at", null).order("added_at", { ascending: true }).limit(500)
+      ]);
+      if (packError) throw packError;
+      if (itemsError) throw itemsError;
+      if (!pack || pack.status !== "approved") return jsonResponse(409, { error: "Only an approved evidence pack can be exported." });
+      if (!items?.length || items.length > 500 || items.length !== pack.item_count) {
+        return jsonResponse(409, { error: "The evidence pack changed or has no active items. Refresh and try again." });
+      }
+      const exportedAt = new Date().toISOString();
+      const manifestItems = items.map((item: Record<string, unknown>) => ({
+        provenanceEventId: item.provenance_event_id,
+        subjectKind: item.subject_kind,
+        subjectId: item.subject_id,
+        fieldName: item.field_name,
+        eventType: item.event_type,
+        decision: item.decision,
+        sourceId: item.source_id,
+        sourceName: item.source_name_snapshot,
+        sourceDomain: item.source_domain_snapshot,
+        jurisdiction: item.source_jurisdiction_snapshot,
+        attribution: item.source_attribution_snapshot,
+        licenceReference: item.source_license_ref_snapshot,
+        licenceSnapshot: item.source_license_snapshot,
+        evidenceId: item.evidence_id,
+        evidenceSha256: item.evidence_content_hash,
+        capturedAt: item.evidence_captured_at,
+        sourcePublishedAt: item.source_published_at,
+        sourceSpan: item.source_span,
+        evidenceRetained: item.evidence_retained,
+        observedAt: item.provenance_occurred_at
+      }));
+      const manifestCore = {
+        schemaVersion: "axivestra.evidence-pack.v1",
+        exportedAt,
+        pack: {
+          id: pack.id,
+          title: pack.title,
+          purpose: pack.purpose,
+          reviewedBy: pack.reviewed_by,
+          reviewedAt: pack.reviewed_at,
+          reviewReason: pack.review_reason
+        },
+        itemCount: manifestItems.length,
+        items: manifestItems,
+        privacyNotice: "Metadata and provenance only. Raw source bodies, extracted values, canonical source URLs, object references and credentials are intentionally excluded."
+      };
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(manifestCore)));
+      const manifestHash = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, "0")).join("");
+      const { data: exportEventId, error: exportError } = await userClient.rpc("record_discovery_evidence_pack_export", {
+        p_company_id: companyId,
+        p_pack_id: payload.packId,
+        p_manifest_hash: manifestHash,
+        p_item_count: manifestItems.length
+      });
+      if (exportError) throw exportError;
+      return jsonResponse(200, { ok: true, exportEventId, manifest: { ...manifestCore, manifestHash } });
+    }
+
     if (action === "extractions.list") {
       const { data: runs, error: runsError } = await admin.from("discovery_extraction_runs")
         .select("id,extraction_job_id,evidence_id,source_id,extractor_version,schema_hash,extraction_method,status,extracted_entity_count,fact_count,invalid_fact_count,warnings,source_content_hash,completed_at")
