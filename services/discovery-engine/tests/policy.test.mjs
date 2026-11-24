@@ -143,12 +143,12 @@ test("source-specific required fields do not force every source to provide the f
     workspace_key: "property_loans",
     discovery_mode: "LENDER",
     purpose,
-    criteria: { requiredFields: ["institution_name", "product_type", "jurisdiction"], sourceRequiredFields: ["institution_name"] }
+    criteria: { requiredFields: ["legal_name", "product_type", "jurisdiction"], sourceRequiredFields: ["legal_name"] }
   };
   assert.equal(assertSourceCanBeAttached(profile, source), true);
   assert.throws(() => assertSourceCanBeAttached({
     ...profile,
-    criteria: { ...profile.criteria, sourceRequiredFields: ["institution_name", "product_type"] }
+    criteria: { ...profile.criteria, sourceRequiredFields: ["legal_name", "product_type"] }
   }, source), /does not allow every field explicitly required from this source/);
 });
 
