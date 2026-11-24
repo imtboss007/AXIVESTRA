@@ -1,7 +1,7 @@
 export type DiscoveryMode = "LENDER" | "CUSTOMER";
 export type E11MatchRule =
   | { value: string | number | string[]; weight?: number; required?: boolean }
-  | { value: { min?: number; max?: number }; weight?: number; required?: boolean };
+  | { value: { min?: number; max?: number; currencyCode?: string }; weight?: number; required?: boolean };
 export type E11FreshnessRule = { maxAgeDays: number; weight?: number; required?: boolean };
 export type E11MatchCriteria = Partial<Record<
   "geography" | "type" | "ticket" | "instrument" | "collateral" | "stage" | "mandate",
