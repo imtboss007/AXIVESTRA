@@ -352,8 +352,13 @@ export function normalizeProfile(input, sourceCount = 0) {
 export function assertSourceCanBeAttached(profile, source) {
   if (!profile || !source) throw new Error("The profile and source are required.");
   if (source.status !== "approved") throw new Error("Only approved sources can be attached to a discovery profile.");
-  if (profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER") {
-    throw new Error("Personal Loan customer profiles cannot use external person-discovery sources.");
+  const restrictedMode =
+    (profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER") ||
+    (profile.workspace_key === "litigation" && profile.discovery_mode === "LENDER") ||
+    (profile.workspace_key === "investor_relations" && profile.discovery_mode === "LENDER") ||
+    profile.criteria?.disabledByPolicy === true;
+  if (restrictedMode) {
+    throw new Error("This workspace/mode is disabled by discovery policy and cannot use external source discovery.");
   }
   const allowedPurposes = Array.isArray(source.allowed_purposes) ? source.allowed_purposes : [];
   if (!allowedPurposes.includes(profile.purpose)) {
