@@ -104,6 +104,10 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
+      - name: Validate authenticated browser acceptance test discovery
+        run: npm run test:e2e -- --list tests/browser/axivestra-commitment-workspace.spec.ts tests/browser/axivestra-verification-workspace.spec.ts tests/browser/axivestra-ai-matching-review.spec.ts tests/browser/axivestra-evidence-pack-workspace.spec.ts
+
+
       - name: Install governed fetch worker dependencies
         run: npm --prefix services/discovery-worker install --no-package-lock --no-audit --no-fund
         env:
@@ -134,7 +138,7 @@ jobs:
       - name: Build AXIVESTRA web application
         run: npm run build
 
-      - name: Run authenticated E18/E19 browser acceptance when QA core credentials are configured
+      - name: Run authenticated E18/E19/E21/E22 browser acceptance when QA core credentials are configured
         env:
           VITE_SUPABASE_URL: ${{ secrets.AXIVESTRA_E2E_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.AXIVESTRA_E2E_SUPABASE_PUBLISHABLE_KEY }}
@@ -161,5 +165,5 @@ jobs:
             npm run test:e2e -- tests/browser/axivestra-ai-matching-review.spec.ts --project=desktop-chromium
             npm run test:e2e -- tests/browser/axivestra-evidence-pack-workspace.spec.ts --project=desktop-chromium
           else
-            echo "::notice::Authenticated E18/E19 browser acceptance skipped because QA account/company and Supabase credentials are not configured."
+            echo "::notice::Authenticated E18/E19/E21/E22 browser acceptance skipped because QA account/company and Supabase credentials are not configured."
           fi
