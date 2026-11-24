@@ -2702,6 +2702,13 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             fields={active==="All Properties" ? [] : moduleFields[active] || []}
             contacts={contacts}
             groups={savedWhatsAppGroups}
+            tasks={tasks}
+            documents={documents}
+            financials={financials}
+            onOpenContact={id=>{const person=contacts.find(item=>item.id===id);if(person){go("Contacts");openContactForm(person);}}}
+            onOpenTask={id=>{const item=tasks.find(task=>task.id===id);if(item){go("Schedule & Tasks");openTaskForm(item);}}}
+            onOpenFinancial={id=>{const item=financials.find(financial=>financial.id===id);if(item){go("Financials");openFinancialForm(item);}}}
+            onOpenDocument={id=>{const item=documents.find(document=>document.id===id);if(item){go("Documents");void downloadDocument(item);}}}
             onAdd={()=>openPropertyForm()}
             onEdit={record=>openPropertyForm(record)}
             onDelete={deleteProperty}
