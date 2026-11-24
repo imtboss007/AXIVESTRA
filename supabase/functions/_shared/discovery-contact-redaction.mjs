@@ -27,14 +27,14 @@ export function redactExtractedFact(fact) {
   delete sourceSpan.quoteHash;
   sourceSpan.quote = masked;
   sourceSpan.quoteRedacted = true;
-  const {
-    raw_value_ciphertext,
-    raw_value_nonce,
-    raw_value_auth_tag,
-    raw_value_fingerprint,
-    raw_value_encryption_version,
-    ...safeFact
-  } = fact;
+  const safeFact = { ...fact };
+  for (const key of [
+    "raw_value_ciphertext",
+    "raw_value_nonce",
+    "raw_value_auth_tag",
+    "raw_value_fingerprint",
+    "raw_value_encryption_version"
+  ]) delete safeFact[key];
   return {
     ...safeFact,
     raw_value: masked,
