@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, CircleAlert, Clock3, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, CircleAlert, Clock3, RefreshCw, ShieldCheck } from "lucide-react";
 import { supabase } from "./lib/supabase";
 
 type Suggestion = {
