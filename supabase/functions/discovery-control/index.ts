@@ -711,7 +711,7 @@ Deno.serve(async request => {
       const entityIds = [...new Set((leads || []).map((lead: { canonical_entity_id: string }) => lead.canonical_entity_id))];
       const [matchResult, entityResult, eventResult] = await Promise.all([
         matchIds.length ? admin.from("discovery_match_results")
-          .select("id,score,confidence,eligible,workspace_key,criteria_version")
+          .select("id,score,confidence,eligible,workspace_key,discovery_mode,criteria_version")
           .eq("company_id", companyId).in("id", matchIds) : Promise.resolve({ data: [], error: null }),
         entityIds.length ? admin.from("discovery_canonical_entities")
           .select("id,legal_name,jurisdiction,entity_type")
