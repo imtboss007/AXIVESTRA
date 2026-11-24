@@ -27,7 +27,8 @@ test("E11 scoring criteria are workspace-specific and server-checked against the
   assert.match(handler, /profile\.criteria\?\.matchCriteria/);
   assert.match(migration, /p_criteria_snapshot <> coalesce\(v_profile\.criteria->'matchCriteria'/);
   assert.match(migration, /p_profile_id/);
-  assert.match(migration, /p_workspace_key/);
+  assert.match(migration, /v_profile\.workspace_key/);
+  assert.match(migration, /v_profile\.discovery_mode/);
   assert.match(dimensionMigration, /'geography','type','sector','ticket','instrument','collateral','stage','mandate','evidence_freshness'/);
 });
 
