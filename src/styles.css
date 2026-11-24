@@ -5923,7 +5923,7 @@ h2,h3{color:#e5f2fc}
 .ax-modern-shell[data-ax-theme] .sidebar .nav-item,
 .ax-modern-shell[data-ax-theme] .sidebar .workspace-label { color:var(--ax-theme-readable-muted-sidebar,var(--ax-theme-muted)) !important; }
 .ax-modern-shell[data-ax-theme] .sidebar .nav-item.active,
-.ax-modern-shell[data-ax-theme] .sidebar .ax-sidebar-module.active { color:var(--ax-theme-readable-primary-surface,var(--ax-theme-primary)) !important; }
+.ax-modern-shell[data-ax-theme] .sidebar .ax-sidebar-module.active { color:var(--ax-theme-readable-primary-active,var(--ax-theme-primary)) !important; }
 .ax-modern-shell[data-ax-theme] .data-panel,
 .ax-modern-shell[data-ax-theme] .panel-card,
 .ax-modern-shell[data-ax-theme] .settings-card,
@@ -5950,7 +5950,7 @@ h2,h3{color:#e5f2fc}
 .ax-modern-shell[data-ax-theme] .primary-button { color:var(--ax-theme-readable-button-text,var(--ax-theme-button-text)) !important; }
 .ax-modern-shell[data-ax-theme] .secondary-button,
 .ax-modern-shell[data-ax-theme] .text-button,
-.ax-modern-shell[data-ax-theme] .icon-button { color:var(--ax-theme-readable-primary-surface,var(--ax-theme-primary)) !important; }
+.ax-modern-shell[data-ax-theme] .icon-button { color:var(--ax-theme-readable-primary-raised,var(--ax-theme-primary)) !important; }
 .ax-modern-shell[data-ax-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
 .ax-modern-shell[data-ax-theme] select,
 .ax-modern-shell[data-ax-theme] textarea { color:var(--ax-theme-readable-text-raised,var(--ax-theme-text)) !important; }
@@ -5987,7 +5987,7 @@ h2,h3{color:#e5f2fc}
 }
 .ax-modern-shell[data-ax-theme] .ax-orbit-kicker,
 .ax-modern-shell[data-ax-theme] .ax-orbit-live,
-.ax-modern-shell[data-ax-theme] .ax-orbit-core__focus { color:var(--ax-theme-readable-accent-surface,var(--ax-theme-accent)) !important; }
+.ax-modern-shell[data-ax-theme] .ax-orbit-core__focus { color:var(--ax-theme-readable-accent-panel,var(--ax-theme-accent)) !important; }
 .ax-modern-shell[data-ax-theme] .ax-orbit-hub__heading h2,
 .ax-modern-shell[data-ax-theme] .ax-orbit-node__copy strong,
 .ax-modern-shell[data-ax-theme] .ax-orbit-metric strong { color:var(--ax-theme-readable-text-panel,var(--ax-theme-text)) !important; }
