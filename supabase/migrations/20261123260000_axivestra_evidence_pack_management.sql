@@ -121,15 +121,12 @@ create or replace view public.discovery_evidence_pack_inbox
 with (security_invoker=true) as
 select p.id,p.company_id,p.title,p.purpose,p.status,p.created_by,p.updated_by,
   p.reviewed_by,p.reviewed_at,p.review_reason,p.created_at,p.updated_at,
-  count(i.id) filter(where i.removed_at is null)::integer as item_count,
-  count(ev.id)::integer as event_count
+  (select count(*)::integer from public.discovery_evidence_pack_items i
+    where i.company_id=p.company_id and i.pack_id=p.id and i.removed_at is null) as item_count,
+  (select count(*)::integer from public.discovery_evidence_pack_events ev
+    where ev.company_id=p.company_id and ev.pack_id=p.id) as event_count
 from public.discovery_evidence_packs p
-left join public.discovery_evidence_pack_items i
-  on i.company_id=p.company_id and i.pack_id=p.id
-left join public.discovery_evidence_pack_events ev
-  on ev.company_id=p.company_id and ev.pack_id=p.id
-where public.is_company_member(p.company_id)
-group by p.id;
+where public.is_company_member(p.company_id);
 
 create or replace view public.discovery_evidence_pack_item_inbox
 with (security_invoker=true) as
@@ -333,7 +330,7 @@ begin
   if v_actor is null or coalesce(v_role,'') not in ('owner','admin') then
     raise exception 'Only company owners/admins can review evidence packs.' using errcode='42501';
   end if;
-  if p_decision not in ('approved','rejected') then raise exception 'Choose approved or rejected.' using errcode='22023'; end if;
+  if p_decision is null or p_decision not in ('approved','rejected') then raise exception 'Choose approved or rejected.' using errcode='22023'; end if;
   if p_reason is null or p_reason<>trim(p_reason) or length(p_reason) not between 10 and 1000 then
     raise exception 'A review reason of 10–1000 characters is required.' using errcode='22023';
   end if;

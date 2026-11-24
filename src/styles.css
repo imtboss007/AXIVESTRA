@@ -6424,3 +6424,32 @@ h2,h3{color:#e5f2fc}
 .discovery-orchestration-worker-confirm span {
   color: var(--muted, #737373);
 }
+
+/* E21 — responsive evidence catalogue and evidence-pack review */
+.discovery-evidence-workspace{display:flex;flex-direction:column;gap:16px}
+.discovery-evidence-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.discovery-evidence-summary article{display:flex;flex-direction:column;gap:4px;min-width:0;padding:12px;border:1px solid var(--border,rgba(128,128,128,.25));border-radius:10px}
+.discovery-evidence-summary strong{font-size:20px;font-variant-numeric:tabular-nums}
+.discovery-evidence-summary span,.discovery-evidence-pane small,.discovery-evidence-candidate-list small,.discovery-evidence-items small{color:var(--muted,#737373);font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.discovery-evidence-layout{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.2fr);gap:14px;align-items:start}
+.discovery-evidence-pane{display:flex;flex-direction:column;gap:12px;min-width:0;padding:14px;border:1px solid var(--border,rgba(128,128,128,.25));border-radius:12px}
+.discovery-evidence-create,.discovery-evidence-pack-meta{display:grid;gap:10px}
+.discovery-evidence-pack-list,.discovery-evidence-items,.discovery-evidence-candidate-list{display:grid;gap:9px}
+.discovery-evidence-pack-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-width:0;padding:11px;color:inherit;text-align:left;background:transparent;border:1px solid var(--border,rgba(128,128,128,.25));border-radius:9px}
+.discovery-evidence-pack-choice.is-selected{border-color:var(--accent,#64748b);background:var(--surface-subtle,rgba(128,128,128,.08))}
+.discovery-evidence-pack-choice span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.discovery-evidence-pack-choice b{overflow-wrap:anywhere}
+.discovery-evidence-status{display:inline-flex;align-items:center;width:fit-content;padding:4px 7px;border:1px solid var(--border,rgba(128,128,128,.25));border-radius:999px;font-size:10px;font-style:normal;white-space:nowrap}
+.discovery-evidence-status.status-approved{color:#15803d}
+.discovery-evidence-status.status-rejected{color:#b91c1c}
+.discovery-evidence-status.status-in_review{color:#a16207}
+.discovery-evidence-pack-meta{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}
+.discovery-evidence-pack-meta span{display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px;border:1px solid var(--border,rgba(128,128,128,.2));border-radius:8px;font-size:11px;overflow-wrap:anywhere}
+.discovery-evidence-items article,.discovery-evidence-candidate-list article{display:flex;flex-direction:column;gap:6px;min-width:0;padding:11px;border:1px solid var(--border,rgba(128,128,128,.22));border-radius:9px}
+.discovery-evidence-items article>div,.discovery-evidence-candidate-list article>div{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.discovery-evidence-items article>div b,.discovery-evidence-candidate-list article>div b{overflow-wrap:anywhere}
+.discovery-evidence-candidate-list article>div em{color:var(--muted,#737373);font-size:10px;font-style:normal}
+.discovery-evidence-catalogue{display:flex;flex-direction:column;gap:12px}
+.discovery-evidence-search{max-width:520px}
+.discovery-evidence-catalogue .discovery-evidence-candidate-list{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+@media(max-width:760px){.discovery-evidence-layout{grid-template-columns:minmax(0,1fr)}.discovery-evidence-catalogue .discovery-evidence-candidate-list{grid-template-columns:minmax(0,1fr)}.discovery-evidence-pack-choice{align-items:flex-start}}

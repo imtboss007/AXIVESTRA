@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import {
   Archive, CheckCircle2, CircleAlert, Clock3, Download, FileSearch,
   LoaderCircle, Plus, RefreshCw, Send, ShieldCheck, Trash2, XCircle
@@ -127,7 +128,7 @@ export default function DiscoveryEvidenceWorkspace({
     }
   };
 
-  const createPack = async (event: React.FormEvent<HTMLFormElement>) => {
+  const createPack = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManage) return;
     setBusy("create");
