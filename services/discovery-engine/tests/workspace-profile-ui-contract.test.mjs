@@ -1,0 +1,37 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const manager = await readFile(new URL("../../../src/DiscoverySourceManager.tsx", import.meta.url), "utf8");
+const queue = await readFile(new URL("../../../src/DiscoveryJobQueue.tsx", import.meta.url), "utf8");
+const profiles = await readFile(new URL("../../../src/lib/discovery-profiles.mjs", import.meta.url), "utf8");
+
+test("workspace profile creation saves validated criteria instead of an empty object", () => {
+  assert.match(manager, /getDefaultWorkspaceCriteria/);
+  assert.match(manager, /validateWorkspaceCriteria\(JSON\.parse\(criteriaText\)/);
+  assert.match(manager, /criteria\s*\n\s*\}\);/);
+  assert.doesNotMatch(manager, /criteria:\s*\{\s*\}/);
+});
+
+test("existing workspace profile criteria can be edited and saved without overwriting source links", () => {
+  assert.match(manager, /const saveProfileCriteria/);
+  assert.match(manager, /criteriaEditors\[profile\.id\]/);
+  assert.match(manager, /Workspace-specific discovery criteria saved/);
+  assert.match(manager, /Save criteria/);
+  assert.match(manager, /profiles\.upsert/);
+});
+
+test("queued jobs carry their exact workspace/mode profile criteria to the server", () => {
+  assert.match(queue, /criteria:\s*selectedProfile\.criteria \|\| \{\}/);
+  assert.match(queue, /buildDiscoveryQueryHints/);
+  assert.match(queue, /PROFILE-DRIVEN SEARCH PLAN/);
+  assert.match(queue, /does not search the internet/);
+});
+
+test("profile catalogue encodes separate lender and customer target classes with policy guardrails", () => {
+  assert.match(profiles, /property_loans:/);
+  assert.match(profiles, /investor_relations:/);
+  assert.match(profiles, /compliance_kyc:/);
+  assert.match(profiles, /disabledByPolicy/);
+  assert.match(profiles, /Equity investors are not debt lenders/);
+});
