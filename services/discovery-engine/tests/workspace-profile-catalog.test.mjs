@@ -74,9 +74,12 @@ test("Personal Loan customer discovery is locked to inbound/referral/consented i
   assert.equal(validateWorkspaceCriteria({ ...criteria, disabledByPolicy: false }, "personal_loan", "CUSTOMER").disabledByPolicy, true);
 });
 
-test("Litigation lender and optional investor-relations lender profiles remain disabled by policy", () => {
+test("Litigation lender is policy-restricted while Investor Relations lender is optional fund finance", () => {
   assert.equal(getDefaultWorkspaceCriteria("litigation", "LENDER").disabledByPolicy, true);
-  assert.equal(getDefaultWorkspaceCriteria("investor_relations", "LENDER").disabledByPolicy, true);
+  const investorRelations = getDefaultWorkspaceCriteria("investor_relations", "LENDER");
+  assert.equal(investorRelations.disabledByPolicy, false);
+  assert.ok(investorRelations.guardrails.some(value => /optional.*fund-finance workflow/i.test(value)));
+  assert.ok(investorRelations.guardrails.some(value => /separate from debt lenders|separate from.*debt/i.test(value)));
 });
 
 test("criteria rejects cross-workspace, cross-mode and malformed values", () => {
