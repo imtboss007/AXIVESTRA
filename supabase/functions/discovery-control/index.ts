@@ -173,7 +173,7 @@ Deno.serve(async request => {
           discoveryMode: profile.discovery_mode,
           queryCount: queries.length,
           attachedApprovedSourceCount: eligibleSources.length,
-          filterKeys: Object.keys(filters).filter(key => typeof filters[key as keyof typeof filters] === "string" && Boolean(filters[key as keyof typeof filters]))
+          filterKeys: ["location", "sector", "product", "stage", "instrument"].filter(key => Boolean((filters as Record<string, string>)[key]))
         }
       });
       const resultsByUrl = new Map<string, Record<string, unknown>>();
