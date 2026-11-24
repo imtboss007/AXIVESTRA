@@ -1784,6 +1784,14 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       "select has_function_privilege('authenticated','public.record_discovery_ai_match_suggestion(uuid,uuid,text,text,text,jsonb,jsonb,text)','execute') as user_can_record,has_function_privilege('service_role','public.record_discovery_ai_match_suggestion(uuid,uuid,text,text,text,jsonb,jsonb,text)','execute') as service_can_record,has_function_privilege('authenticated','public.review_discovery_ai_match_suggestion(uuid,uuid,text,text)','execute') as user_can_review,has_function_privilege('service_role','public.review_discovery_ai_match_suggestion(uuid,uuid,text,text)','execute') as service_can_review"
     );
     assert.deepEqual(e22Acl.rows,[{user_can_record:false,service_can_record:true,user_can_review:true,service_can_review:false}]);
+    const e22TableAcl=await pool.query(
+      "select has_table_privilege('authenticated','public.discovery_ai_match_suggestions','insert') as user_can_insert_suggestion,has_table_privilege('authenticated','public.discovery_ai_match_suggestions','update') as user_can_update_suggestion,has_table_privilege('service_role','public.discovery_ai_match_suggestions','update') as service_can_update_suggestion,has_table_privilege('authenticated','public.discovery_ai_match_suggestion_events','insert') as user_can_insert_event,has_table_privilege('service_role','public.discovery_ai_match_suggestion_events','insert') as service_can_insert_event"
+    );
+    assert.deepEqual(e22TableAcl.rows,[{
+      user_can_insert_suggestion:false,user_can_update_suggestion:false,
+      service_can_update_suggestion:false,user_can_insert_event:false,service_can_insert_event:false
+    }],"E22 writes must pass through the narrow security-definer RPCs");
+
 
     const roleClaim = await pool.query(
       "select * from public.claim_discovery_professional_role_job($1,90)",
