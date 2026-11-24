@@ -2,7 +2,7 @@ const CRITERIA = Object.freeze([
   "geography","type","sector","ticket","instrument","collateral","stage","mandate","evidence_freshness"
 ]);
 const clean = value => typeof value === "string"
-  ? value.normalize("NFKC").trim().toLowerCase().replace(/\\s+/g," ")
+  ? value.normalize("NFKC").trim().toLowerCase().replace(/\s+/g," ")
   : value;
 const finite = value => typeof value === "number" && Number.isFinite(value);
 const asList = value => Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
