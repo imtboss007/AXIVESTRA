@@ -54,8 +54,8 @@ export function buildSearxngQueries(criteria, filters = {}) {
     stage: cleanText(filters.stage, 80),
     instrument: cleanText(filters.instrument, 80)
   };
-  const sensitiveInput = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i;
-  const phoneInput = /(?:\\+?\\d[\\d .()\\-]{7,}\\d)/;
+  const sensitiveInput = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const phoneInput = /(?:\+?\d[\d .()\-]{7,}\d)/;
   if (Object.values(cleanFilters).some(value => sensitiveInput.test(value) || phoneInput.test(value))) {
     throw new Error("Search filters must not contain personal email addresses or phone numbers.");
   }
