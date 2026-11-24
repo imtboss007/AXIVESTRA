@@ -32,12 +32,13 @@ test("E11 match criteria are optional, typed and limited to the eight supported 
     ...defaults,
     matchCriteria: {
       geography: { value: ["Karnataka", "India"], weight: 2 },
-      ticket: { value: { min: 1000000, max: 50000000 }, weight: 3, required: true },
+      ticket: { value: { min: 1000000, max: 50000000, currencyCode: "INR" }, weight: 3, required: true },
       evidence_freshness: { maxAgeDays: 90, weight: 1 }
     }
   }, "property_loans", "LENDER");
   assert.equal(configured.matchCriteria.geography.weight, 2);
   assert.equal(configured.matchCriteria.ticket.required, true);
+  assert.equal(configured.matchCriteria.ticket.value.currencyCode, "INR");
   assert.equal(configured.matchCriteria.evidence_freshness.maxAgeDays, 90);
   assert.throws(() => validateWorkspaceCriteria({
     ...defaults, matchCriteria: { private_credit_score: { value: 700, weight: 2 } }
