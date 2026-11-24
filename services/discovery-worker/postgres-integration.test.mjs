@@ -1723,6 +1723,16 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         ),
         /invalid/
       );
+      const foreignEvidenceId="11111111-1111-4111-8111-111111111111";
+      await assert.rejects(
+        e22ServiceClient.query(
+          "select public.record_discovery_ai_match_suggestion($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)",
+          [companyId,e22MatchResultId,"c".repeat(64),"test-adapter","fixture-1",
+            JSON.stringify({...e22Suggestion,requestHash:"c".repeat(64),reasons:[{criterion:"type",code:"aligned",evidenceIds:[foreignEvidenceId]}]}),
+            JSON.stringify([foreignEvidenceId]),"Reject evidence not present in this company scope."]
+        ),
+        /not registered to this company/
+      );
     } finally {
       await e22ServiceClient.query("reset role");
       await e22ServiceClient.query("select set_config('request.jwt.claim.role','',false)");
