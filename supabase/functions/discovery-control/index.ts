@@ -649,7 +649,7 @@ Deno.serve(async request => {
         p_actor_user_id: caller.id,
         p_profile_id: profile.id,
         p_canonical_entity_id: canonicalEntity.id,
-        p_criteria_version: "e11-weighted-rules-v1",
+        p_criteria_version: "e11-weighted-rules-v1:" + String(profile.discovery_mode).toLowerCase(),
         p_criteria_snapshot: matchCriteria,
         p_candidate_snapshot: candidateSnapshot,
         p_score: scored.score,
@@ -687,7 +687,7 @@ Deno.serve(async request => {
 
     if (action === "matches.list") {
       const { data: matches, error } = await admin.from("discovery_match_results")
-        .select("id,canonical_entity_id,workspace_key,criteria_version,score,confidence,eligible,positive_factors,negative_factors,unknown_criteria,blockers,review_state,created_at")
+        .select("id,canonical_entity_id,workspace_key,discovery_mode,criteria_version,score,confidence,eligible,positive_factors,negative_factors,unknown_criteria,blockers,review_state,created_at")
         .eq("company_id", companyId).eq("review_state", "pending_review")
         .order("score", { ascending: false }).limit(100);
       if (error) throw error;
