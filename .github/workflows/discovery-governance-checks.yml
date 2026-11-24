@@ -52,6 +52,7 @@ on:
       - "tests/browser/axivestra-commitment-workspace.spec.ts"
       - "tests/browser/axivestra-verification-workspace.spec.ts"
       - "tests/browser/axivestra-ai-matching-review.spec.ts"
+      - "tests/browser/axivestra-evidence-pack-workspace.spec.ts"
       - "docs/AXIVESTRA-E18-COMMITMENTS-WORKSPACE.md"
       - "docs/AXIVESTRA-E19-VERIFICATION-CONFIDENCE.md"
       - "docs/AXIVESTRA-E20-AGENT-ORCHESTRATION.md"
@@ -146,6 +147,7 @@ jobs:
           AXIVESTRA_E2E_LEGACY_TASK_TITLE: ${{ secrets.AXIVESTRA_E2E_LEGACY_TASK_TITLE }}
           AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID: ${{ secrets.AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID }}
           AXIVESTRA_E2E_E22_SUGGESTION_ID: ${{ secrets.AXIVESTRA_E2E_E22_SUGGESTION_ID }}
+          AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID: ${{ secrets.AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID }}
         run: |
           if [ -n "$VITE_SUPABASE_URL" ] && [ -n "$VITE_SUPABASE_PUBLISHABLE_KEY" ] && [ -n "$AXIVESTRA_E2E_EMAIL" ] && [ -n "$AXIVESTRA_E2E_PASSWORD" ] && [ -n "$AXIVESTRA_E2E_COMPANY_NAME" ]; then
             npm run build
@@ -157,6 +159,7 @@ jobs:
             fi
             npm run test:e2e -- tests/browser/axivestra-verification-workspace.spec.ts --project=desktop-chromium
             npm run test:e2e -- tests/browser/axivestra-ai-matching-review.spec.ts --project=desktop-chromium
+            npm run test:e2e -- tests/browser/axivestra-evidence-pack-workspace.spec.ts --project=desktop-chromium
           else
             echo "::notice::Authenticated E18/E19 browser acceptance skipped because QA account/company and Supabase credentials are not configured."
           fi
