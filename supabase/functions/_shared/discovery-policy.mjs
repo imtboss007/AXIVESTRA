@@ -268,10 +268,11 @@ function validateProfileMatchCriteria(value) {
     const item = rule.value;
     if (key === "ticket") {
       if (!item || typeof item !== "object" || Array.isArray(item) ||
-          Object.keys(item).some(part => !["min","max"].includes(part)) ||
+          Object.keys(item).some(part => !["min","max","currencyCode"].includes(part)) ||
           Object.keys(item).length === 0 ||
           Object.values(item).some(part => typeof part !== "number" || !Number.isFinite(part) || part < 0) ||
-          (item.min !== undefined && item.max !== undefined && item.min > item.max)) {
+          (item.min !== undefined && item.max !== undefined && item.min > item.max) ||
+          (item.currencyCode !== undefined && (typeof item.currencyCode !== "string" || !/^[A-Z]{3}$/.test(item.currencyCode)))) {
         throw new Error("E11 ticket requires a valid non-negative min/max range.");
       }
     } else {
