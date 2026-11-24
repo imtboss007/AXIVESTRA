@@ -535,6 +535,39 @@ export default function DiscoverySourceManager({
         </label>
         <button type="submit" className="primary-button" disabled={!canManage || !profileDraft.purpose || busyKey === "add-profile" || profileAlreadyExists}><Plus size={15}/>{profileAlreadyExists ? "Profile already exists" : "Create disabled profile"}</button>
       </form>
+      <section className="discovery-profile-coverage" aria-label="Workspace profile coverage">
+        <div className="discovery-profile-coverage-head">
+          <div><span className="section-kicker">16 WORKSPACES · 2 MODES</span><h3>Discovery coverage</h3><p>{profiles.length} of 32 profiles configured · {profiles.filter(profile => profile.enabled).length} enabled · {WORKSPACES.filter(([key]) => ["personal_loan","litigation"].some(disabled => getDefaultWorkspaceCriteria(key,"LENDER").disabledByPolicy || getDefaultWorkspaceCriteria(key,"CUSTOMER").disabledByPolicy)).length} workspaces contain a policy-restricted mode.</p></div>
+        </div>
+        <div className="discovery-profile-coverage-scroll">
+          <table className="discovery-profile-coverage-table">
+            <thead><tr><th>Workspace</th><th>LENDER</th><th>CUSTOMER</th></tr></thead>
+            <tbody>{WORKSPACES.map(([workspaceKey,workspaceLabel]) => {
+              const renderStatus = (mode: "LENDER" | "CUSTOMER") => {
+                const profile = profiles.find(item => item.workspace_key === workspaceKey && item.discovery_mode === mode);
+                const defaults = getDefaultWorkspaceCriteria(workspaceKey,mode);
+                const restricted = defaults.disabledByPolicy === true || profile?.criteria?.disabledByPolicy === true;
+                const attached = profile ? sourcesForProfile(profile) : [];
+                const enrichmentSources = attached.filter(source =>
+                  source.status === "approved" && (source.allowed_purposes || []).includes("enrichment")
+                ).length;
+                const stateLabel = restricted ? "Policy restricted" : profile?.enabled ? "Enabled" : profile ? "Configured · disabled" : "Not configured";
+                return <td key={mode}>
+                  <span className={"discovery-coverage-state " + (restricted ? "is-restricted" : profile?.enabled ? "is-enabled" : profile ? "is-configured" : "is-missing")}>{stateLabel}</span>
+                  {profile && <small>{attached.length} source(s) · {enrichmentSources} E10-enabled</small>}
+                  {!profile && !restricted && <small>Choose purpose and create profile below</small>}
+                  {restricted && <small>{mode === "CUSTOMER" && workspaceKey === "personal_loan" ? "Inbound / referral / consented intake only" : "Requires a separately governed workflow"}</small>}
+                </td>;
+              };
+              return <tr key={workspaceKey}>
+                <th scope="row">{workspaceLabel}</th>
+                {renderStatus("LENDER")}
+                {renderStatus("CUSTOMER")}
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>
+      </section>
       {profileAlreadyExists && <p className="discovery-readonly">A {profileDraft.discoveryMode} profile already exists for this workspace. Select another workspace/mode; existing profiles are listed below.</p>}
       {!canManage && <p className="discovery-readonly">Only company owners and admins can configure profiles and source links.</p>}
       {profiles.length === 0 ? <p className="discovery-empty-inline">No profiles created yet. Approve a source, choose its permitted purpose, then create the matching workspace profile.</p> :
