@@ -23,6 +23,13 @@ test("sensitive or disabled workspace modes cannot use internet search", () => {
   }), /disabled by discovery policy/);
 });
 
+test("workspace search filters reject personal contact data and never send it to search providers", () => {
+  const criteria = { targetClasses: ["bank", "nbfc"], disabledByPolicy: false };
+  assert.throws(() => buildSearxngQueries(criteria, { location: "person@example.in" }), /must not contain personal email/);
+  assert.throws(() => buildSearxngQueries(criteria, { product: "+91 98765 43210" }), /must not contain personal email/);
+  assert.throws(() => buildSearxngQueries({ targetClasses: ["contact person@example.in"] }), /target classes must not contain personal contact/);
+});
+
 test("search results are unverified candidates and exclude non-HTTPS or unsafe addresses", () => {
   const rows = normalizeSearxngResults([
     { title: "Official institution", url: "https://finance.example.in/product", content: "Product page", engine: "example" },
@@ -30,6 +37,7 @@ test("search results are unverified candidates and exclude non-HTTPS or unsafe a
     { title: "Local", url: "https://127.0.0.1/internal" },
     { title: "Private network", url: "https://10.2.3.4/internal" },
     { title: "Social profile", url: "https://www.linkedin.com/in/person" },
+    { title: "Query token", url: "https://finance.example.in/search?email=person%40example.in" },
     { title: "Credentialed", url: "https://user:pass@finance.example.in/" },
     { title: "Duplicate", url: "https://finance.example.in/product" }
   ], 10, "2026-11-24T00:00:00.000Z");
