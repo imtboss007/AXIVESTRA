@@ -468,8 +468,8 @@ export default function DiscoverySourceManager({
           </div>
           <label>Allowed URL path prefixes<textarea required rows={2} value={sourceDraft.allowedPaths} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, allowedPaths: event.target.value })} placeholder={"/api/v1/entities\n/company-directory"} /></label>
           <div className="discovery-form-grid">
-            <label>Permitted purposes<textarea required rows={2} value={sourceDraft.allowedPurposes} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, allowedPurposes: event.target.value })} placeholder={"company identity verification\nlender product research"}/></label>
-            <label>Allowed fields<textarea required rows={2} value={sourceDraft.allowedFields} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, allowedFields: event.target.value })} placeholder={"legal_name\nregistration_id\nstatus"}/></label>
+            <label>Permitted purposes<textarea required rows={2} value={sourceDraft.allowedPurposes} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, allowedPurposes: event.target.value })} placeholder={"company identity discovery\nlender institution discovery\nenrichment"}/><small className="discovery-field-help">Add the exact purpose this source is permitted to support. Include <code>enrichment</code> only when source terms allow E10 observation processing; it is separate from the workspace profile purpose.</small></label>
+            <label>Allowed fields<textarea required rows={2} value={sourceDraft.allowedFields} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, allowedFields: event.target.value })} placeholder={"legal_name\nregistration_id\nregistration_status"}/><small className="discovery-field-help">E10 only queues fields that have a matching business/finance/property/operating attribute mapping and an approved schema type. Unmapped fields remain extraction evidence only.</small></label>
           </div>
           <label>Field schema <span className="discovery-optional">(optional JSON; every key must also appear in Allowed fields)</span>
             <textarea rows={5} value={sourceDraft.fieldSchemaJson} disabled={!canManage || busyKey === "add-source"} onChange={event => setSourceDraft({ ...sourceDraft, fieldSchemaJson: event.target.value })} placeholder={'{\n  "legal_name": { "type": "string", "aliases": ["legalName", "companyName"], "required": true, "entityKind": "organization" },\n  "registration_id": { "type": "identifier", "aliases": ["cin", "registrationNumber"] }\n}'}/>
@@ -501,6 +501,7 @@ export default function DiscoverySourceManager({
                 <span><b>Paths</b>{(source.allowed_paths || []).join(", ")}</span>
                 <span><b>Purposes</b>{(source.allowed_purposes || []).join(", ")}</span>
                 <span><b>Fields</b>{(source.allowed_fields || []).join(", ")}</span>
+                <span><b>E10 enrichment purpose</b>{(source.allowed_purposes || []).includes("enrichment") ? "Allowed by this source's policy; field mappings still apply" : "Not approved for E10 enrichment"}</span>
                 <span><b>Fetch adapter</b>{source.render_mode === "browser" ? "Playwright browser render" : "Static HTTPS / API"}</span>
                 <span><b>Rate / retention</b>{source.rate_limit_per_minute}/min · {source.retention_days} days</span>
               </div>
