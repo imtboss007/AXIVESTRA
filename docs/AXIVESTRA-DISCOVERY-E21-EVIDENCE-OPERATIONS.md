@@ -2,7 +2,7 @@
 
 **Revised capability alias:** E11 — Evidence Management  
 **Depends on:** technical E04 immutable private evidence/fetch events and technical E13 append-only provenance.  
-**Status:** implementation added on the existing feature branch; CI/PostgreSQL and authenticated workspace acceptance remain pending.
+**Status:** implementation is committed on the existing feature branch; E21 contract tests, PostgreSQL integration, full regression and application build passed on current-head CI. Authenticated workspace/browser acceptance remains pending QA credentials/company fixtures.
 
 ## Purpose
 
@@ -31,7 +31,7 @@ E21 does not create a second evidence blob store or copy extracted values into a
 
 ## Validation
 
-The E21 contract test checks RLS, company scope, owner/admin function boundaries, draft-only curation, submission/review/reopen transitions, approved-only export and raw-data exclusions. PostgreSQL integration verifies idempotent evidence inclusion, viewer denial, submitted-pack immutability, owner approval, export receipt integrity, event immutability and retention-aware pack citations after E04 evidence purge. Authenticated browser acceptance remains a separate QA prerequisite until a configured QA account/company and Supabase credentials are available.
+The E21 contract test checks RLS, company scope, owner/admin function boundaries, draft-only curation, submission/review/reopen transitions, approved-only export and raw-data exclusions. Current-head PostgreSQL integration verifies idempotent evidence inclusion, viewer denial, submitted-pack immutability, owner approval, export receipt integrity, event immutability and retention-aware pack citations after E04 evidence purge. The discovery governance CI run also passed full regression, E05 benchmark, both discovery Edge Function type-checks and the AXIVESTRA application build. Authenticated browser acceptance remains a separate QA prerequisite until a configured QA account/company and Supabase credentials are available.
 
 ## Release boundary
 
