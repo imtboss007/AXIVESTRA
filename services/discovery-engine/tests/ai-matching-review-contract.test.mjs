@@ -37,7 +37,7 @@ test("E22 owner/admin review desk is mounted in the existing discovery workspace
   const manager = await read("src/DiscoverySourceManager.tsx");
   const component = await read("src/DiscoveryAiMatchingReviewWorkspace.tsx");
   assert.match(manager, /import DiscoveryAiMatchingReviewWorkspace/);
-  assert.match(manager, /<DiscoveryAiMatchingReviewWorkspace companyId=\\{companyId\\} companyRole=\\{companyRole\\}\\s*\\/>/);
+  assert.ok(manager.includes("<DiscoveryAiMatchingReviewWorkspace companyId={companyId} companyRole={companyRole}/>"));
   assert.match(component, /companyRole === "owner" \|\| companyRole === "admin"/);
   assert.match(component, /review_discovery_ai_match_suggestion/);
   assert.match(component, /deterministic_score/);
