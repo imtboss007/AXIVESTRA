@@ -4,8 +4,10 @@ import {
   DISCOVERY_WORKSPACE_KEYS,
   getDefaultWorkspaceCriteria,
   validateWorkspaceCriteria,
-  buildDiscoveryQueryHints
+  buildDiscoveryQueryHints,
+  getE11MatchCriteria
 } from "../../../src/lib/discovery-profiles.mjs";
+import { scoreDiscoveryMatch } from "../../discovery-worker/matching.mjs";
 
 test("the lender/customer profile catalogue covers all 16 existing AXIVESTRA workspaces", () => {
   assert.equal(DISCOVERY_WORKSPACE_KEYS.length, 16);
@@ -83,6 +85,39 @@ test("criteria rejects cross-workspace, cross-mode and malformed values", () => 
   assert.throws(() => validateWorkspaceCriteria({ ...criteria, requiredFields: [] }, "property_loans", "LENDER"), /requiredFields/);
   assert.throws(() => validateWorkspaceCriteria({ ...criteria, preferredFields: "turnover" }, "property_loans", "LENDER"), /preferredFields/);
   assert.throws(() => validateWorkspaceCriteria({ ...criteria, sourceRequiredFields: ["private_credit_score"] }, "property_loans", "LENDER"), /final required or preferred/);
+});
+
+test("workspace E11 criteria can be passed directly to the deterministic scorer without invented thresholds", () => {
+  const defaults = getDefaultWorkspaceCriteria("property_loans", "LENDER");
+  const configured = validateWorkspaceCriteria({
+    ...defaults,
+    matchCriteria: {
+      geography: { value: ["Karnataka"], weight: 2 },
+      type: { value: ["bank", "nbfc"], weight: 3, required: true },
+      ticket: { value: { min: 5000000, max: 50000000 }, weight: 2 },
+      evidence_freshness: { maxAgeDays: 60, weight: 1 }
+    }
+  }, "property_loans", "LENDER");
+  const candidate = {
+    geography: ["Karnataka"],
+    type: "bank",
+    ticket: { min: 10000000, max: 30000000 }
+  };
+  const evidence = [{
+    evidence_id: "evidence-1",
+    source_id: "source-1",
+    source_published_at: "2026-11-20T00:00:00Z"
+  }];
+  const result = scoreDiscoveryMatch({
+    candidate,
+    criteria: getE11MatchCriteria(configured),
+    evidence,
+    now: "2026-11-24T00:00:00Z"
+  });
+  assert.equal(result.score, 100);
+  assert.equal(result.eligible, true);
+  assert.equal(result.components.length, 4);
+  assert.equal(scoreDiscoveryMatch({ candidate, criteria: getE11MatchCriteria(defaults), evidence }).components.length, 0);
 });
 
 test("search hints derive from workspace targets and bounded user filters without generating contacts", () => {
