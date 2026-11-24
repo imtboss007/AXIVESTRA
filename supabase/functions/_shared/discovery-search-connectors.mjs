@@ -9,11 +9,25 @@ function cleanText(value, limit) {
     : "";
 }
 
+function isPublicSearchHost(hostname) {
+  const host = String(hostname || "").toLowerCase().replace(/^\\[|\\]$/g, "");
+  if (!host || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") ||
+      host.endsWith(".home") || host.includes(":")) return false;
+  if (/^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(host)) return false;
+  return true;
+}
+
+function redactSnippet(value) {
+  return cleanText(value, MAX_SNIPPET)
+    .replace(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, "[email redacted]")
+    .replace(/(?:\\+?\\d[\\d .()\\-]{7,}\\d)/g, "[phone redacted]");
+}
+
 function normalizeUrl(value) {
   if (typeof value !== "string" || value.length > 2048) return null;
   let url;
   try { url = new URL(value); } catch { return null; }
-  if (url.protocol !== "https:" || url.username || url.password) return null;
+  if (url.protocol !== "https:" || url.username || url.password || !isPublicSearchHost(url.hostname)) return null;
   if (!url.hostname || url.hostname === "localhost" || /^127\./.test(url.hostname) ||
       url.hostname === "::1" || url.hostname.endsWith(".local")) return null;
   url.hash = "";
@@ -67,7 +81,7 @@ export function normalizeSearxngResults(results, limit = MAX_RESULTS, fetchedAt 
       title,
       url: url.toString(),
       domain: url.hostname.toLowerCase(),
-      snippet: cleanText(result.content || result.snippet, MAX_SNIPPET),
+      snippet: redactSnippet(result.content || result.snippet),
       engine: cleanText(result.engine, 80) || "metasearch",
       publishedAt: cleanText(result.publishedDate || result.published_at, 80) || null,
       fetchedAt,
