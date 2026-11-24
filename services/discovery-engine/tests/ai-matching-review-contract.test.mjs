@@ -11,23 +11,23 @@ test("E22 suggestion persistence is company-scoped and bound to an E11 result", 
   assert.match(sql, /unique\(company_id,match_result_id,request_hash\)/i);
   assert.match(sql, /enable row level security/i);
   assert.match(sql, /security_invoker=true/i);
-  assert.match(sql, /public\.is_company_member\(company_id\)/i);
+  assert.ok(sql.includes("public.is_company_member(company_id)"));
 });
 
 test("only the isolated service role can persist validated suggestions", async () => {
   const sql = await read("supabase/migrations/20261123270000_axivestra_e22_ai_matching_review.sql");
-  assert.match(sql, /coalesce\(auth\.role\(\),' '\) <> 'service_role'/i);
+  assert.ok(sql.includes("if coalesce(auth.role(),'') <> 'service_role' then"));
   assert.match(sql, /grant execute on function public\.record_discovery_ai_match_suggestion[\s\S]*to service_role/i);
-  assert.match(sql, /recommendation' not in \('possible_match','not_a_match','insufficient_evidence'\)/i);
-  assert.match(sql, /request integrity hash is invalid/i);
-  assert.match(sql, /evidence reference/i);
+  assert.ok(sql.includes("p_suggestion->>'recommendation' not in ('possible_match','not_a_match','insufficient_evidence')"));
+  assert.ok(sql.includes("E22 request integrity hash is invalid."));
+  assert.ok(sql.includes("E22 rationale contains an unapproved criterion, code or evidence reference."));
 });
 
 test("owner/admin review is reasoned, bounded and append-only", async () => {
   const sql = await read("supabase/migrations/20261123270000_axivestra_e22_ai_matching_review.sql");
-  assert.match(sql, /coalesce\\(v_role,''\\) not in \('owner','admin'\)/i);
-  assert.match(sql, /accepted_for_review','rejected','needs_more_evidence/i);
-  assert.match(sql, /10–1000 characters/i);
+  assert.ok(sql.includes("if v_actor is null or coalesce(v_role,'') not in ('owner','admin') then"));
+  assert.ok(sql.includes("('accepted_for_review','rejected','needs_more_evidence')"));
+  assert.ok(sql.includes("A review reason of 10–1000 characters is required."));
   assert.match(sql, /before update or delete on public\.discovery_ai_match_suggestion_events/i);
   assert.match(sql, /discovery_ai_match_suggestion_events_immutable/i);
 });
