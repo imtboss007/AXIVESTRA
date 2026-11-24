@@ -21,6 +21,9 @@ test("contact fact source quotes and hashes are redacted with the displayed valu
   assert.equal(safe.source_span.quote, safe.raw_value);
   assert.equal(safe.source_span.quoteRedacted, true);
   assert.equal(Object.hasOwn(safe.source_span, "quoteHash"), false);
+  for (const field of ["raw_value_ciphertext","raw_value_nonce","raw_value_auth_tag","raw_value_fingerprint","raw_value_encryption_version"]) {
+    assert.equal(Object.hasOwn(safe, field), false, field + " must remain server-only");
+  }
   assert.equal(JSON.stringify(safe).includes("person@example.com"), false);
 });
 
