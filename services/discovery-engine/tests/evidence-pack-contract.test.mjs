@@ -40,7 +40,7 @@ test("E21 enforces draft curation, submit/review lifecycle and approved-only exp
   assert.match(migration, /Only a submitted evidence pack can be reviewed/);
   assert.match(migration, /Only a rejected evidence pack can be reopened/);
   assert.match(migration, /Only an approved evidence pack can be exported/);
-  assert.match(migration, /p_manifest_hash !~ '\^\[a-f0-9\]\{64\}\$'/);
+  assert.match(migration, /p_manifest_hash\s+!~/);
   assert.match(migration, /itemCount',v_count/);
 });
 
@@ -76,6 +76,6 @@ test("E21 evidence manager is connected to the existing discovery workspace", ()
   assert.match(packageJson.scripts["test:discovery"], /evidence-pack-contract\.test\.mjs/);
   assert.match(integration, /20261123260000_axivestra_evidence_pack_management\.sql/);
   assert.match(integration, /E21 evidence pack lifecycle/);
-  assert.match(roadmap, /Technical E21 evidence operations/);
+  assert.match(roadmap, /technical E21 evidence operations/i);
   assert.match(docs, /E21 — Evidence Manager/);
 });

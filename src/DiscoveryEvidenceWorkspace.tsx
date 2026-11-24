@@ -274,7 +274,7 @@ export default function DiscoveryEvidenceWorkspace({
           </div>}
           {selectedPack.status === "approved" && canManage && <div className="discovery-action-row">
             <button type="button" className="primary-button" onClick={() => void exportPack()} disabled={Boolean(busy) || !activeItems.length}>
-              {busy === "export" ? <LoaderCircle size={14} className="spin"/> : <Download size={14}/>}Export SHA-256 verified manifest
+              {busy === "export" ? <LoaderCircle size={14} className="spin"/> : <Download size={14}/>}Export SHA-256 hashed manifest
             </button>
           </div>}
           <div className="discovery-evidence-items">
