@@ -122,7 +122,7 @@ export default function ThemeStudio() {
       </div>
     </div>
     <div className="ax-theme-studio__contrast-note" role="note">
-      **Readability guard:** text and button foregrounds automatically switch to a high-contrast colour when the chosen pair falls below 4.5:1. Your saved HEX palette values are preserved.
+      <strong>Readability guard:</strong> text and button foregrounds automatically switch to a high-contrast colour when the chosen pair falls below 4.5:1. Your saved HEX palette values are preserved.
     </div>
     <div className="ax-theme-studio__preview" aria-label="Theme style preview">
       <div><span>STYLE PREVIEW · SAMPLE ONLY</span><strong>Asset Intelligence</strong><small>Assets · Capital · Relationships · Not live business data</small></div>
