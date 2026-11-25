@@ -6,8 +6,8 @@ const migration=await readFile(new URL("../../../supabase/migrations/20261125110
 
 test("E16.1 backfill is dry-run by default and requires explicit apply",()=>{
   assert.match(migration,/p_apply boolean default false/);
-  assert.match(migration,/if p_apply then[\s\S]*?insert into public\.company_deal_parties/);
-  assert.match(migration,/dry_run',not p_apply/);
+  assert.match(migration,/if coalesce(p_apply,false) then[\s\S]*?insert into public\.company_deal_parties/);
+  assert.match(migration,/dry_run',not coalesce(p_apply,false)/);
   assert.match(migration,/call again with p_apply=true/);
 });
 
