@@ -22,7 +22,9 @@ test("the UI clearly labels catalogue entries as research candidates, never appr
 });
 
 test("upstream API documentation links remain separate from AXIVESTRA's approved source registry", () => {
+  assert.match(component, /candidate\.providerUrl/);
   assert.match(component, /candidate\.docsUrl/);
+  assert.match(component, /candidate\.corsAsListed/);
   assert.match(catalogue, /providerUrl:/);
   assert.match(catalogue, /docsUrl:/);
   assert.match(catalogue, /directory metadata only/i);
