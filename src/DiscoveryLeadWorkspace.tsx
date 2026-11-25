@@ -152,17 +152,17 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
     {notice&&<div className="discovery-lead-message"><CheckCircle2 size={15}/>{notice}</div>}
     {!canManage&&<div className="discovery-readonly"><ShieldCheck size={14}/>Read-only workspace. A company owner or admin must review matches and update lead workflow.</div>}
 
-    <div className="discovery-lead-filters" role="toolbar" aria-label="Lender and customer workspace filters">
+    <div className="discovery-lead-filters" role="group" aria-label="Lender and customer workspace filters">
       <div className="discovery-mode-switch" role="group" aria-label="Workspace mode">
         <button type="button" className={modeFilter==="all"?"is-active":""} aria-pressed={modeFilter==="all"} onClick={()=>setModeFilter("all")}>All workspaces</button>
         <button type="button" className={modeFilter==="LENDER"?"is-active":""} aria-pressed={modeFilter==="LENDER"} onClick={()=>setModeFilter("LENDER")}>Lender</button>
         <button type="button" className={modeFilter==="CUSTOMER"?"is-active":""} aria-pressed={modeFilter==="CUSTOMER"} onClick={()=>setModeFilter("CUSTOMER")}>Customer</button>
       </div>
-      <label className="discovery-lead-search">
+      <div className="discovery-lead-search">
         <Search size={15} aria-hidden="true"/>
         <input type="search" value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} placeholder="Search companies, workspace or stage" aria-label="Search lender and customer records"/>
         {searchQuery&&<button type="button" onClick={()=>setSearchQuery("")} aria-label="Clear search">Clear</button>}
-      </label>
+      </div>
     </div>
 
     <div className="discovery-lead-stats">
@@ -172,7 +172,7 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
       <div><strong>{scopedLeads.filter(x=>x.status==="lost"||x.status==="disqualified").length}</strong><span>Closed / disqualified</span></div>
     </div>
 
-    <div className="discovery-lead-section-head"><div><span className="section-kicker">E11 → E15</span><h3>Workspace matches awaiting human review</h3><small className="discovery-result-count">Showing {visibleMatches.length} of {scopedMatches.length} pending matches</small></div></div>
+    <div className="discovery-lead-section-head"><div><span className="section-kicker">E11 → E15</span><h3>Workspace matches awaiting human review</h3><small className="discovery-result-count" aria-live="polite">Showing {visibleMatches.length} of {scopedMatches.length} pending matches</small></div></div>
     {loading&&!matches.length?<div className="discovery-loading"><LoaderCircle size={15}/>Loading match review queue…</div>:
       visibleMatches.length?<div className="discovery-match-list">{visibleMatches.map(match=><article className="discovery-match-card" key={match.id}>
         <div className="discovery-match-top">
