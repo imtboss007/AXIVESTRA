@@ -48,7 +48,7 @@ The list in `src/lib/public-api-catalog.mjs` is scoped to the existing 16 worksp
 | OpenCorporates | Cross-jurisdiction company identity research where the underlying register supports it | Legal/provider review required |
 | OpenSanctions | Sanctions and PEP screening inside Compliance & KYC only | Legal/provider review required |
 
-These are not interchangeable sources. SEC EDGAR covers SEC-reporting issuers and imposes a descriptive User-Agent and fair-access limits. OpenCorporates has separate terms by use case; proprietary commercial use needs an appropriate paid licence. OpenSanctions' public directory row says no authentication, but production hosted API access and commercial use must be verified against its current API and licensing terms. A screening candidate must be reviewed by a human; it is not a confirmed sanctions hit.
+These are not interchangeable sources. SEC EDGAR covers SEC-reporting issuers and imposes a descriptive User-Agent and fair-access limits. OpenCorporates' current self-serve API terms grant an internal-use licence and prohibit a third-party-usable product from depending on the API; AXIVESTRA must obtain a written licence that explicitly covers its SaaS/multi-tenant and external-distribution model before integration. OpenSanctions' public directory row says no authentication, but production hosted API access and commercial use must be verified against its current API and licensing terms. A screening candidate must be reviewed by a human; it is not a confirmed sanctions hit.
 
 ## Required adapter acceptance before use
 
