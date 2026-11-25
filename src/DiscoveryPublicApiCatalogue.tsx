@@ -61,12 +61,18 @@ export default function DiscoveryPublicApiCatalogue({ workspaceKey, mode }: Prop
                   <span><b>Type</b>{candidate.sourceType.replaceAll("_", " ")}</span>
                   <span><b>Auth in directory</b>{candidate.authAsListed}</span>
                   <span><b>HTTPS</b>{candidate.httpsAsListed ? "Yes" : "No"}</span>
+                  <span><b>CORS in directory</b>{candidate.corsAsListed}</span>
                   <span><b>Mode</b>{candidate.modeFit.join(" / ")}</span>
                 </div>
                 <ul>{candidate.guardrails.map((guardrail, index) => <li key={candidate.id + "-" + index}>{guardrail}</li>)}</ul>
-                <a href={candidate.docsUrl} target="_blank" rel="noreferrer">
-                  Open provider details <ExternalLink size={13}/>
-                </a>
+                <div className="discovery-public-api-links">
+                  <a href={candidate.providerUrl} target="_blank" rel="noreferrer">
+                    Open provider <ExternalLink size={13}/>
+                  </a>
+                  <a href={candidate.docsUrl} target="_blank" rel="noreferrer">
+                    API documentation <ExternalLink size={13}/>
+                  </a>
+                </div>
               </article>
             ))}
             {candidates.length === 0 && <p className="discovery-empty-inline">No candidates match this workspace and search. Enable “Show all workspace candidates” or change the search.</p>}
