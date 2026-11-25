@@ -1,99 +1,168 @@
-# AXIVESTRA — Continuation Baseline
+# AXIVESTRA — Master Continuation Baseline
 
 **Checkpoint:** 25 November 2026  
 **Repository:** https://github.com/imtboss007/AXIVESTRA  
-**Canonical development branch:** `feat/discovery-e11-explainable-matching`  
-**Production/default branch:** `main`  
-**Owner instruction:** When the user says **“Continue AXIVESTRA”**, resume from this file and the live PR/CI state. Do not restart the project, create another repository, repeat the 123-entry inventory, or ask the user to restate established decisions.
+**Integrated development branch:** `feat/discovery-e11-explainable-matching`  
+**Current integrated head:** `83b73483f07a0ee9164fa271ae32dc52f52ca7a5`  
+**Base branch:** `feat/discovery-e10-enrichment`  
+**Production/default branch:** `main`
 
-## 1. Product and engineering objective
+**Owner instruction:** When the user says **“Continue AXIVESTRA”**, refresh this file and the live GitHub PR/CI state, then resume at the first incomplete release gate. Do not restart the project, create another repository, repeat the 123-entry inventory, or ask the user to restate established decisions.
 
-Continue the existing AXIVESTRA asset, capital, lender/customer and relationship-intelligence platform. Preserve its existing React 18/Vite, Supabase, Dexie/local-first, ECharts, TanStack, React Hook Form and Zod stack. The product is already a multi-workspace application for property, loans, ventures, equity, funds, investor relations, litigation, compliance, financial movements, evidence, tasks and counterparties.
+## 1. Product objective and engineering rules
 
-Use the original 123-entry repository inventory as a source catalogue, not an instruction to install all 123 projects. The authoritative reconciliation and adoption decisions are in [AXIVESTRA-123-ENTRY-INVENTORY-RECONCILIATION.md](AXIVESTRA-123-ENTRY-INVENTORY-RECONCILIATION.md). Avoid duplicate frameworks and runtime dependencies. Prefer free/open-source and existing code; verify licence, maintenance, security and compatibility before any reuse.
+Continue the existing AXIVESTRA asset, capital, lender/customer, company, evidence and relationship-intelligence application. Preserve the existing React 18/Vite, Supabase, Dexie/local-first, ECharts, TanStack, React Hook Form and Zod stack.
 
-## 2. Current PR map
+The product spans property, loans, ventures, equity, funds, investor relations, litigation, compliance, financial movements, evidence, tasks, contacts, relationships and discovery. Use the original 123-entry repository inventory as a screened source catalogue, not an instruction to install all 123 projects. The authoritative inventory reconciliation is in [AXIVESTRA-123-ENTRY-INVENTORY-RECONCILIATION.md](AXIVESTRA-123-ENTRY-INVENTORY-RECONCILIATION.md).
 
-All listed PRs are open drafts and none is merged to `main`.
+Operating rules:
+- Existing repository only: `imtboss007/AXIVESTRA`; do not create another repository.
+- Free/open-source-first. Reuse existing code/dependencies where possible; verify licence, maintenance, security and compatibility before adding anything.
+- No duplicate graph libraries, queues, stores, crawlers or provider adapters.
+- Keep credentials out of source, logs, prompts and chat.
+- No merge to `main`, production deployment, production migration execution, live external provider call, worker dispatch, official WhatsApp send, public release or paid spend without explicit approval.
+- Report PASS, FAIL, SKIPPED and BLOCKED separately. Green CI does not mean authenticated product acceptance is complete.
 
-| PR | Branch | Current head | Purpose | State |
+## 2. Active staged discovery PR chain
+
+These are deliberately nested feature branches. The active path is #74 → #75 → #76 → #77 → #78 → #80 → #81 → #83 → #84 → #85 → #86 → #88.
+
+| PR | Base branch | Head branch | Purpose | Live state |
 |---|---|---|---|---|
-| #88 | `feat/discovery-e11-explainable-matching` | `live — refresh before resuming` | Main E01–E22 discovery/evidence/matching/orchestration feature stack; integration base | Open, draft |
-| #90 | `feat/axivestra-public-api-provider-bridge` | `97b83c2c445ed241467658aac5d870a848050fde` | Gated data.gov.in provider adapter and expanded public API catalogue | Open, draft |
-| #91 | `feat/axivestra-relationship-network-visual` | `28a994b45a3f3fdb39f3c563994b837db2ea51c9` | Original E17 ECharts relationship-network source branch; retained for traceability | Open, draft |
-| #92 | `integration/axivestra-api-relationship-e11-review` | `a5b8a5ab5cbc7fcd828da9a3ee59bfdb4314c02c` | Combined #90 public-API bridge + #91 E17 network, reconciled on the E11 baseline | Open, draft; mergeable; CI running |
-| #89 | Theme Studio branch | `17a5f46e73f5c686b0fa9b86ffdd704a778eddac` | Independent theme studio work | Open/independent; inspect live state before action |
+| #74 | `feature/axivestra-enterprise-experience` | `feat/discovery-source-governance` | E02 source governance and connector contracts | Open, draft |
+| #75 | `feat/discovery-source-governance` | `feat/discovery-bounded-execution` | E04 bounded execution controls | Open, draft |
+| #76 | `feat/discovery-bounded-execution` | `feat/discovery-durable-queue` | E04.2 durable queue and shared quotas | Open, draft |
+| #77 | `feat/discovery-durable-queue` | `feat/discovery-job-enqueue` | E04.3 guarded enqueue and queue history | Open, draft |
+| #78 | `feat/discovery-job-enqueue` | `feat/discovery-e04-complete` | E04 governed crawler and fetch workers | Open, draft |
+| #80 | `feat/discovery-e04-complete` | `feat/discovery-e05-complete` | E05 deterministic extraction and normalization | Open, draft |
+| #81 | `feat/discovery-e05-complete` | `feat/discovery-e06-entity-intelligence` | E06 company/entity intelligence | Open, draft |
+| #83 | `feat/discovery-e06-entity-intelligence` | `feat/discovery-e07-professional-roles` | E07 professional-role intelligence | Open, draft |
+| #84 | `feat/discovery-e07-professional-roles` | `feat/discovery-e08-contact-validation` | E08 contact validation | Open, draft |
+| #85 | `feat/discovery-e08-contact-validation` | `feat/discovery-e09-geo-resolution` | E09 geo/spatial resolution | Open, draft |
+| #86 | `feat/discovery-e09-geo-resolution` | `feat/discovery-e10-enrichment` | E10 enrichment and attribute validation | Open, draft |
+| #88 | `feat/discovery-e10-enrichment` | `feat/discovery-e11-explainable-matching` | E11 matching plus revised E05–E16 and E19–E22 capabilities | Open, draft; integrated review path |
 
-PR #90 and #91 remain open source drafts and are retained for traceability. They originally diverged from the same earlier ancestor. Their implementation has now been copied into PR #92 on top of the current E11 branch. The integration deliberately preserves the newer E11 shared contract files, applies the public-API-specific catalogue/enrichment/UI deltas, and adds the E17 ECharts visual without introducing a second graph library. PR #92 is the combined review path; separate green CI on #90/#91 is not a substitute for the new combined checks. Its latest PR metadata reports mergeable=true, but it remains a draft and must not be merged until fresh CI and the authenticated/backfill acceptance gates are complete.
+Alternative branches that must not be merged together with the active path:
+- #79 is an alternative E05 consolidation branch; #80 is the active E05 path.
+- #82 is an alternative E07 public-people branch; #83 is the active E07 professional-roles path.
+- #87 is an alternative E11 matching/scoring branch; #88 is the active E11/E16/E19–E22 path.
 
-Never merge any of these feature branches to `main` without separate explicit approval.
+The base/head SHAs above were checked on 25 November 2026; refresh them before any future merge/rebase. Do not assume an open draft is ready to merge.
 
-## 3. Verified CI at this checkpoint
+## 3. Superseded integration branches
 
-- PR #88 head `a4e264a649e884f0ed7e7501a9411207825d91f4`: Discovery governance, WhatsApp Hub and Cloud Worker workflows completed successfully. Runs: 45544004500, 45544004577, 45544004533.
-- PR #90 head `97b83c2c445ed241467658aac5d870a848050fde`: Discovery governance and WhatsApp Hub workflows completed successfully. Runs: 45543098506, 45543098524.
-- PR #91 head `28a994b45a3f3fdb39f3c563994b837db2ea51c9`: Discovery governance and WhatsApp Hub workflows completed successfully. Runs: 45543373630, 45543373770.
-- PR #92 combined head `a5b8a5ab5cbc7fcd828da9a3ee59bfdb4314c02c`: Discovery Governance run 1328 was **in progress** and WhatsApp Hub run 2073 had **succeeded** at the time of this update. Refresh live state before relying on this status. Cloud Worker checks were not triggered by PR #92's changed paths; this integration does not modify the WhatsApp Cloud Worker.
+- **PR #90 — public API provider bridge:** closed and squash-merged into the #88 feature branch, merge commit `366e40d37627040a229321f430dcff07bb54e661`. No merge to `main`.
+- **PR #91 — E17 interactive relationship network:** closed as superseded after its unique visual changes were manually ported to #88. Shared discovery contract/test changes were already identical. The integrated version additionally escapes untrusted labels in HTML tooltips.
+- **PR #89 — Theme Studio + module improvements:** closed as superseded after its Theme Studio, local theme preferences, workspace fields, stable-ID cross-workspace navigation, chart token changes and follow-up mirror repair were ported to #88.
+- **PR #92 — combined API/relationship integration:** closed as superseded after all 18 changed paths were reconciled against #88. Its public API/provider files, docs, tests, worker/enrichment changes, DiscoveryJobQueue and E17 implementation are already present on #88. The remaining differences were stale branch-specific CI triggers, older package/test lists, and older graph/style versions.
+- **PR #66 — focused follow-up mirror repair:** remains open against `main` as a separate narrower fix. #88 contains the more complete follow-up mirror repair from #89; leave #66 open until the mainline release strategy is explicitly decided.
 
-These are branch-specific checks, not a combined integration test. No local clone, package installation, local test run or end-to-end authenticated QA was performed in this ChatGPT session. The authenticated E18/E19/E21/E22 browser acceptance path is explicitly skipped when the dedicated QA account/company, Supabase credentials and required fixtures are absent. Do not describe skipped acceptance as passed.
+Other older application/website PRs (#70–#73, #67–#68, #57–#61, etc.) are separate workstreams. Do not fold them into the discovery branch blindly; inspect their scope and current base before action.
 
-## 4. Implemented architecture and current boundaries
+## 4. Latest integrated implementation on #88
 
-- E01–E15: workspace profiles, source governance, search preview, governed fetch/evidence, deterministic extraction, company/person/contact/geo/enrichment, explainable matching, provenance, privacy, review and lead workflows are implemented in the staged feature stack.
-- E16–E17: explicit deal-party relationships and a company-scoped relationship graph exist. PR #91 adds the ECharts visual. The graph represents explicit records only; it does not infer identity or relationships.
-- E18: commitments workflow exists; dedicated authenticated acceptance fixtures remain outstanding.
-- E19: verification confidence ledger and owner/admin verification decisions exist; authenticated browser acceptance remains outstanding.
-- E20: governed orchestration, approvals, queue mapping, retry/recovery and execution console exist. Dispatch is deliberately disabled; adapter bridges and kill switches remain off.
-- E21: evidence catalogue, evidence packs, review lifecycle and metadata-only approved export exist. Authenticated workspace acceptance remains outstanding.
-- E22: advisory AI matching, minimised request contract, durable suggestion ledger and owner/admin review exist. Provider adapter remains disabled; no model provider is configured or called.
-- PR #90 was merged into the #88 feature branch. Its data.gov.in API bridge and expanded public API catalogue remain code-only and gated. No key, source registration, approval or external request exists.
+### Discovery and intelligence
+- E01–E15: workspace profiles, source governance, search preview, governed fetch/evidence, deterministic extraction, company/person/contact/geo/enrichment, explainable matching, provenance, privacy, review and lead workflows.
+- E16–E17: normalized deal-party links and company-scoped relationship graph based only on explicit stable record IDs.
+- E18: commitments workflow.
+- E19: verification confidence ledger and owner/admin decisions.
+- E20: governed orchestration, approvals, queue mapping, retry/recovery and execution console. Dispatch is hard-disabled; no scheduler, duplicate queue or external worker activation.
+- E21: evidence catalogue, evidence packs, review lifecycle and metadata-only approved export.
+- E22: advisory AI matching, minimised request contract, durable suggestion ledger and owner/admin review. No model provider is configured or called.
+
+### E17 interactive relationship network
+- Uses the existing ECharts dependency; no D3/Cytoscape duplicate.
+- Force-directed deal/contact network, explicit E16 relationship edges, verification-state styling, node selection and focus filtering.
+- Node selection only filters the evidence/review cards; it does not write relationship state.
+- Dynamic record labels are HTML-escaped before tooltip rendering.
+- Detailed relationship cards remain the audit/review surface.
+
+### E16.1 legacy relationship backfill
+- Added migration: `supabase/migrations/20261125110000_axivestra_legacy_relationship_backfill.sql`.
+- Added operator guide: `docs/AXIVESTRA-E16-LEGACY-LINK-BACKFILL.md`.
+- Added contract test: `services/discovery-engine/tests/deal-party-backfill-contract.test.mjs`, included in `npm run test:discovery`.
+- The migration only installs an owner/admin-only RPC. It does **not** run a backfill at migration time.
+- `p_apply` defaults to false (dry run). Only explicit `primaryContactId`, `moduleData.__linkedContactIds` and `moduleData.__contact_*` IDs are considered; IDs must resolve to active contacts in the same company.
+- It does not use names, phone numbers, email, fuzzy matching or follow-up-only IDs. Backfilled links are always unverified, idempotent and do not alter source payloads.
+- The migration has passed PostgreSQL integration in CI but has **not** been deployed or executed against a production database. Any actual backfill requires separate deployment approval, a reviewed dry run and explicit owner/admin apply approval.
+
+### App and workspace completion
+- Theme Studio: nine presets plus custom, dark/light/system modes, HEX and colour-picker controls, live preview, apply/cancel/reset; preferences are local-device only.
+- Expanded 16-workspace field coverage with 52 additive fields.
+- Stable-ID cross-workspace links between module records, contacts, tasks, documents and financial records.
+- Follow-up date-mirror repair prevents unrelated legacy dates from being overwritten or counted as duplicate assignments.
+- Portfolio and module analytics charts use theme tokens.
+- Device-sync reconciliation and deletion-protection tests remain in the regression suite.
+
+### Public API catalogue and provider boundaries
+- Catalogue includes India-relevant candidates and global candidates such as SearchPinCode, SEC EDGAR, OpenCorporates and OpenSanctions with distinct review/legal restrictions.
+- data.gov.in provider bridge is code-only and disabled by default. It requires an exact approved resource URL, E02 source registration, private `DATA_GOV_IN_API_KEY` configuration and owner/admin approval.
+- No data.gov.in key has been supplied or configured; no provider request has been made.
 - SearXNG remains off until an approved endpoint and server-side configuration are supplied.
-- WhatsApp official cloud sending remains disabled; no autonomous external outreach is authorised.
+- OpenCorporates, OpenSanctions, SEC EDGAR and postal lookup entries are catalogue/review candidates, not activated adapters.
 
-## 5. Latest implementation completed — 25 November 2026
+### External execution
+- E20 dispatch remains disabled.
+- Official WhatsApp Cloud sending and autonomous outreach remain disabled.
+- No production migration, deployment or public release has occurred.
 
-- Squash-integrated PR #90 into the existing #88 feature branch; merge commit `366e40d37627040a229321f430dcff07bb54e661`.
-- Manually ported PR #91's E17 interactive network to #88: `src/NormalizedRelationshipGraphPanel.tsx`, `src/components/PortfolioEChart.tsx`, `services/discovery-engine/tests/relationship-graph-contract.test.mjs`, `src/styles.css`, and `docs/AXIVESTRA-E17-RELATIONSHIP-GRAPH.md`.
-- Verified that the overlapping enqueue, lead-workspace, policy, shared matching and discovery-control files were already byte-identical between PR #91 and the updated #88 base.
-- Closed PR #91 as superseded after recording the reconciliation in its conversation.
-- Updated PR #88 description with the integration record. Latest head: `f39f68de915ecc1b916fea82e8eaf3c6adcfa00d`.
-- Fresh integrated-head CI is still outstanding; no code test or authenticated QA is claimed for this combined revision.
+## 5. Latest integrated-head CI — 25 November 2026
 
-## 6. Required next engineering sequence
+Integrated #88 head at this run: `83b73483f07a0ee9164fa271ae32dc52f52ca7a5`.
 
-1. Refresh PR #92 metadata and workflow runs. The combined implementation is in `integration/axivestra-api-relationship-e11-review`; do not restart the #90/#91 code transfer.
-2. Complete the fresh Discovery Governance and WhatsApp Hub workflows on the combined #92 head. Inspect every failure, fix regressions on the same integration branch, and confirm the changed head reruns the applicable checks.
-3. Run/verify the complete discovery test set, provider-adapter tests, relationship-graph contract tests, type checks and production web build. Do not treat unrelated or skipped workflows as passed.
-4. Configure private QA fixtures and credentials through GitHub/Supabase secret management (never in chat or source) and complete authenticated E18/E19/E21/E22 acceptance. Also verify E16 historical relationship reconciliation/backfill and device-local sync; the graph visual alone does not prove either.
-5. Complete independent security/release review, licence/provenance review for any selected external code, and a data-retention/privacy review.
-6. Keep #92 and the feature stack as drafts until integrated acceptance is genuinely complete. Production migrations, provider activation, worker dispatch, deployment, public release and merge to `main` each require explicit approval.
+| Workflow | Run | Result |
+|---|---:|---|
+| Discovery Governance | 45549103925 | **PASS** |
+| WhatsApp Hub | 45549103991 | **PASS** |
+| Cloud Worker | 45549103870 | **PASS** |
+
+Verified Discovery Governance steps:
+- Discovery policy/contract tests — passed, including E16.1 backfill and E17 tooltip safety contracts.
+- Worker and PostgreSQL integration tests — passed, including migration application/integration.
+- E05 deterministic parser benchmark — passed.
+- Full regression suite — passed.
+- Discovery Edge Function type-check — passed.
+- AXIVESTRA web application build — passed.
+
+Verified WhatsApp Hub steps:
+- `npm test` — passed, including Theme Studio, module field coverage, cross-workspace navigation and device-sync tests.
+- `npm run check` — passed.
+- Hosted sender Docker image — passed.
+- Electron WhatsApp service syntax — passed.
+- Supabase invitation Edge Function type-check — passed.
+- Company isolation, RBAC, secret-handling and visual-system contracts — passed.
+- Web application build — passed.
+
+Authenticated E18/E19/E21/E22 browser acceptance was **SKIPPED**, not passed, because the dedicated QA account/company, Supabase credentials and required fixtures are not configured. E18 also lacks its dedicated deal/party fixtures. This remains a release blocker.
+
+These checks validate the integrated feature branch, not the production release or authenticated multi-user acceptance. Refresh CI before relying on these statuses.
+
+## 6. Release blockers and next engineering sequence
+
+1. **Authenticated QA:** create a dedicated non-production QA company/account and the E18 deal/party, E19, E21 provenance-event and E22 pending-suggestion fixtures. Store credentials only in private GitHub/Supabase secrets; never paste them into chat or source.
+2. **Browser acceptance:** run authenticated E18/E19/E21/E22 browser acceptance, including owner/admin review, viewer denial, tenant isolation, immutable history, evidence pack lifecycle and metadata-only export. Do not describe fixture-gated tests as passed.
+3. **E16 reconciliation:** after a separately approved deployment of E16.1, run a dry-run preview on a non-production company, review the candidate count/sample, then apply only with explicit owner/admin approval. Inspect the resulting E17 graph and verify links with existing document metadata.
+4. **Device acceptance:** logic tests for bidirectional PC/Android sync and deletion protection pass. Actual paired Android/Windows device acceptance remains unverified; perform it on test devices before release.
+5. **Platform builds:** the integrated web app build passes. Windows installer and Android APK builds passed on the earlier Theme Studio branch, but have not been freshly verified on the complete #88 integrated head. Run those builds through the existing workflow before release.
+6. **Independent review:** complete security, privacy/retention, licence/provenance, tenant isolation and accessibility review.
+7. Keep #88 and the staged discovery PR chain open/draft until authenticated acceptance and independent release review are complete. Do not merge to `main` or deploy without explicit approval.
 
 ## 7. Configuration blockers — do not invent credentials
 
-Potential server-side settings (only configure after owner approval and exact source review):
+Potential server-side settings, only after owner approval and exact source review:
 - `DISCOVERY_SEARXNG_ENABLED`
 - `DISCOVERY_SEARXNG_URL`
 - optional `DISCOVERY_SEARXNG_BEARER_TOKEN`
 - `DATA_GOV_IN_API_KEY`
 - exact approved data.gov.in dataset/resource ID and E02 source registration
 
-No API key or provider credentials have been supplied. Never ask the user to paste secrets into chat; use the appropriate private secret manager after explicit authorisation. Provider-specific terms, licence, publisher, fields, purpose, quotas, freshness and retention must be reviewed before any external call.
+No API key or provider credentials have been supplied. Never ask the user to paste secrets into chat; use the appropriate private secret manager after explicit authorisation. Provider terms, licence, publisher, fields, purpose, quotas, freshness and retention must be reviewed before any external call.
 
-## 8. Non-negotiable user constraints
-
-- Continue in `imtboss007/AXIVESTRA`; do not create another repository.
-- Preserve previous code and decisions; inspect before changing.
-- One coherent implementation path; no duplicate dependencies or duplicate queues.
-- Open-source/free-first; no paid product, provider, hosting or model spend without approval.
-- No credentials in source, logs, prompts or chat.
-- No production migration, deployment, external provider call, worker dispatch, live WhatsApp/outreach, public release or merge to `main` without explicit approval.
-- Do not claim a GitHub green badge means the entire product is finished. Report PASS, FAIL, SKIPPED and BLOCKED separately.
-
-## 9. Continuation command
+## 8. Continuation command
 
 When the user says **“Continue AXIVESTRA”**:
-1. Read this checkpoint and the 123-entry reconciliation document.
-2. Refresh PR and CI status from GitHub; do not assume SHAs/statuses above are still current.
-3. Resume at the first incomplete item in Section 5.
-4. Make progress directly on the existing feature branch(es), preserving all constraints.
-5. Report actual files/commits/checks and remaining blockers; do not restart or ask for already documented requirements.
+1. Read this file and the 123-entry inventory reconciliation.
+2. Refresh PR #88, the staged #74–#86 chain, alternative branches and all current CI statuses from GitHub.
+3. Resume at the first incomplete item in Section 6.
+4. Continue on the existing feature branch/repository; preserve all safeguards.
+5. Report exact files, commits, tests, PASS/FAIL/SKIPPED/BLOCKED results and remaining release blockers. Do not restart or ask for already documented requirements.
