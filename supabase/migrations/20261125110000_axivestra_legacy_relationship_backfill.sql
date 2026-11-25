@@ -32,11 +32,7 @@ begin
       link.role_code,
       link.link_kind,
       link.source_field,
-      case
-        when coalesce(d.payload->>'createdAt','') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-          then substring(d.payload->>'createdAt' from 1 for 10)::date
-        else coalesce(d.created_at::date,current_date)
-      end as effective_from
+      coalesce(d.created_at::date,current_date) as effective_from
     from public.company_records d
     cross join lateral (
       select d.payload->>'primaryContactId' as party_record_key,
