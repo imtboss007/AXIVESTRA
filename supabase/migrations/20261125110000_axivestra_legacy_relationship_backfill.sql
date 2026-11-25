@@ -75,7 +75,7 @@ begin
       from jsonb_each_text(
         case when jsonb_typeof(d.payload->'moduleData')='object' then d.payload->'moduleData' else '{}'::jsonb end
       ) as kv(key,value)
-      where kv.key like '__contact\_%' escape '\'
+      where left(kv.key,10)='__contact_'
     ) link
     join public.company_records c
       on c.company_id=d.company_id and c.record_type='contact'
@@ -158,7 +158,7 @@ begin
         from jsonb_each_text(
           case when jsonb_typeof(d.payload->'moduleData')='object' then d.payload->'moduleData' else '{}'::jsonb end
         ) as kv(key,value)
-        where kv.key like '__contact\_%' escape '\'
+        where left(kv.key,10)='__contact_'
       ) link
       join public.company_records c
         on c.company_id=d.company_id and c.record_type='contact'
