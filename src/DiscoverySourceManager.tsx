@@ -352,7 +352,7 @@ export default function DiscoverySourceManager({
         enabled,
         criteria
       });
-      setNotice(enabled ? "Profile enabled. Fetching remains paused until an owner/admin issues a temporary company grant and the separate worker process is configured." : "Profile disabled.");
+      setNotice(enabled ? (attachedApprovedCount(profile) ? "Profile enabled. E04 fetching still requires an active one-hour company grant and the separate worker process." : "Search-only profile enabled. E03 search requires the configured SearXNG service; E04 stays blocked until an exact target source is approved and attached.") : "Profile disabled.");
       await refresh();
     } catch (reason) {
       setError(errorText(reason));
@@ -526,15 +526,15 @@ export default function DiscoverySourceManager({
     </div>
 
     <section className="data-panel discovery-panel discovery-profiles-panel">
-      <div className="section-heading"><div><span className="section-kicker">E02 · WORKSPACE CONFIGURATION</span><h2>LENDER and CUSTOMER profiles</h2><p>Configure separate target profiles for each of AXIVESTRA's 16 workspaces. Each profile remains disabled until an approved source is attached.</p></div><ShieldCheck size={20}/></div>
+      <div className="section-heading"><div><span className="section-kicker">E02 · WORKSPACE CONFIGURATION</span><h2>LENDER and CUSTOMER profiles</h2><p>Configure separate target profiles for each of AXIVESTRA's 16 workspaces. Create and enable a profile to search; E04 fetching still requires each target source to be separately reviewed, approved and attached.</p></div><ShieldCheck size={20}/></div>
       <form className="discovery-profile-create" onSubmit={saveProfile}>
         <label>Workspace<select value={profileDraft.workspaceKey} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, workspaceKey: event.target.value })}>{WORKSPACES.map(([key,label]) => <option value={key} key={key}>{label}</option>)}</select></label>
         <label>Profile mode<select value={profileDraft.discoveryMode} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, discoveryMode: event.target.value as "LENDER" | "CUSTOMER" })}><option value="LENDER">LENDER</option><option value="CUSTOMER">CUSTOMER</option></select></label>
-        <label>Exact permitted purpose<select required value={profileDraft.purpose} disabled={!canManage || busyKey === "add-profile" || !purposeOptions.length} onChange={event => setProfileDraft({ ...profileDraft, purpose: event.target.value })}><option value="">Choose approved source purpose…</option>{purposeOptions.map(purpose => <option value={purpose} key={purpose}>{purpose}</option>)}</select></label>
+        <label>Exact permitted purpose<input required list="axivestra-discovery-purposes" maxLength={500} value={profileDraft.purpose} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, purpose: event.target.value })} placeholder="e.g. Discover licensed property-loan lenders in Karnataka"/><datalist id="axivestra-discovery-purposes">{purposeOptions.map(purpose => <option value={purpose} key={purpose}/>)}</datalist><small>Enter the exact discovery purpose. Existing approved-source purposes are suggestions; the exact same purpose must be included when a target source is registered and reviewed.</small></label>
         <label>Jurisdiction<input required value={profileDraft.jurisdiction} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, jurisdiction: event.target.value })}/></label>
         <label className="discovery-profile-criteria-editor">Workspace-specific targets, required fields, match dimensions and guardrails
           <textarea rows={9} value={criteriaText} onChange={event => setCriteriaText(event.target.value)} disabled={!canManage || busyKey === "add-profile"} spellCheck={false}/>
-          <small>Defaults are loaded from the 16-workspace blueprint. <code>requiredFields</code> describe the final record and may be supplied by several sources; use <code>sourceRequiredFields</code> only when every attached source must provide a particular field. <code>matchCriteria</code> is optional: set explicit E11 values for geography, type, ticket range (with an explicit three-letter <code>currencyCode</code>), instrument, collateral, stage, mandate or evidence freshness. Use <code>value</code>, <code>weight</code> and optional <code>required</code>; freshness uses <code>maxAgeDays</code>. No thresholds are guessed. Profiles remain disabled until an owner/admin approves a source and enables them.</small>
+          <small>Defaults are loaded from the 16-workspace blueprint. <code>requiredFields</code> describe the final record and may be supplied by several sources; use <code>sourceRequiredFields</code> only when every attached source must provide a particular field. <code>matchCriteria</code> is optional: set explicit E11 values for geography, type, ticket range (with an explicit three-letter <code>currencyCode</code>), instrument, collateral, stage, mandate or evidence freshness. Use <code>value</code>, <code>weight</code> and optional <code>required</code>; freshness uses <code>maxAgeDays</code>. No thresholds are guessed. Enabling allows E03 search only; E04 fetching remains blocked until an exact target source is approved and attached.</small>
         </label>
         <button type="submit" className="primary-button" disabled={!canManage || !profileDraft.purpose || busyKey === "add-profile" || profileAlreadyExists}><Plus size={15}/>{profileAlreadyExists ? "Profile already exists" : "Create disabled profile"}</button>
       </form>
@@ -573,7 +573,7 @@ export default function DiscoverySourceManager({
       </section>
       {profileAlreadyExists && <p className="discovery-readonly">A {profileDraft.discoveryMode} profile already exists for this workspace. Select another workspace/mode; existing profiles are listed below.</p>}
       {!canManage && <p className="discovery-readonly">Only company owners and admins can configure profiles and source links.</p>}
-      {profiles.length === 0 ? <p className="discovery-empty-inline">No profiles created yet. Approve a source, choose its permitted purpose, then create the matching workspace profile.</p> :
+      {profiles.length === 0 ? <p className="discovery-empty-inline">No profiles created yet. Define a workspace purpose and criteria first; you can enable E03 search before registering target sources.</p> :
         <div className="discovery-profile-list">{profiles.map(profile => {
           const attached = sourcesForProfile(profile);
           const choices = profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" ? [] : availableSources(profile);
@@ -609,10 +609,11 @@ export default function DiscoverySourceManager({
                 {choices.map(source => <option value={source.id} key={source.id}>{source.name} · {source.domain}</option>)}
               </select>
               <button type="button" className="secondary-button" onClick={() => void attachSource(profile)} disabled={!selected || busyKey === "attach-" + profile.id}>Attach source</button>
-              <button type="button" className={profile.enabled ? "secondary-button" : "primary-button"} onClick={() => void toggleProfile(profile, !profile.enabled)} disabled={busyKey === "profile-" + profile.id || (!profile.enabled && attached.filter(source => source.status === "approved").length === 0)}>
+              <button type="button" className={profile.enabled ? "secondary-button" : "primary-button"} onClick={() => void toggleProfile(profile, !profile.enabled)} disabled={busyKey === "profile-" + profile.id}>
                 {profile.enabled ? "Disable profile" : "Enable profile"}
               </button>
             </div>}
+            {!attached.some(source => source.status === "approved") && <small className="discovery-guardrail">Search-only profile: no target source is attached. E03 search results are unverified; E04 fetch and extraction are unavailable until a domain/path is registered, reviewed, approved and attached.</small>}
             {profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" && <small className="discovery-guardrail">External person-discovery is disabled for Personal Loan customers. Use user-entered, referred, inbound or explicitly consented borrower intake.</small>}
           </article>;
         })}</div>}
