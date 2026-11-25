@@ -454,15 +454,10 @@ Deno.serve(async request => {
       if (!isUuid(payload.profileId) || !isUuid(payload.sourceId)) return jsonResponse(400, { error: "Valid profile and source IDs are required." });
       const idempotencyKey = typeof payload.idempotencyKey === "string" ? payload.idempotencyKey.trim() : "";
       if (idempotencyKey.length < 8 || idempotencyKey.length > 160) return jsonResponse(400, { error: "Provide an idempotency key between 8 and 160 characters." });
-      const criteria = payload.criteria && typeof payload.criteria === "object" && !Array.isArray(payload.criteria) ? payload.criteria as Record<string, unknown> : {};
       const candidateInput = Array.isArray(payload.candidateUrls) ? payload.candidateUrls : [];
       if (!candidateInput.length || candidateInput.length > 100 || candidateInput.some(url => typeof url !== "string" || url.length > 2048)) {
         return jsonResponse(400, { error: "Provide 1 to 100 candidate URLs, each no longer than 2048 characters." });
       }
-      if (new TextEncoder().encode(JSON.stringify({ criteria, candidateUrls: candidateInput })).length > 48_000) {
-        return jsonResponse(413, { error: "The discovery job payload must not exceed 48 KB." });
-      }
-      if (new TextEncoder().encode(JSON.stringify(criteria)).length > 8192) return jsonResponse(413, { error: "Discovery criteria must not exceed 8 KB." });
       const [{ data: profile, error: profileError }, { data: source, error: sourceError }, { data: link, error: linkError }] = await Promise.all([
         admin.from("discovery_profiles").select("*").eq("company_id", companyId).eq("id", payload.profileId).maybeSingle(),
         admin.from("discovery_source_registry").select("*").eq("company_id", companyId).eq("id", payload.sourceId).maybeSingle(),
@@ -470,6 +465,16 @@ Deno.serve(async request => {
       ]);
       if (profileError) throw profileError; if (sourceError) throw sourceError; if (linkError) throw linkError;
       if (!profile || !source || !link) return jsonResponse(404, { error: "The profile and its attached source must exist in this company." });
+      // The company-scoped database profile is the sole authority for discovery criteria.
+      // Ignore any client-supplied criteria so queued work cannot replace reviewed matching rules.
+      const criteria = profile.criteria && typeof profile.criteria === "object" && !Array.isArray(profile.criteria)
+        ? profile.criteria as Record<string, unknown> : {};
+      if (new TextEncoder().encode(JSON.stringify({ criteria, candidateUrls: candidateInput })).length > 48_000) {
+        return jsonResponse(413, { error: "The discovery job payload must not exceed 48 KB." });
+      }
+      if (new TextEncoder().encode(JSON.stringify(criteria)).length > 8192) {
+        return jsonResponse(413, { error: "The saved workspace criteria must not exceed 8 KB." });
+      }
       if (profile.enabled !== true) return jsonResponse(409, { error: "This discovery profile is disabled." });
       if (source.status !== "approved") return jsonResponse(409, { error: "Only an approved discovery source can be queued." });
       if (source.connector_key === "manual_research") return jsonResponse(403, { error: "Manual/user-provided research is not eligible for automated fetching; attach it as evidence manually." });
