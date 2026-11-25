@@ -36,6 +36,8 @@ test("E16.1 backfilled links are unverified, idempotent and never inferred from 
 });
 
 test("E16.1 is not an automatic migration-time data rewrite",()=>{
-  assert.doesNotMatch(migration,/insert into public\.company_deal_parties[\s\S]*?select[\s\S]*?from public\.company_records[\s\S]*?commit;/i);
+  const functionStart=migration.indexOf("create or replace function public.backfill_company_deal_parties_from_legacy_links");
+  const insertStart=migration.indexOf("insert into public.company_deal_parties");
+  assert.ok(functionStart>=0 && insertStart>functionStart,"The insert must be inside the opt-in RPC, not at migration time.");
   assert.match(migration,/create or replace function public\.backfill_company_deal_parties_from_legacy_links/);
 });
