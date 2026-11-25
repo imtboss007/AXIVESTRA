@@ -110,6 +110,7 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
         data:graph.nodes.map(node=>({
           id:node.id,
           name:node.id,
+          kind:node.kind,
           value:node.label,
           label:{show:true,formatter:node.label,color:"#33483a",fontSize:10,position:"right"},
           category:node.kind==="deal"?0:1,
