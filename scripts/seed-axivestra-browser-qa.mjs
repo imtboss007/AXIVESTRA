@@ -109,7 +109,7 @@ const { data: relationship, error: relationshipError } = await userClient
   .single();
 check(relationshipError, "Create explicit E16 QA relationship");
 
-const { data: source, error: sourceError } = await userClient
+const { data: source, error: sourceError } = await admin
   .from("discovery_source_registry")
   .insert({
     company_id: companyId,
@@ -131,7 +131,7 @@ const { data: source, error: sourceError } = await userClient
   .single();
 check(sourceError, "Create synthetic E04 source");
 
-const { data: profile, error: profileError } = await userClient
+const { data: profile, error: profileError } = await admin
   .from("discovery_profiles")
   .insert({
     company_id: companyId,
