@@ -246,7 +246,7 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
 export function findPublicApiCandidates({ query = "", workspaceKey = "", mode = "" } = {}) {
   const term = String(query || "").trim().toLowerCase();
   const selectedMode = String(mode || "").toUpperCase();
-  // Mirror discovery policy: never surface external candidates for disabled workspace/mode combinations.
+  // Mirror the discovery policy: never surface external candidates for disabled workspace/mode combinations.
   if ((workspaceKey === "personal_loan" && selectedMode === "CUSTOMER") ||
       (workspaceKey === "litigation" && selectedMode === "LENDER")) return [];
   return PUBLIC_API_CANDIDATES.filter(candidate => {
