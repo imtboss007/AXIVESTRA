@@ -19,6 +19,19 @@ E17 exposes a company-scoped graph projection over explicit E16 deal-party links
 
 The AXIVESTRA overview now includes the normalized relationship panel. Owner, admin, manager and staff users can record a deal-to-contact role, review or update its verification state, attach existing document metadata and set an effective end date. The graph reads through the E17 company-scoped RPC and only labels the safe display fields returned by that projection.
 
+## Interactive relationship network
+
+The normalized relationship panel now renders the same RPC response as an ECharts force-directed network:
+
+- Deal/workspace records and person/contact records use separate node categories.
+- Directed arrows represent the explicitly stored E16 deal-party links.
+- Link colours distinguish verified, evidence-supported, claimed, unverified, disputed and rejected states.
+- Users can drag nodes, pan/zoom the network, select a node, or use the keyboard-accessible Focus node selector.
+- Selecting a node filters the existing evidence/review cards; it does not edit or create a relationship.
+- The underlying evidence/review cards remain available as the detailed, accessible audit surface.
+
+The visual reuses the already-installed ECharts dependency. It does not add a second graph framework or duplicate the graph data model.
+
 ## Boundaries
 
 - No fuzzy matching, transitive relationship inference, automated deduplication or identity merges.
