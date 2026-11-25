@@ -68,6 +68,8 @@ test("E15 lender/customer workspace exposes mode filters, unified search and res
   for(const fragment of [
     'useState<"all"|"LENDER"|"CUSTOMER">',
     'aria-label="Workspace mode"',
+    'role="group" aria-label="Lender and customer workspace filters"',
+    '<div className="discovery-lead-search">',
     'aria-label="Search lender and customer records"',
     'modeFilter==="LENDER"',
     'modeFilter==="CUSTOMER"',
@@ -82,4 +84,5 @@ test("E15 lender/customer workspace exposes mode filters, unified search and res
   assert.match(styles,/@keyframes ax-e15-panel-in/);
   assert.match(styles,/@keyframes ax-e15-card-in/);
   assert.match(styles,/prefers-reduced-motion:reduce/);
+  assert.doesNotMatch(ui,/<label className="discovery-lead-search">/);
 });
