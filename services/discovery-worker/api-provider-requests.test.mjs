@@ -11,7 +11,9 @@ const approvedDataGovSource = {
   status: "approved",
   source_type: "official_api",
   connector_key: "official_api",
-  domain: "api.data.gov.in"
+  domain: "api.data.gov.in",
+  canonical_url: "https://api.data.gov.in/resource/abc12345-1234-1234-1234-123456789012",
+  allowed_paths: ["/resource/abc12345-1234-1234-1234-123456789012"]
 };
 
 test("data.gov.in resource requests receive a server-only key and bounded JSON paging", () => {
@@ -65,6 +67,19 @@ test("the resource ID is explicit and caller-supplied API keys are rejected", ()
     "https://api.data.gov.in/resource/abc12345-1234-1234-1234-123456789012?api-key=leaked",
     { source: approvedDataGovSource, env: { DATA_GOV_IN_API_KEY: "key" } }
   ), /Do not place a data.gov.in API key/);
+});
+
+
+test("data.gov.in resource path must exactly match both the registered canonical URL and exact E02 path", () => {
+  const env = { DATA_GOV_IN_API_KEY: "key" };
+  assert.throws(() => prepareProviderRequestUrl(
+    "https://api.data.gov.in/resource/other1234-1234-1234-1234-123456789012",
+    { source: approvedDataGovSource, env }
+  ), /exactly match the E02 canonical URL/);
+  assert.throws(() => prepareProviderRequestUrl(
+    approvedDataGovSource.canonical_url,
+    { source: { ...approvedDataGovSource, allowed_paths: ["/resource"] }, env }
+  ), /exactly match the E02 canonical URL/);
 });
 
 test("data.gov.in query contract rejects unknown parameters, repeated parameters and non-JSON responses", () => {
