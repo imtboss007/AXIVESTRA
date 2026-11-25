@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - integration/axivestra-api-relationship-e11-review
       - "feature/estateflow-unified-whatsapp-automation"
     paths:
       - "services/estateflow-whatsapp-hub/**"
