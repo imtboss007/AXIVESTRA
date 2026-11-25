@@ -158,13 +158,15 @@ Deno.serve(async request => {
         try { assertSourceCanBeAttached(profile, source); return true; } catch { return false; }
       });
 
-      const filters = payload.filters && typeof payload.filters === "object" && !Array.isArray(payload.filters) ? {
-        location: typeof payload.filters.location === "string" ? payload.filters.location.slice(0, 120) : "",
-        sector: typeof payload.filters.sector === "string" ? payload.filters.sector.slice(0, 100) : "",
-        product: typeof payload.filters.product === "string" ? payload.filters.product.slice(0, 100) : "",
-        stage: typeof payload.filters.stage === "string" ? payload.filters.stage.slice(0, 80) : "",
-        instrument: typeof payload.filters.instrument === "string" ? payload.filters.instrument.slice(0, 80) : ""
-      } : {};
+      const filterInput = payload.filters && typeof payload.filters === "object" && !Array.isArray(payload.filters)
+        ? payload.filters as Record<string, unknown> : {};
+      const filters = {
+        location: typeof filterInput.location === "string" ? filterInput.location.slice(0, 120) : "",
+        sector: typeof filterInput.sector === "string" ? filterInput.sector.slice(0, 100) : "",
+        product: typeof filterInput.product === "string" ? filterInput.product.slice(0, 100) : "",
+        stage: typeof filterInput.stage === "string" ? filterInput.stage.slice(0, 80) : "",
+        instrument: typeof filterInput.instrument === "string" ? filterInput.instrument.slice(0, 80) : ""
+      };
       const queries = buildSearxngQueries(profile.criteria || {}, filters);
       await writeAudit(admin, {
         company_id: companyId,
