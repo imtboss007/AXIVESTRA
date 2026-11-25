@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
 
@@ -18,7 +18,7 @@ const url = required("API_URL", "SUPABASE_URL");
 const anonKey = required("ANON_KEY", "SUPABASE_ANON_KEY");
 const serviceKey = required("SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KEY");
 const email = "axivestra-e2e@axivestra.local";
-const password = "AXIVESTRA-E2E-Only-Local-2026!";
+const password = randomBytes(32).toString("base64url");
 const companyName = "AXIVESTRA Disposable Browser QA";
 const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
