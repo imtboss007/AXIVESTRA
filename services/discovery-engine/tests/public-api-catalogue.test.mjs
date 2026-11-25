@@ -76,6 +76,11 @@ test("workspace filtering returns only relevant candidate APIs and does not mix 
   );
 });
 
+test("catalogue does not surface candidates in policy-disabled workspace modes", () => {
+  assert.deepEqual(findPublicApiCandidates({ workspaceKey: "personal_loan", mode: "CUSTOMER" }), []);
+  assert.deepEqual(findPublicApiCandidates({ workspaceKey: "litigation", mode: "LENDER" }), []);
+});
+
 test("search filters by names, source type and guardrail keywords", () => {
   assert.ok(findPublicApiCandidates({ query: "GSTIN" }).some(x => x.id === "gstinapi"));
   assert.ok(findPublicApiCandidates({ query: "wrapper" }).length >= 2);
