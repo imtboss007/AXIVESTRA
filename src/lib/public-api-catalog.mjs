@@ -240,7 +240,97 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
     ],
     reviewState: "legal_and_provider_review_required",
     evidence: "public-apis Business entry"
-  }
+  },
+  {
+    id: "searchpincode-in",
+    name: "SearchPinCode — India Postal Lookup",
+    category: "Geocoding",
+    providerUrl: "https://searchpincode.in/api",
+    docsUrl: "https://searchpincode.in/api",
+    sourceType: "third_party_postal_reference_api",
+    jurisdiction: "IN",
+    authAsListed: "No",
+    httpsAsListed: true,
+    corsAsListed: "Yes",
+    modeFit: ["LENDER", "CUSTOMER"],
+    workspaceFit: ["property_sale", "agricultural_land", "commercial_land", "property_loans", "jv_jda_jd", "housing_loan", "house_purchase", "unsecured_company_loan", "startup"],
+    relevance: "Potential Indian PIN-code, post-office and district reference for location normalisation across lender and customer workspaces.",
+    guardrails: [
+      "Third-party lookup service, not an India Post source or official proof of address.",
+      "Verify provider terms, data provenance, freshness, coverage, quotas and permitted reuse before registration.",
+      "A PIN-code match does not prove parcel location, property title, possession, zoning or borrower eligibility."
+    ],
+    reviewState: "research_only",
+    evidence: "public-apis Geocoding entry"
+  },
+  {
+    id: "sec-edgar-data",
+    name: "SEC EDGAR Data",
+    category: "Finance",
+    providerUrl: "https://www.sec.gov/edgar/sec-api-documentation",
+    docsUrl: "https://www.sec.gov/edgar/sec-api-documentation",
+    sourceType: "official_regulatory_financial_api",
+    jurisdiction: "US",
+    authAsListed: "No",
+    httpsAsListed: true,
+    corsAsListed: "Yes",
+    modeFit: ["LENDER", "CUSTOMER"],
+    workspaceFit: ["equity", "startup", "unsecured_company_loan", "fund_portfolio_management", "investor_relations", "compliance_kyc"],
+    relevance: "Official SEC submissions and XBRL company-facts data for US public reporting issuers; a source for filings and disclosed company facts, not a global private-company or lender directory.",
+    guardrails: [
+      "Send a descriptive User-Agent with a monitored contact address and respect SEC fair-access guidance; keep requests within the published rate limit.",
+      "Use issuer CIK and exact SEC endpoints; preserve filing accession, form type, filing date, period and source URL.",
+      "SEC filing data does not prove current lending authorisation, private-company solvency, property title, borrower eligibility or the completeness of an issuer's disclosures.",
+      "US public-issuer coverage only; do not infer that missing records mean an entity does not exist."
+    ],
+    reviewState: "approval_required",
+    evidence: "public-apis Finance entry; official SEC EDGAR API documentation and fair-access policy"
+  },
+  {
+    id: "opencorporates",
+    name: "OpenCorporates",
+    category: "Open Data",
+    providerUrl: "https://opencorporates.com/",
+    docsUrl: "https://api.opencorporates.com/documentation/API-Reference",
+    sourceType: "licensed_company_registry_aggregator",
+    jurisdiction: "GLOBAL",
+    authAsListed: "apiKey",
+    httpsAsListed: true,
+    corsAsListed: "Unknown",
+    modeFit: ["LENDER", "CUSTOMER"],
+    workspaceFit: ["property_sale", "agricultural_land", "commercial_land", "jv_jda_jd", "property_loans", "unsecured_company_loan", "housing_loan", "house_purchase", "startup", "equity", "fund_portfolio_management", "investor_relations", "compliance_kyc"],
+    relevance: "Cross-jurisdiction company-register search and corporate identity enrichment where supported by the underlying national register.",
+    guardrails: [
+      "Current self-serve API terms are internal-use-only and prohibit a third-party-usable product from depending on the API; obtain a written licence expressly covering AXIVESTRA SaaS/multi-tenant and any external distribution before integration.",
+      "Coverage, source date, field availability and licence differ by jurisdiction and underlying register; keep each observation source-stamped.",
+      "Do not treat an aggregated director/officer result as current beneficial ownership, a lender licence or proof of operating status."
+    ],
+    reviewState: "legal_and_provider_review_required",
+    evidence: "public-apis Open Data entry; OpenCorporates API reference and commercial-use terms"
+  },
+  {
+    id: "opensanctions",
+    name: "OpenSanctions — Sanctions and PEP Screening",
+    category: "Open Data",
+    providerUrl: "https://www.opensanctions.org/",
+    docsUrl: "https://www.opensanctions.org/docs/api/",
+    sourceType: "third_party_screening_data_api",
+    jurisdiction: "GLOBAL",
+    authAsListed: "No",
+    httpsAsListed: true,
+    corsAsListed: "Yes",
+    modeFit: ["CUSTOMER"],
+    workspaceFit: ["compliance_kyc"],
+    relevance: "Potential sanctions and politically-exposed-person screening reference for the Compliance & KYC review workflow only; not a prospecting or lead-generation source.",
+    guardrails: [
+      "The public-apis Auth label is directory metadata, not confirmation of anonymous production access; hosted API access and commercial licensing must be checked with OpenSanctions.",
+      "Business/commercial use requires the appropriate current API key and data licence; do not assume the non-commercial or research allowance applies to AXIVESTRA.",
+      "A fuzzy match is a review candidate, never a confirmed sanctions hit or legal conclusion; retain list version, match rationale, reviewer and false-positive disposition.",
+      "Do not use screening records as a cold-marketing trigger or automatically reject, block or score a person."
+    ],
+    reviewState: "legal_and_provider_review_required",
+    evidence: "public-apis Open Data entry; official OpenSanctions API documentation and licensing terms"
+  },
 ]);
 
 export function findPublicApiCandidates({ query = "", workspaceKey = "", mode = "" } = {}) {

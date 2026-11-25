@@ -37,7 +37,7 @@ test("E03 can discover candidate domains before any target source is attached, b
   assert.match(action, /fetchEligible: Boolean\(approvedSource\)/);
   assert.match(queueUi, /if \(!selectedProfile\)/);
   assert.doesNotMatch(queueUi, /if \(!selectedProfile \|\| !eligibleSources\.length\)/);
-  assert.match(queueUi, /exact source is registered, approved and attached/);
+  assert.match(queueUi, /exact URL path is registered, approved and attached/);
 });
 
 test("E03 returns unverified search candidates and never queues or fetches them automatically", () => {
