@@ -40,6 +40,35 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
     evidence: "public-apis Government entry; official data.gov.in Help and API catalogue"
   },
   {
+    id: "mca-company-master",
+    name: "MCA Company Master Data",
+    category: "Business",
+    providerUrl: "https://www.data.gov.in/catalog/company-master-data",
+    docsUrl: "https://www.data.gov.in/apis",
+    termsUrl: "https://www.data.gov.in/help",
+    sourceType: "official_government_dataset_api",
+    jurisdiction: "IN",
+    authAsListed: "apiKey",
+    httpsAsListed: true,
+    corsAsListed: "Unknown",
+    modeFit: ["LENDER", "CUSTOMER"],
+    workspaceFit: [
+      "property_sale", "property_loans", "jv_jda_jd", "commercial_land",
+      "startup", "equity", "unsecured_company_loan", "housing_loan",
+      "house_purchase", "compliance_kyc"
+    ],
+    relevance: "MCA-published company master dataset for legal-entity research: CIN, company name/status/class/category, authorised and paid-up capital, registration date, registered state/ROC, principal business activity and registered office address.",
+    guardrails: [
+      "The official catalogue lists the dataset as published by the Ministry of Corporate Affairs and updated on 13 October 2026; recheck the current dataset page and resource metadata before each registration.",
+      "The resource's exact API resource ID and current field schema must be selected from the official catalogue; do not guess or hardcode a resource ID from a third-party sample.",
+      "Store the API key only as a server-side secret. Registered portal access is required to generate a key.",
+      "Company registration and capital fields do not establish current lender authorisation, RBI/NHB licence, current solvency, active lending product or credit eligibility.",
+      "Treat registered-office address and company-status records as source-stamped registry observations; not proof of property ownership, current operations or beneficial ownership."
+    ],
+    reviewState: "catalogue_only",
+    evidence: "official data.gov.in Company Master Data catalogue; Ministry of Corporate Affairs; public-apis Open Data directory"
+  },
+  {
     id: "api-setu",
     name: "API Setu — Government API Marketplace",
     category: "Open Data",
