@@ -326,3 +326,76 @@ The connected organisation is currently Free. Do not upgrade, purchase a service
 - The E16–E22 feature migrations remain unapplied to the connected database; the feature-branch CI/PostgreSQL integration is not production deployment.
 - R6 remains pending for independent review. The current work includes a source spot-check and current Advisor snapshot, not a formal security certification.
 - Keep all production migration, deployment, provider activation and dispatch gates closed.
+
+
+---
+
+## 12. Completion refresh — 25 November 2026, 12:31 IST
+
+### Current branch / review state
+
+- Repository: `imtboss007/AXIVESTRA`.
+- PR #88 remains **open / draft**, from `feat/discovery-e11-explainable-matching` into `feat/discovery-e10-enrichment`.
+- Verified feature head at this checkpoint: `266be1be24e4e2f6c43cc7971a7c238aa0457ad3`.
+- No new repository, merge to `main`, hosted migration, deployment, release, provider activation or E20 dispatch was performed.
+
+### Fresh integrated-head CI — all PASS
+
+All five workflow runs on the exact feature head completed successfully:
+
+| Workflow | Run | Result |
+|---|---:|---|
+| Discovery Governance — PR event | 45567494517 | **PASS** |
+| Discovery Governance — push event | 45567485702 | **PASS** |
+| Windows installer + Android APK | 45567485595 | **PASS** — both platform jobs |
+| WhatsApp Hub | 45567494532 | **PASS** — all four jobs |
+| Cloud Worker | 45567494555 | **PASS** |
+
+Discovery Governance completed all 24 steps, including discovery contracts, worker/PostgreSQL integration, the E16.1 backfill test, E05 parser benchmark, full regression, Edge Function type-check and application build.
+
+The E16.1 PostgreSQL integration test now applies `20261125110000_axivestra_legacy_relationship_backfill.sql` in its isolated test database and checks:
+- preview mode is default and performs no relationship write;
+- the preview exposes the explicit property/contact stable IDs;
+- explicit apply inserts the relationship as `unverified`;
+- a repeated apply is idempotent;
+- a viewer is denied while an owner is allowed.
+
+The integration harness replaces its initial permissive role stub with a real company-membership predicate before exercising the E16.1 owner/admin check. This is test-database setup only; it does not modify production roles.
+
+### Authenticated browser acceptance — PASS
+
+The new authenticated job provisions a fully disposable **local** Supabase stack inside GitHub Actions. It applies the repository's migrations, creates a random disposable owner credential and synthetic company/deal/contact/task/source/evidence/match/provenance records, serves the real `discovery-control` Edge Function locally and runs the browser tests against that stack.
+
+- Authenticated browser workflow, PR event: run **45567494517**, job completed **17/17 steps**.
+- Authenticated browser workflow, push event: run **45567485702**, job completed **17/17 steps**.
+- Playwright executed **8 tests; 8 passed** in desktop Chromium (15.1 seconds).
+
+Coverage passed:
+- **E18:** create/edit an operational commitment linked to the correct E16 deal-party relationship; link the explicitly selected legacy task without deleting its source.
+- **E19:** authenticated verification inbox and provenance inspection without exposing raw values.
+- **E21:** evidence catalogue, pack creation, citation inclusion, submission, owner approval, metadata-only manifest export and export receipt.
+- **E22:** provider-off review desk, E11 baseline visibility and reason-gated human review controls without recording an automated decision.
+
+The first browser attempt exposed a test navigation defect: E18 lives under Intelligence Hub, while the test looked for the panel directly after company selection on Overview. The test now opens Intelligence Hub before asserting E18. This was corrected in `tests/browser/axivestra-commitment-workspace.spec.ts`; the subsequent full 8/8 run passed.
+
+The QA user/password are generated per CI run and are not stored in source. The stack is stopped after every run. No hosted Supabase project, real company data, external provider or live source is used. Browser artifacts are uploaded to the GitHub Actions run for seven-day retention.
+
+### Updated release ledger
+
+| ID | Task | Current status | Remaining scope |
+|---|---|---|---|
+| R1 | Repeatable disposable local Supabase QA stack, owner and fixtures | **PASS** | None for CI; a hosted QA environment is not required for the local CI suite |
+| R2 | Authenticated E18/E19/E21/E22 browser acceptance | **PASS — 8/8** | This is local synthetic QA acceptance, not production-company acceptance |
+| R3 | E16.1 legacy-link backfill acceptance | **PASS — local PostgreSQL** | Hosted/non-production deployment and any real-data dry run remain separately approval-gated; no backfill has been run on hosted data |
+| R4 | Paired physical Android/Windows device-sync acceptance | **PENDING** | Requires actual test devices and approved non-production accounts; platform builds and logic tests do not constitute paired-device acceptance |
+| R5 | Fresh integrated-head Windows installer and Android APK builds | **PASS** | None for the current feature head |
+| R6 | Independent security/privacy/retention/licence/tenant/accessibility review | **PENDING** | Requires an independent reviewer and documented findings/sign-off |
+
+### Remaining release controls
+
+- The connected hosted Supabase project migration history still ends at `20261114035526 axivestra_custom_module_sync`. The E16–E22 feature migrations have **not** been applied to that hosted project.
+- The Security Advisor's five authenticated SECURITY DEFINER warnings were source-reviewed; they are intentional guarded helpers/actions, not automatically treated as remediated or as proven vulnerabilities. The leaked-password protection notice is plan-limited on the connected Free organisation. Do not upgrade without explicit approval.
+- E20 dispatch remains false. No provider, worker, scraper, WhatsApp sender or outreach flow was activated.
+- This checkpoint closes the repeatable code/CI and local authenticated E18–E22 acceptance gates. It does not authorise a production release, deployment, hosted migration, real-data E16.1 apply, paid upgrade or public release.
+
+**Continuation rule:** Section 12 supersedes the earlier in-progress R1/R2/R5 entries in Section 9. Continue with the R4 device acceptance and R6 independent review preparation while preserving every release boundary above.
