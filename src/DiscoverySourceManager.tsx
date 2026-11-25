@@ -12,6 +12,7 @@ import DiscoveryMatchScoringWorkspace from "./DiscoveryMatchScoringWorkspace";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import { getDefaultWorkspaceCriteria, validateWorkspaceCriteria } from "./lib/discovery-profiles.mjs";
 import { OFFICIAL_SOURCE_STARTERS, toSourceDraft } from "./lib/discovery-source-catalogue.mjs";
+import DiscoveryPublicApiCatalogue from "./DiscoveryPublicApiCatalogue";
 
 type SourceStatus = "pending" | "approved" | "paused" | "rejected";
 type Source = {
@@ -432,6 +433,8 @@ export default function DiscoverySourceManager({
       <p><strong>Governed access only.</strong> New sources start pending. No website is crawled by this screen. Actual fetch workers and provider-specific adapters are a separate implementation stage.</p>
       <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh discovery registry"><RefreshCw size={16}/></button>
     </div>
+
+    <DiscoveryPublicApiCatalogue workspaceKey={selectedWorkspaceKey} mode={selectedMode} />
 
     {error && <div className="discovery-feedback discovery-feedback--error" role="alert"><CircleAlert size={17}/><span>{error}</span><button type="button" onClick={() => setError("")} aria-label="Dismiss error"><XCircle size={15}/></button></div>}
     {notice && <div className="discovery-feedback discovery-feedback--success" role="status"><CheckCircle2 size={17}/><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss notice">×</button></div>}
