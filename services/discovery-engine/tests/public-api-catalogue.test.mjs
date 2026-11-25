@@ -64,7 +64,7 @@ test("eCourts and GST verification wrappers are separated from official governme
 test("workspace filtering returns only relevant candidate APIs and does not mix mode intent", () => {
   assert.deepEqual(
     findPublicApiCandidates({ workspaceKey: "agricultural_land", mode: "CUSTOMER" }).map(x => x.id),
-    ["ogd-india", "india-mandi-prices"]
+    ["ogd-india", "api-setu", "india-mandi-prices", "india-lgd-index", "india-pincode"]
   );
   assert.deepEqual(
     findPublicApiCandidates({ workspaceKey: "litigation", mode: "LENDER" }),
