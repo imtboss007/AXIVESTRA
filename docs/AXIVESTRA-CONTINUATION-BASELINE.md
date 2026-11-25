@@ -18,10 +18,10 @@ All listed PRs are open drafts and none is merged to `main`.
 
 | PR | Branch | Current head | Purpose | State |
 |---|---|---|---|---|
-| #88 | `feat/discovery-e11-explainable-matching` | `undefined` | Main E01–E22 discovery/evidence/matching/orchestration feature stack; integration base | Open, draft |
+| #88 | `feat/discovery-e11-explainable-matching` | `7dde185504ff858263794c89a4d7dc6a02c8a3c0` | Main E01–E22 discovery/evidence/matching/orchestration feature stack; integration base | Open, draft |
 | #90 | `feat/axivestra-public-api-provider-bridge` | `97b83c2c445ed241467658aac5d870a848050fde` | Gated data.gov.in provider adapter and expanded public API catalogue | Open, draft |
-| #91 | `feat/axivestra-relationship-network-visual` | `undefined` | Original E17 ECharts relationship-network source branch; retained for traceability | Open, draft |
-| #92 | `integration/axivestra-api-relationship-e11-review` | `undefined` | Combined #90 public-API bridge + #91 E17 network, reconciled on the E11 baseline | Open, draft; mergeable; CI running |
+| #91 | `feat/axivestra-relationship-network-visual` | `28a994b45a3f3fdb39f3c563994b837db2ea51c9` | Original E17 ECharts relationship-network source branch; retained for traceability | Open, draft |
+| #92 | `integration/axivestra-api-relationship-e11-review` | `a5b8a5ab5cbc7fcd828da9a3ee59bfdb4314c02c` | Combined #90 public-API bridge + #91 E17 network, reconciled on the E11 baseline | Open, draft; mergeable; CI running |
 | #89 | Theme Studio branch | `17a5f46e73f5c686b0fa9b86ffdd704a778eddac` | Independent theme studio work | Open/independent; inspect live state before action |
 
 PR #90 and #91 remain open source drafts and are retained for traceability. They originally diverged from the same earlier ancestor. Their implementation has now been copied into PR #92 on top of the current E11 branch. The integration deliberately preserves the newer E11 shared contract files, applies the public-API-specific catalogue/enrichment/UI deltas, and adds the E17 ECharts visual without introducing a second graph library. PR #92 is the combined review path; separate green CI on #90/#91 is not a substitute for the new combined checks. Its latest PR metadata reports mergeable=true, but it remains a draft and must not be merged until fresh CI and the authenticated/backfill acceptance gates are complete.
