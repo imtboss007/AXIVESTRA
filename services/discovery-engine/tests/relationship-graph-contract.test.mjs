@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const migration=await readFile(new URL("../../../supabase/migrations/20261122320000_axivestra_relationship_graph.sql",import.meta.url),"utf8");
 const ui=await readFile(new URL("../../../src/NormalizedRelationshipGraphPanel.tsx",import.meta.url),"utf8");
+const chart=await readFile(new URL("../../../src/components/PortfolioEChart.tsx",import.meta.url),"utf8");
+const css=await readFile(new URL("../../../src/styles.css",import.meta.url),"utf8");
 
 test("E17 graph is sourced exclusively from explicit E16 relationship records",()=>{
   assert.match(migration,/from public\.company_deal_parties p/);
@@ -47,4 +49,23 @@ test("E17 overview panel reads the company graph and supports evidence-backed re
   assert.match(ui,/document_metadata/);
   assert.match(ui,/evidence_supported.*verified|verified.*evidence_supported/);
   assert.match(ui,/No identity was inferred/);
+});
+
+
+test("E17 renders an interactive ECharts relationship network from the canonical graph response",()=>{
+  assert.match(chart,/GraphChart/);
+  assert.match(chart,/chart\.on\("click",click\)/);
+  assert.match(ui,/PortfolioEChart/);
+  assert.match(ui,/type:"graph"/);
+  assert.match(ui,/layout:"force"/);
+  assert.match(ui,/roam:true/);
+  assert.match(ui,/draggable:true/);
+  assert.match(ui,/graph\.nodes\.map/);
+  assert.match(ui,/graph\.edges\.map/);
+  assert.match(ui,/verification_state/);
+  assert.match(ui,/selectedNodeId/);
+  assert.match(ui,/visibleEdges/);
+  assert.match(ui,/Focus relationship node/);
+  assert.match(css,/\.ax-normalized-relationship-visual \.ax-echart-host/);
+  assert.match(css,/@media\(max-width:760px\)[\s\S]*?ax-normalized-relationship-visual/);
 });
