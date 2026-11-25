@@ -399,3 +399,34 @@ The QA user/password are generated per CI run and are not stored in source. The 
 - This checkpoint closes the repeatable code/CI and local authenticated E18–E22 acceptance gates. It does not authorise a production release, deployment, hosted migration, real-data E16.1 apply, paid upgrade or public release.
 
 **Continuation rule:** Section 12 supersedes the earlier in-progress R1/R2/R5 entries in Section 9. Continue with the R4 device acceptance and R6 independent review preparation while preserving every release boundary above.
+
+---
+
+## 13. E15 lender/customer workspace refinement — 25 November 2026
+
+### Scope completed on the existing feature branch
+
+- Repository remains imtboss007/AXIVESTRA.
+- Work remains on feat/discovery-e11-explainable-matching and PR #88; target remains feat/discovery-e10-enrichment.
+- E15's existing single lead pipeline continues to support both LENDER and CUSTOMER discovery modes. No duplicate customer/lender subsystem or schema was introduced.
+- Added All workspaces / Lender / Customer filters, unified company/workspace/stage/priority search, selected-state accessibility, clear filters, visible-result counts and explicit unknown-mode labels.
+- Added visual score meters, improved mode badges and hierarchy, priority emphasis, card/list motion and responsive mobile filter layout.
+- Added reduced-motion handling and E15 contract coverage for the new UI controls and motion behaviour.
+- Updated docs/AXIVESTRA-DISCOVERY-E15-LEAD-WORKSPACE.md with the feature details and workflow boundaries.
+
+### Commits
+
+- 951ebd7e278509cf7e431bf7bcdb52cfab9ac8cf — E15 lender/customer filters and search.
+- e33b191cf80789391229121306b3c23c35bc46a9 — E15 visual refinement and motion.
+- 6f3a9ac2e350c47f4283bfad4ef77536b568e4d8 — E15 regression contract assertions.
+- edf56a43eca57b8aa9bbb2e1d8da971f90490c01 — E15 feature documentation.
+
+### Acceptance state and remaining work
+
+The last observed branch CI poll showed the Cloud Worker workflow passed. Discovery governance/build and WhatsApp Hub checks were still in progress at that observation; refresh the status against the latest branch head before treating the changes as CI-verified. Contract assertions are committed but must not be described as passing until their workflow completes.
+
+The visual changes have not yet been inspected on a physical Android device. The next UI acceptance should verify small-screen filter wrapping, score-meter rendering, mode badges, card transitions, focus states and the reduced-motion setting. The existing authenticated E18–E22 browser pass is not evidence of E15 visual acceptance.
+
+### Release boundaries preserved
+
+No branch merge, deployment, hosted Supabase migration, production data change, provider activation, paid upgrade or public release was performed or authorised. Keep PR #88 in draft until CI and the required review gates are complete. Do not mark E15 visually complete until the physical Android check is recorded.
