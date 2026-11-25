@@ -240,7 +240,7 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
     ],
     reviewState: "legal_and_provider_review_required",
     evidence: "public-apis Business entry"
-  }
+  },
   {
     id: "searchpincode-in",
     name: "SearchPinCode — India Postal Lookup",
