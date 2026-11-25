@@ -232,6 +232,7 @@ const { data: matchResult, error: matchError } = await admin
     company_id: companyId,
     canonical_entity_id: canonicalEntity.id,
     workspace_key: "property_sale",
+    discovery_mode: "LENDER",
     criteria_version: "e11_qa_fixture_v1",
     criteria_snapshot: { geography: "IN", type: "company", fixture: true },
     candidate_snapshot: { legal_name: "AXIVESTRA Synthetic QA Organization", fixture: true },
@@ -248,6 +249,28 @@ const { data: matchResult, error: matchError } = await admin
   .select("id")
   .single();
 check(matchError, "Create synthetic E11 deterministic match");
+
+const { error: customerMatchError } = await admin
+  .from("discovery_match_results")
+  .insert({
+    company_id: companyId,
+    canonical_entity_id: canonicalEntity.id,
+    workspace_key: "startup",
+    discovery_mode: "CUSTOMER",
+    criteria_version: "e11_qa_customer_fixture_v1",
+    criteria_snapshot: { geography: "IN", type: "company", fixture: true, mode: "CUSTOMER" },
+    candidate_snapshot: { legal_name: "AXIVESTRA Synthetic QA Organization", fixture: true },
+    score: 76,
+    confidence: 0.88,
+    eligible: true,
+    method: "deterministic_weighted_rules_v1",
+    positive_factors: [{ criterion: "geography", status: "match" }],
+    negative_factors: [],
+    unknown_criteria: [],
+    blockers: [],
+    created_by: userId
+  });
+check(customerMatchError, "Create synthetic E11 customer-mode match");
 
 const requestHash = createHash("sha256")
   .update(JSON.stringify({
