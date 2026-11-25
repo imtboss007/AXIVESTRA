@@ -46,11 +46,20 @@ These are branch-specific checks, not a combined integration test. No local clon
 - E20: governed orchestration, approvals, queue mapping, retry/recovery and execution console exist. Dispatch is deliberately disabled; adapter bridges and kill switches remain off.
 - E21: evidence catalogue, evidence packs, review lifecycle and metadata-only approved export exist. Authenticated workspace acceptance remains outstanding.
 - E22: advisory AI matching, minimised request contract, durable suggestion ledger and owner/admin review exist. Provider adapter remains disabled; no model provider is configured or called.
-- PR #90: data.gov.in API bridge and expanded public API catalogue are code-only and gated. No key, source registration, approval or external request exists.
+- PR #90 was merged into the #88 feature branch. Its data.gov.in API bridge and expanded public API catalogue remain code-only and gated. No key, source registration, approval or external request exists.
 - SearXNG remains off until an approved endpoint and server-side configuration are supplied.
 - WhatsApp official cloud sending remains disabled; no autonomous external outreach is authorised.
 
-## 5. Required next engineering sequence
+## 5. Latest implementation completed — 25 November 2026
+
+- Squash-integrated PR #90 into the existing #88 feature branch; merge commit `366e40d37627040a229321f430dcff07bb54e661`.
+- Manually ported PR #91's E17 interactive network to #88: `src/NormalizedRelationshipGraphPanel.tsx`, `src/components/PortfolioEChart.tsx`, `services/discovery-engine/tests/relationship-graph-contract.test.mjs`, `src/styles.css`, and `docs/AXIVESTRA-E17-RELATIONSHIP-GRAPH.md`.
+- Verified that the overlapping enqueue, lead-workspace, policy, shared matching and discovery-control files were already byte-identical between PR #91 and the updated #88 base.
+- Closed PR #91 as superseded after recording the reconciliation in its conversation.
+- Updated PR #88 description with the integration record. Latest head: `f39f68de915ecc1b916fea82e8eaf3c6adcfa00d`.
+- Fresh integrated-head CI is still outstanding; no code test or authenticated QA is claimed for this combined revision.
+
+## 6. Required next engineering sequence
 
 1. Refresh PR #92 metadata and workflow runs. The combined implementation is in `integration/axivestra-api-relationship-e11-review`; do not restart the #90/#91 code transfer.
 2. Complete the fresh Discovery Governance and WhatsApp Hub workflows on the combined #92 head. Inspect every failure, fix regressions on the same integration branch, and confirm the changed head reruns the applicable checks.
@@ -59,7 +68,7 @@ These are branch-specific checks, not a combined integration test. No local clon
 5. Complete independent security/release review, licence/provenance review for any selected external code, and a data-retention/privacy review.
 6. Keep #92 and the feature stack as drafts until integrated acceptance is genuinely complete. Production migrations, provider activation, worker dispatch, deployment, public release and merge to `main` each require explicit approval.
 
-## 6. Configuration blockers — do not invent credentials
+## 7. Configuration blockers — do not invent credentials
 
 Potential server-side settings (only configure after owner approval and exact source review):
 - `DISCOVERY_SEARXNG_ENABLED`
@@ -70,7 +79,7 @@ Potential server-side settings (only configure after owner approval and exact so
 
 No API key or provider credentials have been supplied. Never ask the user to paste secrets into chat; use the appropriate private secret manager after explicit authorisation. Provider-specific terms, licence, publisher, fields, purpose, quotas, freshness and retention must be reviewed before any external call.
 
-## 7. Non-negotiable user constraints
+## 8. Non-negotiable user constraints
 
 - Continue in `imtboss007/AXIVESTRA`; do not create another repository.
 - Preserve previous code and decisions; inspect before changing.
@@ -80,7 +89,7 @@ No API key or provider credentials have been supplied. Never ask the user to pas
 - No production migration, deployment, external provider call, worker dispatch, live WhatsApp/outreach, public release or merge to `main` without explicit approval.
 - Do not claim a GitHub green badge means the entire product is finished. Report PASS, FAIL, SKIPPED and BLOCKED separately.
 
-## 8. Continuation command
+## 9. Continuation command
 
 When the user says **“Continue AXIVESTRA”**:
 1. Read this checkpoint and the 123-entry reconciliation document.
