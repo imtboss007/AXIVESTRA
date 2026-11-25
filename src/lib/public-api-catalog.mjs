@@ -301,7 +301,7 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
     workspaceFit: ["property_sale", "agricultural_land", "commercial_land", "jv_jda_jd", "property_loans", "unsecured_company_loan", "housing_loan", "house_purchase", "startup", "equity", "fund_portfolio_management", "investor_relations", "compliance_kyc"],
     relevance: "Cross-jurisdiction company-register search and corporate identity enrichment where supported by the underlying national register.",
     guardrails: [
-      "Commercial use in a proprietary application requires a suitable paid API/data licence; directory inclusion or an API key does not grant reuse rights.",
+      "Current self-serve API terms are internal-use-only and prohibit a third-party-usable product from depending on the API; obtain a written licence expressly covering AXIVESTRA SaaS/multi-tenant and any external distribution before integration.",
       "Coverage, source date, field availability and licence differ by jurisdiction and underlying register; keep each observation source-stamped.",
       "Do not treat an aggregated director/officer result as current beneficial ownership, a lender licence or proof of operating status."
     ],
