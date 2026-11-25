@@ -145,15 +145,18 @@ Deno.serve(async request => {
         .select("source_id").eq("company_id", companyId).eq("profile_id", profile.id);
       if (linkError) throw linkError;
       const sourceIds = [...new Set((links || []).map((item: { source_id: string }) => item.source_id))];
-      if (!sourceIds.length) return jsonResponse(409, { error: "Attach at least one approved source to this profile before searching." });
-      const { data: sources, error: sourcesError } = await admin.from("discovery_source_registry")
-        .select("*").eq("company_id", companyId).eq("status", "approved").in("id", sourceIds).limit(100);
-      if (sourcesError) throw sourcesError;
-      const eligibleSources = (sources || []).filter((source: Record<string, unknown>) => {
+      // Search can discover new candidate domains before the company has registered
+      // any target source. Without a separately approved attached source, every result
+      // remains unverified and fetchEligible=false; E04 still requires exact source approval.
+      const sourceResult = sourceIds.length
+        ? await admin.from("discovery_source_registry")
+          .select("*").eq("company_id", companyId).eq("status", "approved").in("id", sourceIds).limit(100)
+        : { data: [], error: null };
+      if (sourceResult.error) throw sourceResult.error;
+      const eligibleSources = (sourceResult.data || []).filter((source: Record<string, unknown>) => {
         if (source.connector_key === "manual_research") return false;
         try { assertSourceCanBeAttached(profile, source); return true; } catch { return false; }
       });
-      if (!eligibleSources.length) return jsonResponse(409, { error: "This profile has no currently approved and purpose-matched source attached." });
 
       const filters = payload.filters && typeof payload.filters === "object" && !Array.isArray(payload.filters) ? {
         location: typeof payload.filters.location === "string" ? payload.filters.location.slice(0, 120) : "",
