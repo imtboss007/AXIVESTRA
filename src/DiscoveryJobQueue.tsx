@@ -275,7 +275,7 @@ export default function DiscoveryJobQueue({
             <button type="button" className="secondary-button" onClick={() => void searchPublicDirectories()} disabled={!selectedProfile || busy === "search"}>
               {busy === "search" ? <LoaderCircle size={15}/> : <RefreshCw size={15}/>} Search public directories
             </button>
-            <small>Uses the separately configured self-hosted search service. Results remain unverified and are never fetched automatically. You can discover new domains before attaching a target source; those links cannot be fetched until their exact source is registered, approved and attached. No provider is activated by this screen.</small>
+            <small>Uses the separately configured self-hosted search service. Search results remain unverified and are never fetched automatically. You can discover new domains before attaching a target source; those links cannot be fetched until their exact source is registered, approved and attached. No provider is activated by this screen.</small>
             {searchQueries.length > 0 && <div className="discovery-search-queries"><b>Queries used</b>{searchQueries.map(query => <span key={query}>{query}</span>)}</div>}
             {searchResults.length > 0 && <div className="discovery-search-results">
               {searchResults.map(result => <article className="discovery-search-result" key={result.url}>
