@@ -66,3 +66,15 @@ The E15 workspace now separates lender and customer operations at the review sur
 The UI remains workflow-only. These controls do not make a credit, lending, underwriting, investment or eligibility decision and do not initiate contact or outreach.
 
 Regression coverage was added to services/discovery-engine/tests/lead-workspace-contract.test.mjs for mode filtering, search, score cues, motion hooks and reduced-motion support. Automated build and discovery-governance verification are running on the feature branch; physical Android inspection remains a separate acceptance gate.
+
+## Follow-up accessibility and CI checkpoint — 25 November 2026
+
+The search control wrapper is a neutral group rather than a label containing a second interactive control. The mode filters expose grouped pressed states, and the visible pending-match count uses a polite live announcement.
+
+Verified against code head 82c4bd43c3507ec0ccf9d8b9acd0486a8685cb20:
+- E15/discovery governance tests, worker/PostgreSQL integration, parser benchmark, full regression suite and web build: passed in push workflow 45676192783.
+- Android APK and Windows installer build jobs: passed in workflow 45676192697.
+- Cloud Worker and WhatsApp Hub checks: passed in pull-request workflows 45676200773 and 45676200831.
+- Existing authenticated E18–E22 disposable-browser acceptance was still in progress at the last observation (Chromium setup). It does not exercise the E15 visual changes.
+
+The E15 UI has not yet received a dedicated authenticated browser screenshot/interaction run or hands-on physical Android inspection. Keep those as explicit acceptance checks; do not equate the successful app build with visual acceptance on a device.
