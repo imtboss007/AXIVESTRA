@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase";
-import { ArrowRight, CalendarClock, CheckCircle2, CircleAlert, ClipboardList, LoaderCircle, RefreshCw, ShieldCheck, UserRound, XCircle } from "lucide-react";
+import { ArrowRight, CalendarClock, CheckCircle2, CircleAlert, ClipboardList, LoaderCircle, RefreshCw, Search, ShieldCheck, UserRound, XCircle } from "lucide-react";
 
 type Candidate = { legal_name?: string; jurisdiction?: string; entity_type?: string } | null;
 type Match = {
@@ -44,6 +44,7 @@ const NEXT_STAGE: Record<string,string[]> = {
   won:["reviewing"], lost:["reviewing"], disqualified:["reviewing"]
 };
 const label = (value: string) => value.replaceAll("_"," ").replace(/\b\w/g, char=>char.toUpperCase());
+const modeLabel = (value?: string | null) => value === "LENDER" ? "Lender" : value === "CUSTOMER" ? "Customer" : "Unclassified";
 const localDate = (value?: string | null) => value ? new Date(value).toLocaleDateString() : "Not set";
 const dateInput = (value?: string | null) => value ? new Date(value).toISOString().slice(0,10) : "";
 
@@ -53,6 +54,8 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
   const [leads,setLeads] = useState<Lead[]>([]);
   const [members,setMembers] = useState<Member[]>([]);
   const [filter,setFilter] = useState("active");
+  const [modeFilter,setModeFilter] = useState<"all"|"LENDER"|"CUSTOMER">("all");
+  const [searchQuery,setSearchQuery] = useState("");
   const [rejectReasons,setRejectReasons] = useState<Record<string,string>>({});
   const [nextDrafts,setNextDrafts] = useState<Record<string,{code:string;date:string}>>({});
   const [busy,setBusy] = useState("");
@@ -85,9 +88,24 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
   },[companyId,invoke]);
   useEffect(()=>{void refresh();},[refresh]);
 
-  const visibleLeads=useMemo(()=>filter==="all"?leads:filter==="active"
-    ?leads.filter(lead=>!["won","lost","disqualified"].includes(lead.status))
-    :leads.filter(lead=>lead.status===filter),[filter,leads]);
+  const normalizedSearch=searchQuery.trim().toLocaleLowerCase();
+  const scopedMatches=useMemo(()=>modeFilter==="all"?matches:matches.filter(match=>match.discovery_mode===modeFilter),[matches,modeFilter]);
+  const scopedLeads=useMemo(()=>modeFilter==="all"?leads:leads.filter(lead=>lead.match?.discovery_mode===modeFilter),[leads,modeFilter]);
+  const visibleMatches=useMemo(()=>scopedMatches.filter(match=>{
+    if(!normalizedSearch)return true;
+    return [match.candidate?.legal_name,match.candidate?.jurisdiction,match.candidate?.entity_type,match.workspace_key,match.discovery_mode]
+      .some(value=>String(value||"").toLocaleLowerCase().includes(normalizedSearch));
+  }),[scopedMatches,normalizedSearch]);
+  const visibleLeads=useMemo(()=>{
+    const byStage=filter==="all"?scopedLeads:filter==="active"
+      ?scopedLeads.filter(lead=>!["won","lost","disqualified"].includes(lead.status))
+      :scopedLeads.filter(lead=>lead.status===filter);
+    return byStage.filter(lead=>{
+      if(!normalizedSearch)return true;
+      return [lead.candidate?.legal_name,lead.workspace_key,lead.match?.discovery_mode,lead.status,lead.priority]
+        .some(value=>String(value||"").toLocaleLowerCase().includes(normalizedSearch));
+    });
+  },[filter,scopedLeads,normalizedSearch]);
 
   const runAction=async(key:string,action:string,payload:Record<string,unknown>,success:string)=>{
     setBusy(key);setError("");setNotice("");
@@ -134,19 +152,32 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
     {notice&&<div className="discovery-lead-message"><CheckCircle2 size={15}/>{notice}</div>}
     {!canManage&&<div className="discovery-readonly"><ShieldCheck size={14}/>Read-only workspace. A company owner or admin must review matches and update lead workflow.</div>}
 
-    <div className="discovery-lead-stats">
-      <div><strong>{matches.length}</strong><span>Matches awaiting review</span></div>
-      <div><strong>{leads.filter(x=>!["won","lost","disqualified"].includes(x.status)).length}</strong><span>Active leads</span></div>
-      <div><strong>{leads.filter(x=>x.status==="won").length}</strong><span>Won</span></div>
-      <div><strong>{leads.filter(x=>x.status==="lost"||x.status==="disqualified").length}</strong><span>Closed / disqualified</span></div>
+    <div className="discovery-lead-filters" role="toolbar" aria-label="Lender and customer workspace filters">
+      <div className="discovery-mode-switch" role="group" aria-label="Workspace mode">
+        <button type="button" className={modeFilter==="all"?"is-active":""} aria-pressed={modeFilter==="all"} onClick={()=>setModeFilter("all")}>All workspaces</button>
+        <button type="button" className={modeFilter==="LENDER"?"is-active":""} aria-pressed={modeFilter==="LENDER"} onClick={()=>setModeFilter("LENDER")}>Lender</button>
+        <button type="button" className={modeFilter==="CUSTOMER"?"is-active":""} aria-pressed={modeFilter==="CUSTOMER"} onClick={()=>setModeFilter("CUSTOMER")}>Customer</button>
+      </div>
+      <label className="discovery-lead-search">
+        <Search size={15} aria-hidden="true"/>
+        <input type="search" value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} placeholder="Search companies, workspace or stage" aria-label="Search lender and customer records"/>
+        {searchQuery&&<button type="button" onClick={()=>setSearchQuery("")} aria-label="Clear search">Clear</button>}
+      </label>
     </div>
 
-    <div className="discovery-lead-section-head"><div><span className="section-kicker">E11 → E15</span><h3>Workspace matches awaiting human review</h3></div></div>
+    <div className="discovery-lead-stats">
+      <div><strong>{scopedMatches.length}</strong><span>Matches awaiting review</span></div>
+      <div><strong>{scopedLeads.filter(x=>!["won","lost","disqualified"].includes(x.status)).length}</strong><span>Active leads</span></div>
+      <div><strong>{scopedLeads.filter(x=>x.status==="won").length}</strong><span>Won</span></div>
+      <div><strong>{scopedLeads.filter(x=>x.status==="lost"||x.status==="disqualified").length}</strong><span>Closed / disqualified</span></div>
+    </div>
+
+    <div className="discovery-lead-section-head"><div><span className="section-kicker">E11 → E15</span><h3>Workspace matches awaiting human review</h3><small className="discovery-result-count">Showing {visibleMatches.length} of {scopedMatches.length} pending matches</small></div></div>
     {loading&&!matches.length?<div className="discovery-loading"><LoaderCircle size={15}/>Loading match review queue…</div>:
-      matches.length?<div className="discovery-match-list">{matches.map(match=><article className="discovery-match-card" key={match.id}>
+      visibleMatches.length?<div className="discovery-match-list">{visibleMatches.map(match=><article className="discovery-match-card" key={match.id}>
         <div className="discovery-match-top">
-          <div><strong>{match.candidate?.legal_name||"Canonical company record"}</strong><small>{label(match.workspace_key)} · {match.discovery_mode || "Mode not recorded"} · {match.candidate?.jurisdiction||"Jurisdiction not recorded"} · {match.candidate?.entity_type||"Entity type not recorded"}</small></div>
-          <div className="discovery-match-score"><b>{Number(match.score).toFixed(1)}%</b><small>{Math.round(Number(match.confidence)*100)}% confidence</small></div>
+          <div><strong>{match.candidate?.legal_name||"Canonical company record"}</strong><small>{label(match.workspace_key)} · {modeLabel(match.discovery_mode)} · {match.candidate?.jurisdiction||"Jurisdiction not recorded"} · {match.candidate?.entity_type||"Entity type not recorded"}</small><span className={"discovery-mode-pill mode-"+(match.discovery_mode||"unknown").toLowerCase()}>{modeLabel(match.discovery_mode)} workspace</span></div>
+          <div className="discovery-match-score"><b>{Number(match.score).toFixed(1)}%</b><small>{Math.round(Number(match.confidence)*100)}% confidence</small><div className="discovery-match-meter" role="img" aria-label={"Match score "+Number(match.score).toFixed(1)+" percent"}><span style={{width:`${Math.min(100,Math.max(0,Number(match.score)||0))}%`}}/></div></div>
         </div>
         <div className="discovery-match-factors">
           <span className={match.eligible?"is-eligible":"is-blocked"}>{match.eligible?"Eligible for review":"Required blocker present"}</span>
@@ -167,7 +198,7 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
             <button type="button" className="secondary-button" onClick={()=>reviewMatch(match,"rejected")} disabled={busy==="match-"+match.id}><XCircle size={14}/>Reject</button>
           </div>
         </div>}
-      </article>)}</div>:<div className="discovery-empty-inline"><ClipboardList size={15}/>No E11 matches are awaiting review. Pending matches will appear here when the matching engine records them.</div>}
+      </article>)}</div>:<div className="discovery-empty-inline"><ClipboardList size={15}/>{matches.length?"No pending matches match this workspace/search filter.":"No E11 matches are awaiting review. Pending matches will appear here when the matching engine records them."}</div>}
 
     <div className="discovery-lead-section-head discovery-lead-pipeline-head">
       <div><span className="section-kicker">COMPANY WORKSPACE</span><h3>Lead pipeline</h3></div>
@@ -182,8 +213,8 @@ export default function DiscoveryLeadWorkspace({companyId,companyRole}:{companyI
       const assignee=members.find(member=>member.user_id===lead.assigned_to);
       return <article className="discovery-lead-card" key={lead.id}>
         <div className="discovery-lead-card-head">
-          <div><strong>{lead.candidate?.legal_name||"Canonical company record"}</strong><small>{label(lead.workspace_key)} · {lead.match?.discovery_mode || "Mode not recorded"} · Match {lead.match?Number(lead.match.score).toFixed(1)+"%":"—"} · Updated {localDate(lead.updated_at)}</small></div>
-          <span className={"discovery-lead-stage stage-"+lead.status}>{label(lead.status)}</span>
+          <div><strong>{lead.candidate?.legal_name||"Canonical company record"}</strong><small>{label(lead.workspace_key)} · {modeLabel(lead.match?.discovery_mode)} · Match {lead.match?Number(lead.match.score).toFixed(1)+"%":"—"} · Updated {localDate(lead.updated_at)}</small><span className={"discovery-mode-pill mode-"+(lead.match?.discovery_mode||"unknown").toLowerCase()}>{modeLabel(lead.match?.discovery_mode)} workspace</span></div>
+          <span className={"discovery-lead-stage stage-"+lead.status+" priority-"+lead.priority}>{label(lead.status)}</span>
         </div>
         <div className="discovery-lead-controls">
           <label><span><UserRound size={12}/>Assigned member</span><select value={lead.assigned_to||""} disabled={!canManage||busy==="assign-"+lead.id} onChange={e=>assign(lead,e.target.value)}>
