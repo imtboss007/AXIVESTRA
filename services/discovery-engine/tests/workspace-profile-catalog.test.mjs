@@ -105,7 +105,7 @@ test("workspace E11 criteria can be passed directly to the deterministic scorer 
   const candidate = {
     geography: ["Karnataka"],
     type: "bank",
-    ticket: { min: 10000000, max: 30000000 }
+    ticket: { min: 10000000, max: 30000000, currencyCode: "INR" }
   };
   const evidence = [{
     evidence_id: "evidence-1",
