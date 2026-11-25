@@ -127,8 +127,8 @@ export default function DiscoveryJobQueue({
   }, [eligibleSources, sourceId]);
 
   const searchPublicDirectories = async () => {
-    if (!selectedProfile || !eligibleSources.length) {
-      setError("Choose an enabled workspace profile with at least one attached approved source.");
+    if (!selectedProfile) {
+      setError("Choose an enabled, policy-eligible workspace profile before searching.");
       return;
     }
     setBusy("search");
@@ -272,10 +272,10 @@ export default function DiscoveryJobQueue({
               <label>Sector<input value={searchFilters.sector} onChange={event => setSearchFilters({ ...searchFilters, sector: event.target.value })} placeholder="Banking / real estate" maxLength={100} disabled={!selectedProfile || busy === "search"}/></label>
               <label>Product / mandate<input value={searchFilters.product} onChange={event => setSearchFilters({ ...searchFilters, product: event.target.value })} placeholder="LAP / project finance" maxLength={100} disabled={!selectedProfile || busy === "search"}/></label>
             </div>
-            <button type="button" className="secondary-button" onClick={() => void searchPublicDirectories()} disabled={!selectedProfile || !eligibleSources.length || busy === "search"}>
+            <button type="button" className="secondary-button" onClick={() => void searchPublicDirectories()} disabled={!selectedProfile || busy === "search"}>
               {busy === "search" ? <LoaderCircle size={15}/> : <RefreshCw size={15}/>} Search public directories
             </button>
-            <small>Uses the separately configured self-hosted search service. No provider is activated by this screen. Results remain unverified and are never fetched automatically.</small>
+            <small>Uses the separately configured self-hosted search service. You can discover new domains before attaching a target source; those links stay unverified and cannot be fetched until their exact source is registered, approved and attached. No provider is activated by this screen.</small>
             {searchQueries.length > 0 && <div className="discovery-search-queries"><b>Queries used</b>{searchQueries.map(query => <span key={query}>{query}</span>)}</div>}
             {searchResults.length > 0 && <div className="discovery-search-results">
               {searchResults.map(result => <article className="discovery-search-result" key={result.url}>
