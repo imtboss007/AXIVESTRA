@@ -68,7 +68,7 @@ begin
           when 'agent' then 'agent'
           when 'tenant' then 'tenant'
           when 'buyertenant' then 'tenant'
-          when 'reviewer' then 'reviewer'
+          when 'reviewer' then 'other'
           else 'other'
         end,
         'module_contact_field'::text,kv.key
@@ -109,7 +109,7 @@ begin
   into v_candidate_count,v_preview
   from ranked;
 
-  if p_apply then
+  if coalesce(p_apply,false) then
     with raw_links as (
       select
         d.company_id,d.record_key as deal_record_key,
@@ -151,7 +151,7 @@ begin
             when 'agent' then 'agent'
             when 'tenant' then 'tenant'
             when 'buyertenant' then 'tenant'
-            when 'reviewer' then 'reviewer'
+            when 'reviewer' then 'other'
             else 'other'
           end,
           'module_contact_field'::text,kv.key
@@ -192,7 +192,7 @@ begin
 
   return jsonb_build_object(
     'company_id',p_company_id,
-    'dry_run',not p_apply,
+    'dry_run',not coalesce(p_apply,false),
     'candidate_count',v_candidate_count,
     'inserted_count',v_inserted_count,
     'existing_or_skipped_count',greatest(v_candidate_count-v_inserted_count,0),
