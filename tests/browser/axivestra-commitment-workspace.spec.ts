@@ -35,6 +35,9 @@ async function openCompanyWorkspace(page: Page) {
   await expect(companyChoice).toBeVisible();
   await companyChoice.click();
 
+  // E18 is mounted in the Intelligence Hub workspace, not the default Overview.
+  await page.locator(".nav-list")
+    .getByRole("button", { name: /^Intelligence Hub/ }).click();
   await expect(page.getByRole("region", {
     name: "Commitments and operational actions"
   })).toBeVisible();
