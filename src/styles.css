@@ -6770,3 +6770,207 @@ h2,h3{color:#e5f2fc}
 .discovery-coverage-state.is-configured{color:var(--muted,#737373)}
 .discovery-coverage-state.is-missing{color:#a16207;border-color:rgba(161,98,7,.25)}
 .discovery-coverage-state.is-restricted{color:#b91c1c;border-color:rgba(185,28,28,.25)}
+
+
+/* Public API catalogue: research candidates stay distinct from approved sources. */
+.discovery-public-api-panel {
+  margin: 14px 0;
+  border-color: #dfe8e0;
+}
+.discovery-public-api-panel details > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 13px 15px;
+}
+.discovery-public-api-panel details > summary::-webkit-details-marker {
+  display: none;
+}
+.discovery-public-api-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.discovery-public-api-summary > span {
+  display: grid;
+  gap: 3px;
+}
+.discovery-public-api-summary strong {
+  color: #2c4132;
+  font-size: 12px;
+}
+.discovery-public-api-summary small {
+  color: #7e8c80;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.discovery-public-api-content {
+  display: grid;
+  gap: 12px;
+  padding: 0 13px 14px;
+}
+.discovery-public-api-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid #e4ebe4;
+  border-radius: 10px;
+  background: #f7faf7;
+}
+.discovery-public-api-intro h3 {
+  margin: 3px 0 4px;
+  color: #2c4533;
+  font-size: 13px;
+}
+.discovery-public-api-intro p {
+  max-width: 670px;
+  margin: 0 0 7px;
+  color: #748478;
+  font-size: 10px;
+  line-height: 1.55;
+}
+.discovery-public-api-intro a,
+.discovery-public-api-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #4d795d;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.discovery-public-api-controls {
+  display: grid;
+  gap: 7px;
+  min-width: min(280px, 100%);
+}
+.discovery-public-api-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid #dfe8e0;
+  border-radius: 8px;
+  background: #fff;
+}
+.discovery-public-api-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #344538;
+  font-size: 11px;
+}
+.discovery-public-api-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #738276;
+  font-size: 10px;
+}
+.discovery-public-api-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.discovery-public-api-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e0e8e0;
+  border-radius: 10px;
+  background: #fff;
+}
+.discovery-public-api-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.discovery-public-api-card > strong {
+  color: #2c4132;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.discovery-public-api-card > p {
+  margin: 0;
+  color: #778579;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.discovery-public-api-state {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border: 1px solid #e6e9e6;
+  border-radius: 6px;
+  background: #f6f7f6;
+  color: #647067;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.discovery-public-api-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.discovery-public-api-meta span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: #69786d;
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+.discovery-public-api-meta b {
+  color: #9aa69c;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.discovery-public-api-card ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 15px;
+  color: #748176;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.discovery-public-api-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid #e6e9e3;
+  border-radius: 9px;
+  background: #f7f8f5;
+  color: #687469;
+  font-size: 9px;
+  line-height: 1.55;
+}
+.discovery-public-api-footer svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.discovery-public-api-attribution {
+  color: #8b988d;
+  font-size: 9px;
+}
+@media (max-width: 680px) {
+  .discovery-public-api-intro,
+  .discovery-public-api-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .discovery-public-api-controls {
+    min-width: 0;
+  }
+  .discovery-public-api-grid {
+    grid-template-columns: 1fr;
+  }
+}
