@@ -1,10 +1,10 @@
 import {useEffect,useRef} from "react";
 import {init,use,type EChartsType} from "echarts/core";
 import {AriaComponent,GridComponent,LegendComponent,TooltipComponent} from "echarts/components";
-import {BarChart,LineChart,PieChart} from "echarts/charts";
+import {BarChart,GraphChart,LineChart,PieChart} from "echarts/charts";
 import {CanvasRenderer} from "echarts/renderers";
 import type {EChartsOption} from "echarts";
-use([AriaComponent,BarChart,GridComponent,LegendComponent,LineChart,PieChart,TooltipComponent,CanvasRenderer]);
+use([AriaComponent,BarChart,GraphChart,GridComponent,LegendComponent,LineChart,PieChart,TooltipComponent,CanvasRenderer]);
 type Props={option:EChartsOption;ariaLabel:string;onSelect?:(name:string)=>void};type ClickPayload={name?:string};
 export default function PortfolioEChart({option,ariaLabel,onSelect}:Props){
  const host=useRef<HTMLDivElement>(null),instanceRef=useRef<EChartsType|null>(null),callbackRef=useRef(onSelect);callbackRef.current=onSelect;
