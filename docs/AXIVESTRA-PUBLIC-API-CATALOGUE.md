@@ -16,6 +16,7 @@ The repository is a directory of API listings, not a universal data licence, ser
 | Candidate | Intended workspace use | AXIVESTRA classification | Initial review state |
 |---|---|---|---|
 | Open Government Data — India (`data.gov.in`) | Official government datasets for relevant property, agriculture, business and economic context | Government catalogue/API platform; per-resource review required | Catalogue only |
+| MCA Company Master Data (`data.gov.in/catalog/company-master-data`) | Company legal-entity research for borrowers, developers, issuers and counterparties | Ministry of Corporate Affairs dataset; exact API resource ID/schema must be selected from the official page | Catalogue only |
 | API Setu | Explore government/participating-organisation APIs for approved identity/business workflows | Controlled gateway; onboarding, publisher and API-specific approval required | Approval required |
 | Indian Mandi Prices API | Agricultural commodity-price context | Third-party wrapper over public-data context; prefer the matching official dataset | Research only |
 | India LGD Index API | State/district/sub-district/block code normalisation | Third-party geography wrapper; verify against authoritative LGD source | Research only |
@@ -30,6 +31,7 @@ The list in `src/lib/public-api-catalog.mjs` is scoped to the existing 16 worksp
 ## Important source findings
 
 - **data.gov.in:** official portal documentation says registered users can generate API keys. Individual dataset pages identify the publisher, licence and resource details. Register and approve a specific dataset/resource, not the whole portal as an unrestricted crawler target. The portal's government-owned resources may use GODL-India, but the individual resource metadata and restrictions still need review.
+- **MCA Company Master Data:** the official catalogue identifies the Ministry of Corporate Affairs as publisher and describes company CIN, name/status, class/category, authorised/paid-up capital, registration date, state/ROC and principal business activity fields. The catalogue showed an update date of 13 October 2026 at the time of review. It supports entity research only; it does not establish current NBFC/HFC/bank licence status, active lending products, solvency, property title or borrower credit eligibility. Select the exact API resource ID and field schema from the official page; do not use a guessed resource ID.
 - **API Setu:** its official process is an approval-based gateway. A public directory row that says `Auth=No` does not override API Setu onboarding, organisation/use-case validation, subscription, publisher approval or API-specific credentials.
 - **Mandi prices:** a market-price series is contextual evidence. It is not land valuation, sale transaction evidence, title proof or proof of land classification. Prefer the corresponding government-published dataset when available.
 - **India LGD and PIN-code services:** these can help normalise geography. They do not establish parcel identity, title, possession, zoning, encumbrances or address authority.
@@ -67,6 +69,7 @@ No candidate is automatically approved or attached to a profile. No credentials,
 - [Public APIs repository](https://github.com/public-apis/public-apis)
 - [Public APIs contributing rules](https://github.com/public-apis/public-apis/blob/master/CONTRIBUTING.md)
 - [Open Government Data India](https://www.data.gov.in/)
+- [MCA Company Master Data catalogue](https://www.data.gov.in/catalog/company-master-data)
 - [India Government API Setu](https://www.apisetu.gov.in/)
 - [eCourtsIndia listed API](https://ecourtsindia.com/api)
 - [MFAPI](https://www.mfapi.in/)
