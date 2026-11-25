@@ -62,6 +62,7 @@ test("E22 review desk does not activate a model provider or mutate E11", async (
 test("E22 authenticated browser acceptance remains provider-off and fixture-gated", async () => {
   const browser = await read("tests/browser/axivestra-ai-matching-review.spec.ts");
   const workflow = await read(".github/workflows/discovery-governance-checks.yml");
+  const seedScript = await read("scripts/seed-axivestra-browser-qa.mjs");
   const component = await read("src/DiscoveryAiMatchingReviewWorkspace.tsx");
   assert.match(component, /data-testid="e22-review-workspace"/);
   assert.match(component, /data-suggestion-id=\{item\.id\}/);
@@ -70,6 +71,8 @@ test("E22 authenticated browser acceptance remains provider-off and fixture-gate
   assert.match(browser, /discovery-notice/);
   assert.match(browser, /Deliberately do not submit/);
   assert.match(workflow, /tests\/browser\/axivestra-ai-matching-review\.spec\.ts/);
-  assert.match(workflow, /AXIVESTRA_E2E_E22_SUGGESTION_ID/);
-  assert.match(workflow, /Validate authenticated browser acceptance test discovery/);
+  assert.match(seedScript, /AXIVESTRA_E2E_E22_SUGGESTION_ID/);
+  assert.match(workflow, /authenticated-browser-acceptance/);
+  assert.match(workflow, /seed-axivestra-browser-qa\.mjs/);
+  assert.match(workflow, /Run authenticated E18, E19, E21 and E22 browser acceptance/);
 });
