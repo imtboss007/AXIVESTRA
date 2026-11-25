@@ -51,3 +51,18 @@ The PostgreSQL integration test applies E15 after E14 and verifies:
 - E15 event history and E13 provenance remain append-only.
 
 Contract tests verify the migration, edge actions, RLS and UI permission boundaries. No migration has been applied to a production database and no worker or external action has been activated.
+
+## Visual refinement — 25 November 2026
+
+The E15 workspace now separates lender and customer operations at the review surface without creating a second data model:
+
+- All workspaces / Lender / Customer mode filters with selected-state and accessible pressed-state semantics.
+- One search field across company identity, jurisdiction, entity type, workspace, stage and priority.
+- Mode labels on pending matches and pipeline leads, with an explicit unclassified state where source mode is absent.
+- Match-score meter alongside the numeric score and confidence.
+- More legible review/pipeline hierarchy, priority emphasis, activity timeline treatment and responsive mobile filters.
+- Subtle list/card/feedback entrance motion and interactive focus/hover states; all new motion is disabled under prefers-reduced-motion.
+
+The UI remains workflow-only. These controls do not make a credit, lending, underwriting, investment or eligibility decision and do not initiate contact or outreach.
+
+Regression coverage was added to services/discovery-engine/tests/lead-workspace-contract.test.mjs for mode filtering, search, score cues, motion hooks and reduced-motion support. Automated build and discovery-governance verification are running on the feature branch; physical Android inspection remains a separate acceptance gate.
