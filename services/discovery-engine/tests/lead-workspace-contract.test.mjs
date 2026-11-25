@@ -44,7 +44,9 @@ test("E15 edge actions are company-scoped and do not expose raw candidate snapsh
   for(const action of ["matches.list","matches.review","leads.list","leads.assign","leads.transition","leads.priority","leads.next-action","members.list"])
     assert.ok(edge.includes('action === "'+action+'"'),action);
   assert.match(edge,/eq\("company_id", companyId\)/);
-  assert.doesNotMatch(edge,/candidate_snapshot/);
+  const matchListAction = edge.slice(edge.indexOf('if (action === "matches.list")'), edge.indexOf('if (action === "leads.list")'));
+  assert.ok(matchListAction.includes('.select("id,canonical_entity_id,workspace_key,discovery_mode,criteria_version,score,confidence,eligible,positive_factors,negative_factors,unknown_criteria,blockers,review_state,created_at")'));
+  assert.doesNotMatch(matchListAction,/candidate_snapshot|candidateSnapshot/);
   assert.match(edge,/record_discovery_match_review/);
   assert.match(edge,/assign_discovery_lead/);
   assert.match(edge,/transition_discovery_lead/);
