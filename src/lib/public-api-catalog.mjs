@@ -336,8 +336,7 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
 export function findPublicApiCandidates({ query = "", workspaceKey = "", mode = "" } = {}) {
   const term = String(query || "").trim().toLowerCase();
   const selectedMode = String(mode || "").toUpperCase();
-  // The catalogue UI mirrors E02/E03 workspace policy; do not surface external
-  // discovery candidates for modes that AXIVESTRA explicitly disables.
+  // Mirror discovery policy: never surface external candidates for disabled workspace/mode combinations.
   if ((workspaceKey === "personal_loan" && selectedMode === "CUSTOMER") ||
       (workspaceKey === "litigation" && selectedMode === "LENDER")) return [];
   return PUBLIC_API_CANDIDATES.filter(candidate => {
