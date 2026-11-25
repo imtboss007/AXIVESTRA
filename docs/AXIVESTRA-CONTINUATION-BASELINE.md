@@ -166,3 +166,61 @@ When the user says **“Continue AXIVESTRA”**:
 3. Resume at the first incomplete item in Section 6.
 4. Continue on the existing feature branch/repository; preserve all safeguards.
 5. Report exact files, commits, tests, PASS/FAIL/SKIPPED/BLOCKED results and remaining release blockers. Do not restart or ask for already documented requirements.
+
+
+---
+
+## 9. Continuation refresh — 25 November 2026, 10:30 IST
+
+**Recovery note:** The source chat is titled **“AXIVESTRA — Continue existing project”**. Its complete transcript/export was not available to this continuation. This checkpoint is based on this repository baseline, the 123-entry reconciliation, saved project context and live GitHub inspection; conversation-history recovery remains PARTIAL.
+
+### Live branch and PR refresh
+
+- PR **#88** remains open and draft. Its active head is `feat/discovery-e11-explainable-matching`; its base is `feat/discovery-e10-enrichment`. No merge to `main`.
+- The active staged chain remains #74 → #75 → #76 → #77 → #78 → #80 → #81 → #83 → #84 → #85 → #86 → #88. These PRs are open/draft.
+- Alternatives #79, #82 and #87 remain non-active alternatives; do not combine them with the selected chain.
+- #90 is closed and merged only into the feature branch; #89, #91 and #92 are closed as superseded after reconciliation. Do not reopen or re-merge them.
+- The default `main` branch remains separate. No deployment, production migration, release or provider activation was performed.
+
+### Windows CI regression repair
+
+At head `a388fa82b0f0e2a819e48b40e92cf5a8a7f447a7`, Discovery Governance, WhatsApp Hub and Cloud Worker passed, Android APK passed, but the Windows job failed in `services/discovery-engine/tests/orchestration-contract.test.mjs`. The E20 contract assertion expected LF-only text while Windows checkout supplied CRLF.
+
+- **Fix commit:** `8596b523687c06e77a1844cf832e1d42d4a6c16b`
+- **Changed file:** `services/discovery-engine/tests/orchestration-contract.test.mjs`
+- **Change:** the shared test-fixture reader normalises CRLF to LF before text-contract assertions. No application runtime, migration or production configuration changed.
+- CI on this fix commit at checkpoint time:
+  - Cloud Worker run **45550436599** — PASS.
+  - WhatsApp Hub run **45550436597** — PASS.
+  - Discovery Governance runs **45550436592** and **45550432322** — IN PROGRESS.
+  - Windows/Android run **45550432327** — IN PROGRESS.
+- The earlier Windows failure is not considered repaired/verified until the fresh Windows regression job completes successfully. Android's fresh build is also pending on the current head.
+
+### First unfinished release gate — QA environment and fixtures
+
+This remains the first incomplete item in Section 6. Authenticated browser acceptance cannot be called complete merely because test discovery or CI steps pass. A dedicated **non-production** Supabase QA company/account and eligible fixtures are required.
+
+Configure values as private repository secrets/variables; never paste credentials into chat or commit them:
+
+- Build/auth configuration: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `AXIVESTRA_E2E_EMAIL`, `AXIVESTRA_E2E_PASSWORD`, `AXIVESTRA_E2E_COMPANY_NAME`.
+- E18 fixtures: `AXIVESTRA_E2E_DEAL_TITLE`, `AXIVESTRA_E2E_PARTY_NAME`, optional `AXIVESTRA_E2E_RELATIONSHIP_LABEL`, and optional dedicated `AXIVESTRA_E2E_LEGACY_TASK_TITLE`.
+- E19 fixture: `AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID`.
+- E21 fixture: `AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID`.
+- E22 fixture: `AXIVESTRA_E2E_E22_SUGGESTION_ID`.
+
+The QA user must have owner/admin access for the relevant write/review flows. The QA company must contain a matching active deal, party and explicit E16 relationship; an eligible E19 verification subject; an eligible E21 provenance event; and a pending E22 suggestion. Use only disposable/dedicated QA records. E18 acceptance creates/edits/cancels QA commitments and can link a one-time legacy task; E21 acceptance intentionally retains its approved QA pack and export history; E22 acceptance deliberately does not submit a review.
+
+### Ordered task ledger
+
+| ID | Task | Status | Evidence / next action |
+|---|---|---|---|
+| R1 | Provision non-production QA company/account and fixtures; configure private CI secrets/variables | **Blocked** | Requires authorized QA Supabase environment and owner/admin test account. Do not use production credentials or ask for secrets in chat. |
+| R2 | Authenticated E18/E19/E21/E22 browser acceptance | **Pending / blocked by R1** | Run the existing authenticated Playwright suites after R1; report pass/skip separately and inspect evidence artifacts. |
+| R3 | E16.1 legacy relationship backfill acceptance | **Pending / approval-gated** | Deploy only to a separately approved non-production environment, inspect dry-run candidates, then require explicit owner/admin apply approval. Never execute against production here. |
+| R4 | Paired Android/Windows device-sync and deletion-protection acceptance | **Pending** | Requires test devices and non-production test accounts; existing logic tests do not replace paired-device acceptance. |
+| R5 | Fresh integrated-head Windows installer and Android APK builds | **In progress** | Await run #45550432327; previous Windows failure was addressed by the CRLF-normalisation test fix. |
+| R6 | Independent security, privacy/retention, licence/provenance, tenant-isolation and accessibility review | **Pending** | Complete before any release approval. |
+
+**Next action:** R1 — provision the dedicated non-production QA company/account and fixtures, then configure the listed private CI settings. Continue the independent Windows/Android and Discovery CI checks without merging or deploying.
+
+**Scope reminder:** Do not create another repository; do not merge to `main`; do not run production migrations/backfill; do not deploy, publish, activate paid services, dispatch workers, call live providers or send official WhatsApp messages without explicit approval.
