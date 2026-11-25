@@ -108,13 +108,13 @@ Other older application/website PRs (#70–#73, #67–#68, #57–#61, etc.) are 
 
 ## 5. Latest integrated-head CI — 25 November 2026
 
-Integrated #88 head at this run: `83b73483f07a0ee9164fa271ae32dc52f52ca7a5`.
+Code-bearing integrated #88 head: `83b73483f07a0ee9164fa271ae32dc52f52ca7a5`. The subsequent CI/workflow-only branch commit is `523f085cd896d33acb97add31fb4b4d6817ea60f`.
 
 | Workflow | Run | Result |
 |---|---:|---|
-| Discovery Governance | 45549103925 | **PASS** |
-| WhatsApp Hub | 45549103991 | **PASS** |
-| Cloud Worker | 45549103870 | **PASS** |
+| Discovery Governance | 45549606659 | **PASS** |
+| WhatsApp Hub | 45549606740 | **PASS** |
+| Cloud Worker | 45549606683 | **PASS** |
 
 Verified Discovery Governance steps:
 - Discovery policy/contract tests — passed, including E16.1 backfill and E17 tooltip safety contracts.
@@ -143,7 +143,7 @@ These checks validate the integrated feature branch, not the production release 
 2. **Browser acceptance:** run authenticated E18/E19/E21/E22 browser acceptance, including owner/admin review, viewer denial, tenant isolation, immutable history, evidence pack lifecycle and metadata-only export. Do not describe fixture-gated tests as passed.
 3. **E16 reconciliation:** after a separately approved deployment of E16.1, run a dry-run preview on a non-production company, review the candidate count/sample, then apply only with explicit owner/admin approval. Inspect the resulting E17 graph and verify links with existing document metadata.
 4. **Device acceptance:** logic tests for bidirectional PC/Android sync and deletion protection pass. Actual paired Android/Windows device acceptance remains unverified; perform it on test devices before release.
-5. **Platform builds:** the integrated web app build passes. Windows installer and Android APK builds passed on the earlier Theme Studio branch, but have not been freshly verified on the complete #88 integrated head. Run those builds through the existing workflow before release.
+5. **Platform builds:** the integrated web app build passes. The existing Windows/Android workflow now includes `feat/discovery-e11-explainable-matching` in its push filter, but no fresh Windows installer/Android APK run was surfaced in the current CI results. The earlier Theme Studio branch passed both builds; obtain a fresh integrated-head artifact build before release.
 6. **Independent review:** complete security, privacy/retention, licence/provenance, tenant isolation and accessibility review.
 7. Keep #88 and the staged discovery PR chain open/draft until authenticated acceptance and independent release review are complete. Do not merge to `main` or deploy without explicit approval.
 
