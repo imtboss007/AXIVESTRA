@@ -1343,6 +1343,59 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
         [companyId]
       );
       assert.equal(expiredGraph.rows[0].graph.counts.relationship_count,0);
+
+      // E16.1: legacy contact-ID reconciliation is previewed first, owner/admin-only,
+      // then explicitly applied in this disposable PostgreSQL integration database.
+      await partyClient.query(
+        "insert into public.company_records(company_id,record_type,record_key,payload,created_by,updated_by) values($1,'property','legacy-property-e16',$2::jsonb,$3,$3),($1,'contact','legacy-contact-e16',$4::jsonb,$3,$3)",
+        [companyId,'{"moduleData":{"__contact_buyer":"legacy-contact-e16"}}',actorId,'{"name":"E16.1 Legacy Buyer"}']
+      );
+      const backfillPreview=await partyClient.query(
+        "select public.backfill_company_deal_parties_from_legacy_links($1,false,100) as result",
+        [companyId]
+      );
+      const previewResult=backfillPreview.rows[0].result;
+      assert.equal(previewResult.dry_run,true);
+      assert.equal(previewResult.candidate_count,1);
+      assert.equal(previewResult.inserted_count,0);
+      assert.equal(previewResult.preview[0].deal_record_key,"legacy-property-e16");
+      assert.equal(previewResult.preview[0].party_record_key,"legacy-contact-e16");
+      const beforeBackfill=await partyClient.query(
+        "select count(*)::int as count from public.company_deal_parties where company_id=$1 and deal_record_key='legacy-property-e16'",
+        [companyId]
+      );
+      assert.equal(beforeBackfill.rows[0].count,0,"E16.1 dry run must not write a relationship");
+
+      const backfillApplied=await partyClient.query(
+        "select public.backfill_company_deal_parties_from_legacy_links($1,true,100) as result",
+        [companyId]
+      );
+      const appliedResult=backfillApplied.rows[0].result;
+      assert.equal(appliedResult.dry_run,false);
+      assert.equal(appliedResult.candidate_count,1);
+      assert.equal(appliedResult.inserted_count,1);
+      const legacyLink=await partyClient.query(
+        "select role_code,verification_state,metadata from public.company_deal_parties where company_id=$1 and deal_record_key='legacy-property-e16' and party_record_key='legacy-contact-e16'",
+        [companyId]
+      );
+      assert.equal(legacyLink.rows.length,1);
+      assert.equal(legacyLink.rows[0].role_code,"buyer");
+      assert.equal(legacyLink.rows[0].verification_state,"unverified");
+      assert.equal(legacyLink.rows[0].metadata.legacy_backfill,true);
+
+      const repeatBackfill=await partyClient.query(
+        "select public.backfill_company_deal_parties_from_legacy_links($1,true,100) as result",
+        [companyId]
+      );
+      assert.equal(repeatBackfill.rows[0].result.inserted_count,0,"E16.1 apply must be idempotent");
+      assert.equal(repeatBackfill.rows[0].result.existing_or_skipped_count,1);
+      await partyClient.query("select set_config('request.jwt.claim.sub',$1,false)",[viewerId]);
+      await assert.rejects(
+        partyClient.query("select public.backfill_company_deal_parties_from_legacy_links($1,false,100)",[companyId]),
+        /Only a signed-in company owner or admin/
+      );
+      await partyClient.query("select set_config('request.jwt.claim.sub',$1,false)",[actorId]);
+
       // E18: structured commitments link to the canonical deal-party edge and retain a full event history.
       const commitment=await partyClient.query(
         "insert into public.company_action_commitments(company_id,record_key,commitment_type,title,status,priority,due_at,responsible_user_id,deal_record_key,party_record_key,relationship_id) values($1,'e18-record-1','promise','Review verified counterparty documents','open','high',now()-interval '2 days',$2,'deal-e16','party-e16',$3) returning *",
