@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const root = new URL("../../../", import.meta.url);
-const read = path => readFile(new URL(path, root), "utf8");
+const read = async path => (await readFile(new URL(path, root), "utf8")).replace(/\r\n/g, "\n");
 
 test("E20 creates dependency-aware, company-scoped orchestration plans without dispatching agents", async () => {
   const [migration, preflightMigration, executionMigration, contextMigration, workerMigration, adapterMigration, retryMigration, consoleMigration, edge, workerEdge, config, workspace, manager, integration, leaseClient, leaseClientTest] = await Promise.all([
