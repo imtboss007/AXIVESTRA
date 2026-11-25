@@ -42,6 +42,8 @@ on:
       - "src/App.tsx"
       - "src/CompanyCommitmentWorkspace.tsx"
       - "src/DiscoverySourceManager.tsx"
+      - "src/DiscoveryPublicApiCatalogue.tsx"
+      - "src/lib/public-api-catalog.mjs"
       - "src/DiscoveryAiMatchingReviewWorkspace.tsx"
       - "src/DiscoveryVerificationWorkspace.tsx"
       - "src/DiscoveryOrchestrationWorkspace.tsx"
