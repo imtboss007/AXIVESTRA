@@ -5,7 +5,7 @@ function define(category, valueTypes, keys) {
 }
 
 define("business",["string","date","boolean","identifier","array"],[
-  "company_status","status","legal_status","operating_status","registration_status","source_as_of_date","institution_name","industry","industry_sector",
+  "company_status","status","legal_status","operating_status","registration_status","source_as_of_date","institution_name","legal_name","industry","industry_sector",
   "business_description","business_model","founded_date","incorporation_date","registration_date",
   "products","services","website","business_type","entity_type","sector","business_sector",
   "institution_type","lender_category","borrower_type","counterparty_type","investor_type",
