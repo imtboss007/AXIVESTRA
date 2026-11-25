@@ -27,6 +27,19 @@ test("E03 search preview is disabled unless the server-side SearXNG feature flag
   assert.match(auditMigration, /Raw search terms, snippets and result contents/);
 });
 
+test("E03 can discover candidate domains before any target source is attached, but keeps every result unfetchable", () => {
+  const actionStart = handler.indexOf('if (action === "search.preview")');
+  const actionEnd = handler.indexOf('if (action === "workers.status")', actionStart);
+  const action = handler.slice(actionStart, actionEnd);
+  assert.match(action, /sourceIds\.length[\s\S]*?data: \[\]/);
+  assert.doesNotMatch(action, /if \(!sourceIds\.length\) return jsonResponse/);
+  assert.doesNotMatch(action, /if \(!eligibleSources\.length\) return jsonResponse/);
+  assert.match(action, /fetchEligible: Boolean\(approvedSource\)/);
+  assert.match(queueUi, /if \(!selectedProfile\)/);
+  assert.doesNotMatch(queueUi, /if \(!selectedProfile \|\| !eligibleSources\.length\)/);
+  assert.match(queueUi, /exact source is registered, approved and attached/);
+});
+
 test("E03 returns unverified search candidates and never queues or fetches them automatically", () => {
   const actionStart = handler.indexOf('if (action === "search.preview")');
   const actionEnd = handler.indexOf('if (action === "workers.status")', actionStart);
