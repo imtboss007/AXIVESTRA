@@ -72,7 +72,7 @@ test("workspace filtering returns only relevant candidate APIs and does not mix 
   );
   assert.deepEqual(
     findPublicApiCandidates({ workspaceKey: "fund_portfolio_management", mode: "CUSTOMER" }).map(x => x.id),
-    ["ogd-india", "indian-mutual-fund"]
+    ["ogd-india", "api-setu", "india-pincode", "indian-mutual-fund"]
   );
 });
 
