@@ -13,7 +13,7 @@ function readSingleParameter(url, name) {
 
 function readBoundedInteger(value, fallback, minimum, maximum, label) {
   if (value === null || value === "") return fallback;
-  if (!/^\\d+$/.test(String(value))) throw new Error(label + " must be a whole number.");
+  if (!/^\d+$/.test(String(value))) throw new Error(label + " must be a whole number.");
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < minimum || number > maximum) {
     throw new Error(label + " is outside the approved request bounds.");
@@ -53,7 +53,7 @@ export function prepareProviderRequestUrl(urlValue, { source, env = process.env 
     throw new Error("data.gov.in access requires an approved official_api source registered for the exact API host.");
   }
 
-  const match = url.pathname.match(/^\\/resource\\/([^/]+)$/);
+  const match = url.pathname.match(/^\/resource\/([^/]+)$/);
   if (!match || !DATA_GOV_RESOURCE_ID.test(match[1])) {
     throw new Error("data.gov.in requests must target one exact registered resource ID.");
   }
@@ -83,7 +83,7 @@ export function prepareProviderRequestUrl(urlValue, { source, env = process.env 
   const apiKey = typeof env?.[DATA_GOV_IN_API_KEY_ENV] === "string"
     ? env[DATA_GOV_IN_API_KEY_ENV].trim()
     : "";
-  if (!apiKey || apiKey.length > 512 || /\\s/.test(apiKey)) {
+  if (!apiKey || apiKey.length > 512 || /\s/.test(apiKey)) {
     throw new Error("The fetch worker is missing a valid server-side DATA_GOV_IN_API_KEY secret.");
   }
 
