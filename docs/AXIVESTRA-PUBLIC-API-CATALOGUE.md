@@ -21,6 +21,7 @@ The repository is a directory of API listings, not a universal data licence, ser
 | Indian Mandi Prices API | Agricultural commodity-price context | Third-party wrapper over public-data context; prefer the matching official dataset | Research only |
 | India LGD Index API | State/district/sub-district/block code normalisation | Third-party geography wrapper; verify against authoritative LGD source | Research only |
 | Indian Pincode API | Broad postal-location normalisation | Third-party geography service; not address or ownership proof | Research only |
+| SearchPinCode | PIN-code, post-office and district reference | Third-party geography service; not India Post or address proof | Research only |
 | eCourtsIndia API | User-supplied matter or permitted public case-reference research | Third-party court-data API; never use as cold-marketing signal | Legal review required |
 | Indian Mutual Fund API (MFAPI) | Historical scheme/NAV context for fund workflows | Third-party financial-data API; not investor/LP discovery | Research only |
 | Razorpay IFSC API | Bank/branch reference data | Third-party reference API; not lender product or licence verification | Research only |
@@ -39,6 +40,16 @@ The list in `src/lib/public-api-catalog.mjs` is scoped to the existing 16 worksp
 - **MFAPI and Razorpay IFSC:** these are reference-data candidates only. Do not use NAV or IFSC results to imply investor eligibility, suitability, lender licence, loan products or lending authority.
 - **GSTINAPI:** this is a private provider, not GSTN/Government of India. Check contract, current service terms, access method, lawful purpose, security, retention and current pricing/free-tier limits.
 
+## Additional global candidates from the same directory
+
+| Candidate | Intended AXIVESTRA use | Initial review state |
+|---|---|---|
+| SEC EDGAR Data | US public issuer submissions and XBRL facts for Equity, Startup, Investor Relations and selected company-review workflows | Approval required |
+| OpenCorporates | Cross-jurisdiction company identity research where the underlying register supports it | Legal/provider review required |
+| OpenSanctions | Sanctions and PEP screening inside Compliance & KYC only | Legal/provider review required |
+
+These are not interchangeable sources. SEC EDGAR covers SEC-reporting issuers and imposes a descriptive User-Agent and fair-access limits. OpenCorporates has separate terms by use case; proprietary commercial use needs an appropriate paid licence. OpenSanctions' public directory row says no authentication, but production hosted API access and commercial use must be verified against its current API and licensing terms. A screening candidate must be reviewed by a human; it is not a confirmed sanctions hit.
+
 ## Required adapter acceptance before use
 
 Every selected API resource must be individually reviewed and registered through the existing company-scoped E02 source registry. At minimum record:
@@ -53,6 +64,21 @@ Every selected API resource must be individually reviewed and registered through
 
 No candidate is automatically approved or attached to a profile. No credentials, API requests, workers, outbound communication, production database migrations or deployment are enabled by this catalogue.
 
+
+### Implemented request bridge: data.gov.in (E04, inactive until configured)
+
+The existing governed E04 worker now has a narrowly scoped data.gov.in request adapter:
+
+- It accepts only an approved `official_api` source whose registered host is exactly `api.data.gov.in`.
+- The candidate URL must contain one explicit `/resource/{resource_id}` path. The exact resource path must already be registered in E02's allow-list; no resource ID is guessed or enumerated.
+- The caller cannot supply an API key. The worker reads `DATA_GOV_IN_API_KEY` from its server process environment and attaches it only at the outbound request boundary.
+- It accepts JSON only and limits paging to `format`, `limit` (default 1,000; maximum 10,000) and `offset` (0–1,000,000). Arbitrary filters and query parameters are deliberately not enabled in this first adapter.
+- Existing URL redaction masks query values in fetch events and evidence metadata. The unredacted URL is not used as a candidate payload, source record or cache key.
+- The normal E04 HTTPS, DNS, robots, source-path, request quota, request-count, 5 MB evidence-size, retention and company-grant controls still apply.
+
+**Operator prerequisites:** after an owner/admin has selected an exact data.gov.in dataset resource and reviewed its publisher, licence, field list, permitted use and retention, register the exact `https://api.data.gov.in/resource/{resource_id}` URL and path as a pending source, then approve it through E02. Configure `DATA_GOV_IN_API_KEY` only in the private discovery-worker environment. Do not place it in Vite variables, the browser, a GitHub file, a source URL, a chat message or a Supabase row. No key has been supplied or configured in this change.
+
+This code adds a gated provider path; it does **not** activate E04, register/approve a resource, call data.gov.in, or import any government dataset. The existing worker remains disabled unless the existing worker and company grants are separately enabled by an owner/admin.
 ## Fit with existing AXIVESTRA architecture
 
 - **E01:** plan bounded workspace-specific discovery requests.
@@ -72,4 +98,8 @@ No candidate is automatically approved or attached to a profile. No credentials,
 - [MCA Company Master Data catalogue](https://www.data.gov.in/catalog/company-master-data)
 - [India Government API Setu](https://www.apisetu.gov.in/)
 - [eCourtsIndia listed API](https://ecourtsindia.com/api)
+- [SearchPinCode](https://searchpincode.in/api)
+- [SEC EDGAR Data](https://www.sec.gov/edgar/sec-api-documentation)
+- [OpenCorporates API reference](https://api.opencorporates.com/documentation/API-Reference)
+- [OpenSanctions API](https://www.opensanctions.org/docs/api/)
 - [MFAPI](https://www.mfapi.in/)
