@@ -15,6 +15,7 @@ on:
       - feat/discovery-e09-geo-resolution
       - feat/discovery-e10-enrichment
       - feat/discovery-e11-explainable-matching
+      - integration/axivestra-api-relationship-e11-review
   pull_request:
     branches:
       - main
