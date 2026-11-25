@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import {
-  buildContactCandidate, keyFromBase64
+  buildContactCandidate, decryptContactValue, keyFromBase64, verifyContactFingerprint
 } from "./contact-validation.mjs";
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
