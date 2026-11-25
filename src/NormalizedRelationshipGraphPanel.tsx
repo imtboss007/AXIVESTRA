@@ -122,7 +122,7 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
           name:edge.id,
           source:edge.source,
           target:edge.target,
-          value:label(edge.role),
+          value:1,
           role:edge.role,
           verification_state:edge.verification_state,
           lineStyle:{
@@ -139,7 +139,7 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
         edgeSymbol:["none","arrow"],
         edgeSymbolSize:[0,7],
         lineStyle:{opacity:0.72,curveness:0.16},
-        edgeLabel:{show:true,formatter:"{c}",color:"#738278",fontSize:9},
+        edgeLabel:{show:false},
         emphasis:{focus:"adjacency",scale:1.08,lineStyle:{width:2.8,opacity:1},label:{show:true}}
       }]
     };
@@ -206,7 +206,7 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
       <label>Responsibility<select value={responsibility} onChange={e=>setResponsibility(e.target.value)}>{RESPONSIBILITIES.map(item=><option key={item} value={item}>{label(item)}</option>)}</select></label>
       <button type="submit" className="primary-button" disabled={busy==="create"||!dealKey||!partyKey}>{busy==="create"?<LoaderCircle size={14}/>:<Link2 size={14}/>}Add relationship</button>
     </form>}
-    {graph?.edges.length>0&&<div className="ax-normalized-relationship-visual" aria-label="Interactive relationship network">
+    {graph && graph.edges.length > 0 && <div className="ax-normalized-relationship-visual" aria-label="Interactive relationship network">
       <div className="ax-normalized-relationship-visual-head">
         <div><strong>Relationship network</strong><small>Drag nodes to arrange · scroll or pinch to zoom · select a node to focus its relationships</small></div>
         <label>Focus node<select aria-label="Focus relationship node" value={selectedNodeId} onChange={event=>setSelectedNodeId(event.target.value)}>
