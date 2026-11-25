@@ -18,7 +18,7 @@ test("the India API candidate catalogue is non-empty, HTTPS-only and has indepen
   assert.ok(PUBLIC_API_CANDIDATES.length >= 8);
   assert.equal(new Set(PUBLIC_API_CANDIDATES.map(item => item.id)).size, PUBLIC_API_CANDIDATES.length);
   for (const item of PUBLIC_API_CANDIDATES) {
-    assert.match(item.apiUrl, /^https:\/\//, item.id);
+    assert.match(item.providerUrl, /^https:\/\//, item.id);
     assert.match(item.docsUrl, /^https:\/\//, item.id);
     assert.ok(item.modeFit.length, item.id);
     assert.ok(item.workspaceFit.length, item.id);
