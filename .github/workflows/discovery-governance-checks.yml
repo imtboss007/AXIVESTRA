@@ -197,7 +197,13 @@ jobs:
 
       - name: Serve the real discovery-control Edge Function locally
         run: |
-          supabase functions serve discovery-control > "$RUNNER_TEMP/axivestra-discovery-control.log" 2>&1 &
+          set -a
+          . "$RUNNER_TEMP/axivestra-supabase.env"
+          set +a
+          printf 'SUPABASE_URL=%s\\nSUPABASE_ANON_KEY=%s\\nSUPABASE_SERVICE_ROLE_KEY=%s\\n' \
+            "$API_URL" "$ANON_KEY" "$SERVICE_ROLE_KEY" > "$RUNNER_TEMP/axivestra-functions.env"
+          supabase functions serve discovery-control --env-file "$RUNNER_TEMP/axivestra-functions.env" \
+            > "$RUNNER_TEMP/axivestra-discovery-control.log" 2>&1 &
           for attempt in $(seq 1 45); do
             status="$(curl -sS -o /dev/null -w '%{http_code}' \
               -X POST \
