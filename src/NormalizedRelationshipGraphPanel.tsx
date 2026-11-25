@@ -24,6 +24,16 @@ const ROLES=["owner","co_owner","buyer","seller","borrower","lender","guarantor"
 const RESPONSIBILITIES=["participant","decision_maker","authorized_signatory","beneficial_owner","representative","originator","reviewer","other"];
 const VERIFICATION=["unverified","claimed","evidence_supported","verified","disputed","rejected"];
 const label=(value:string)=>String(value||"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+const escapeTooltipText=(value:string)=>value.replace(/[&<>"']/g,character=>{
+  switch(character){
+    case "&":return "&amp;";
+    case "<":return "&lt;";
+    case ">":return "&gt;";
+    case "\"":return "&quot;";
+    case "'":return "&#39;";
+    default:return character;
+  }
+});
 const EDGE_COLORS:Record<string,string>={verified:"#2f8b69",evidence_supported:"#4e8da4",claimed:"#b58a50",unverified:"#96a394",disputed:"#c65e58",rejected:"#b94747"};
 
 export default function NormalizedRelationshipGraphPanel({companyId,companyRole,contacts,properties}:Props) {
@@ -91,10 +101,10 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
           if("source" in data&&"target" in data){
             const source=nodeLabels.get(String(data.source))||String(data.source);
             const target=nodeLabels.get(String(data.target))||String(data.target);
-            return source+" → "+target+"<br/>"+label(String(data.role||data.value||"Relationship"))+"<br/>"+label(String(data.verification_state||"unverified"));
+            return escapeTooltipText(source)+" → "+escapeTooltipText(target)+"<br/>"+escapeTooltipText(label(String(data.role||data.value||"Relationship")))+"<br/>"+escapeTooltipText(label(String(data.verification_state||"unverified")));
           }
           const name=String(data.label||nodeLabels.get(String(data.id||item?.name))||item?.name||"");
-          return name+"<br/>"+(data.kind==="deal"?"Deal / workspace":"Person / contact");
+          return escapeTooltipText(name)+"<br/>"+(data.kind==="deal"?"Deal / workspace":"Person / contact");
         }
       },
       legend:{
