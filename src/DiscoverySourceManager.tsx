@@ -352,7 +352,11 @@ export default function DiscoverySourceManager({
         enabled,
         criteria
       });
-      setNotice(enabled ? (attachedApprovedCount(profile) ? "Profile enabled. E04 fetching still requires an active one-hour company grant and the separate worker process." : "Search-only profile enabled. E03 search requires the configured SearXNG service; E04 stays blocked until an exact target source is approved and attached.") : "Profile disabled.");
+      setNotice(enabled
+        ? (sourcesForProfile(profile).some(source => source.status === "approved")
+          ? "Profile enabled. E04 fetching still requires an active one-hour company grant and the separate worker process."
+          : "Search-only profile enabled. E03 search requires the configured SearXNG service; E04 stays blocked until an exact target source is approved and attached.")
+        : "Profile disabled.");
       await refresh();
     } catch (reason) {
       setError(errorText(reason));
