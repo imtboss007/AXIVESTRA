@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CheckCircle2, CircleAlert, LoaderCircle, Network, RefreshCw, ShieldCheck, Link2 } from "lucide-react";
 import { supabase } from "./lib/supabase";
+import type { EChartsOption } from "echarts";
+
+const PortfolioEChart = lazy(() => import("./components/PortfolioEChart"));
 
 type Contact = { id:string; name:string; role?:string };
 type Deal = { id:string; title:string; module:string };
@@ -21,6 +24,7 @@ const ROLES=["owner","co_owner","buyer","seller","borrower","lender","guarantor"
 const RESPONSIBILITIES=["participant","decision_maker","authorized_signatory","beneficial_owner","representative","originator","reviewer","other"];
 const VERIFICATION=["unverified","claimed","evidence_supported","verified","disputed","rejected"];
 const label=(value:string)=>String(value||"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+const EDGE_COLORS:Record<string,string>={verified:"#2f8b69",evidence_supported:"#4e8da4",claimed:"#b58a50",unverified:"#96a394",disputed:"#c65e58",rejected:"#b94747"};
 
 export default function NormalizedRelationshipGraphPanel({companyId,companyRole,contacts,properties}:Props) {
   const canEdit=["owner","admin","manager","staff"].includes(companyRole||"");
@@ -35,6 +39,7 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
   const [role,setRole]=useState("buyer");
   const [responsibility,setResponsibility]=useState("participant");
   const [edits,setEdits]=useState<Record<string,{state:string;evidence:string;endDate:string}>>({});
+  const [selectedNodeId,setSelectedNodeId]=useState("");
 
   const load=useCallback(async()=>{
     if(!companyId||!supabase){setGraph(null);return;}
@@ -58,6 +63,86 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
   useEffect(()=>{void load();},[load]);
 
   const nodeLabels=useMemo(()=>new Map((graph?.nodes||[]).map(node=>[node.id,node.label])),[graph]);
+  const selectedNode=graph?.nodes.find(node=>node.id===selectedNodeId);
+  const visibleEdges=useMemo(()=>!graph?[]:selectedNodeId
+    ? graph.edges.filter(edge=>edge.source===selectedNodeId||edge.target===selectedNodeId)
+    : graph.edges,[graph,selectedNodeId]);
+  const selectGraphNode=useCallback((nodeId:string)=>{
+    if(graph?.nodes.some(node=>node.id===nodeId))setSelectedNodeId(nodeId);
+  },[graph]);
+  const graphOption=useMemo<EChartsOption>(()=>{
+    if(!graph)return {};
+    const degree=new Map<string,number>();
+    graph.edges.forEach(edge=>{
+      degree.set(edge.source,(degree.get(edge.source)||0)+1);
+      degree.set(edge.target,(degree.get(edge.target)||0)+1);
+    });
+    return {
+      animationDuration:320,
+      backgroundColor:"transparent",
+      tooltip:{
+        trigger:"item",
+        confine:true,
+        formatter:(params)=>{
+          const item=Array.isArray(params)?params[0]:params;
+          const raw=item?.data;
+          if(!raw||typeof raw!=="object")return "";
+          const data=raw as Record<string,unknown>;
+          if("source" in data&&"target" in data){
+            const source=nodeLabels.get(String(data.source))||String(data.source);
+            const target=nodeLabels.get(String(data.target))||String(data.target);
+            return source+" → "+target+"<br/>"+label(String(data.role||data.value||"Relationship"))+"<br/>"+label(String(data.verification_state||"unverified"));
+          }
+          const name=String(data.label||nodeLabels.get(String(data.id||item?.name))||item?.name||"");
+          return name+"<br/>"+(data.kind==="deal"?"Deal / workspace":"Person / contact");
+        }
+      },
+      legend:{
+        top:8,right:12,
+        data:["Deal / Workspace","Person / Contact"],
+        textStyle:{color:"#627469",fontSize:10}
+      },
+      series:[{
+        type:"graph",
+        layout:"force",
+        roam:true,
+        draggable:true,
+        data:graph.nodes.map(node=>({
+          id:node.id,
+          name:node.id,
+          value:node.label,
+          label:{show:true,formatter:node.label,color:"#33483a",fontSize:10,position:"right"},
+          category:node.kind==="deal"?0:1,
+          symbolSize:Math.min(48,26+(degree.get(node.id)||0)*5),
+          itemStyle:{color:node.kind==="deal"?"#438f83":"#b58a50",borderColor:"#ffffff",borderWidth:2}
+        })),
+        links:graph.edges.map(edge=>({
+          id:edge.id,
+          name:edge.id,
+          source:edge.source,
+          target:edge.target,
+          value:label(edge.role),
+          role:edge.role,
+          verification_state:edge.verification_state,
+          lineStyle:{
+            color:EDGE_COLORS[edge.verification_state]||EDGE_COLORS.unverified,
+            opacity:0.76,
+            width:edge.verification_state==="verified"?2.2:1.4
+          }
+        })),
+        categories:[
+          {name:"Deal / Workspace",itemStyle:{color:"#438f83"}},
+          {name:"Person / Contact",itemStyle:{color:"#b58a50"}}
+        ],
+        force:{repulsion:320,edgeLength:[105,175],gravity:0.08,friction:0.65,layoutAnimation:true},
+        edgeSymbol:["none","arrow"],
+        edgeSymbolSize:[0,7],
+        lineStyle:{opacity:0.72,curveness:0.16},
+        edgeLabel:{show:true,formatter:"{c}",color:"#738278",fontSize:9},
+        emphasis:{focus:"adjacency",scale:1.08,lineStyle:{width:2.8,opacity:1},label:{show:true}}
+      }]
+    };
+  },[graph,nodeLabels]);
   const createLink=async(event:FormEvent)=>{
     event.preventDefault();if(!companyId||!supabase||!dealKey||!partyKey)return;
     setBusy("create");setError("");setNotice("");
@@ -120,8 +205,25 @@ export default function NormalizedRelationshipGraphPanel({companyId,companyRole,
       <label>Responsibility<select value={responsibility} onChange={e=>setResponsibility(e.target.value)}>{RESPONSIBILITIES.map(item=><option key={item} value={item}>{label(item)}</option>)}</select></label>
       <button type="submit" className="primary-button" disabled={busy==="create"||!dealKey||!partyKey}>{busy==="create"?<LoaderCircle size={14}/>:<Link2 size={14}/>}Add relationship</button>
     </form>}
+    {graph?.edges.length>0&&<div className="ax-normalized-relationship-visual" aria-label="Interactive relationship network">
+      <div className="ax-normalized-relationship-visual-head">
+        <div><strong>Relationship network</strong><small>Drag nodes to arrange · scroll or pinch to zoom · select a node to focus its relationships</small></div>
+        <label>Focus node<select aria-label="Focus relationship node" value={selectedNodeId} onChange={event=>setSelectedNodeId(event.target.value)}>
+          <option value="">All relationships</option>
+          {graph.nodes.map(node=><option key={node.id} value={node.id}>{node.label} · {node.kind==="deal"?"Deal":"Person"}</option>)}
+        </select></label>
+      </div>
+      <Suspense fallback={<div className="discovery-loading"><LoaderCircle size={15}/>Loading relationship visualisation…</div>}>
+        <PortfolioEChart option={graphOption} ariaLabel="Interactive relationship graph. Nodes represent saved deals and contacts; arrows represent explicitly recorded roles. Use the node selector to focus the evidence register." onSelect={selectGraphNode}/>
+      </Suspense>
+    </div>}
     {loading&&!graph?<div className="discovery-loading"><LoaderCircle size={15}/>Loading relationship graph…</div>:
-      graph?.edges.length?<div className="ax-normalized-relationship-list">{graph.edges.map(edge=>{
+      graph?.edges.length?<div className="ax-normalized-relationship-list">
+        {selectedNode&&<div className="ax-normalized-relationship-filter-summary">
+          <span>Showing {visibleEdges.length} relationship(s) connected to <strong>{selectedNode.label}</strong></span>
+          <button type="button" className="text-button" onClick={()=>setSelectedNodeId("")}>Clear focus</button>
+        </div>}
+        {visibleEdges.map(edge=>{
         const draft=edits[edge.id]||{state:edge.verification_state,evidence:edge.evidence_record_key||"",endDate:edge.effective_to||""};
         return <article key={edge.id} className="ax-normalized-relationship-card">
           <div><strong>{nodeLabels.get(edge.source)||edge.source} <span>→</span> {nodeLabels.get(edge.target)||edge.target}</strong>
