@@ -665,6 +665,20 @@ type AppProps = { company?: WorkspaceCompany; userId?: string; personalUserId?: 
 
 export default function App({ company, userId, personalUserId, onSignOut, onSwitchCompany }: AppProps = {}) {
   const [active, setActive] = useState<Section>("Overview");
+  useEffect(() => {
+    const applySavedTheme = () => {
+      const savedTheme = readThemePreferences();
+      if (savedTheme) applyThemePreferences(savedTheme);
+    };
+    applySavedTheme();
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", applySavedTheme);
+    window.addEventListener("storage", applySavedTheme);
+    return () => {
+      media.removeEventListener("change", applySavedTheme);
+      window.removeEventListener("storage", applySavedTheme);
+    };
+  }, []);
   const [discoveryWorkspaceKey, setDiscoveryWorkspaceKey] = useState<string | undefined>(undefined);
   const [discoveryMode, setDiscoveryMode] = useState<"LENDER" | "CUSTOMER">("LENDER");
   const [mobileMenu, setMobileMenu] = useState(false);
