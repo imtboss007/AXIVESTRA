@@ -38,6 +38,7 @@ assert.match(css,/\.ax-modern-shell\[data-ax-theme\]/,"Theme values must style t
 assert.match(css,/ax-orbit-core__sphere[\s\S]*?--ax-theme-chart/,"Orbital 3D sphere must respond to theme chart/graph tokens.");
 assert.match(css,/ax-intent-module-bars[\s\S]*?--ax-theme-chart/,"Intent Canvas charts must use theme colour tokens.");
 assert.match(portfolio,/var\(--ax-theme-chart/,"Portfolio chart series must use theme colour tokens.");
+assert.match(workbench,/var\(--ax-theme-chart/,"Module analytics chart series must use theme colour tokens.");
 assert.match(portfolio,/--ax-theme-readable-muted-surface/,"Portfolio chart labels must use accessible surface foregrounds.");
 assert.match(css,/@media\s*\(max-width:\s*720px\)[\s\S]*?\.ax-theme-studio__palette/,"Theme Studio must have a mobile-responsive palette layout.");
 assert.match(css,/@media\s*\(prefers-reduced-motion:\s*reduce\)/,"Theme preview must respect reduced-motion preferences.");
