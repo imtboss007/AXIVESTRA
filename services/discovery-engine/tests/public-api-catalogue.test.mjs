@@ -72,10 +72,16 @@ test("workspace filtering returns only relevant candidate APIs and does not mix 
   );
   assert.deepEqual(
     findPublicApiCandidates({ workspaceKey: "fund_portfolio_management", mode: "CUSTOMER" }).map(x => x.id),
-    ["ogd-india", "indian-mutual-fund", "opencorporates"]
+    ["ogd-india", "api-setu", "indian-mutual-fund", "opencorporates"]
   );
 });
 
+
+
+test("catalogue does not surface candidates in policy-disabled workspace modes", () => {
+  assert.deepEqual(findPublicApiCandidates({ workspaceKey: "personal_loan", mode: "CUSTOMER" }), []);
+  assert.deepEqual(findPublicApiCandidates({ workspaceKey: "litigation", mode: "LENDER" }), []);
+});
 
 test("SearchPinCode is postal normalisation only, not authoritative address or property evidence", () => {
   const item = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "searchpincode-in");
