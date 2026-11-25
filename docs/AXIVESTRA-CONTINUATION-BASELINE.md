@@ -224,3 +224,63 @@ The QA user must have owner/admin access for the relevant write/review flows. Th
 **Next action:** R1 — provision the dedicated non-production QA company/account and fixtures, then configure the listed private CI settings. Continue the independent Windows/Android and Discovery CI checks without merging or deploying.
 
 **Scope reminder:** Do not create another repository; do not merge to `main`; do not run production migrations/backfill; do not deploy, publish, activate paid services, dispatch workers, call live providers or send official WhatsApp messages without explicit approval.
+
+
+---
+
+## 10. Continuation refresh — 25 November 2026, 12:26 IST
+
+### Live GitHub state
+
+- Repository: `imtboss007/AXIVESTRA`.
+- PR #88 remains **open / draft**, from `feat/discovery-e11-explainable-matching` into `feat/discovery-e10-enrichment`; head `b77d77e4ac67cfea3f27a41151fbf5fa0638ad2f`.
+- The current code-bearing implementation head remains `8596b523687c06e77a1844cf832e1d42d4a6c16b`. The commits after it (`129dcfaf7ce933c3cd2bb32dc1d8dd302b02b780` and `b77d77e4ac67cfea3f27a41151fbf5fa0638ad2f`) changed only this continuation-baseline document.
+- No new repository, merge, production migration, deployment, provider activation, worker dispatch or public release.
+
+### Fresh integrated-head CI — PASS
+
+The latest fresh workflow set completed successfully on the current PR head:
+
+| Check | Run | Result |
+|---|---:|---|
+| Windows installer + Android APK | 45550651290 | **PASS** — both platform jobs succeeded |
+| Discovery Governance | 45550660391 | **PASS** |
+| WhatsApp Hub | 45550660319 | **PASS** — all four jobs succeeded |
+| Cloud Worker | 45550660388 | **PASS** |
+| Duplicate Discovery Governance run | 45550651340 | **PASS** |
+
+The earlier in-progress/cancelled runs from the previous checkpoint were superseded by these completed runs. The Windows CRLF contract-fixture fix is now verified by a fresh successful Windows build job; Android was also rebuilt successfully.
+
+### Authenticated acceptance — still SKIPPED, not PASS
+
+- Discovery Governance validates Playwright test discovery, then runs authenticated E18/E19/E21/E22 acceptance only when the QA Supabase URL/publishable key, QA email/password and company name are present.
+- The workflow's own condition prints an explicit skip notice when those settings are absent. E18 additionally needs its dedicated deal/party fixtures; E21 and E22 require their eligible provenance/suggestion fixtures.
+- The dedicated browser-acceptance workflow is configured for `main` PR targets/pushes and manual dispatch; PR #88 is a stacked PR targeting the E10 feature branch. Its existence does not establish authenticated acceptance for #88.
+- Therefore R1 remains **BLOCKED**, and R2 remains **BLOCKED BY R1**. Do not relabel these as passed based on green CI.
+
+### Targeted source-level security spot-check
+
+A read-only inspection was performed of the integrated E16.1, E19, E21 and E22 migrations/components and the browser-acceptance workflow:
+
+- E16.1 backfill checks signed-in owner/admin authority, defaults `p_apply` to false, only resolves explicit same-company contact IDs, and marks inserted links unverified. No backfill was executed.
+- E19 review/classification RPCs check owner/admin membership and company-scoped case/evidence IDs; review events are append-only.
+- E21 pack tables use RLS and company-scoped read views; curation/review/export functions enforce owner/admin membership and retain event history. Export remains a metadata/provenance manifest, not raw evidence.
+- E22 keeps provider execution disabled by default; persisted suggestions use the service-role recording boundary, while owner/admin human review does not change E11 match results.
+- E20 dispatch remains hard-disabled in the active preflight projection.
+
+This is a **targeted source spot-check**, not an independent penetration test, full threat-model review or release sign-off. R6 remains **PENDING** for independent security, privacy/retention, licence/provenance, tenant-isolation and accessibility review.
+
+### Updated ordered task ledger
+
+| ID | Task | Current status | What is still required |
+|---|---|---|---|
+| R1 | Non-production QA company/account, fixtures and private CI settings | **BLOCKED** | An authorised non-production Supabase QA environment and dedicated owner/admin account/fixtures |
+| R2 | Authenticated E18/E19/E21/E22 browser acceptance | **BLOCKED BY R1** | Execute the existing browser suites after R1; inspect artifacts and report each suite separately |
+| R3 | E16.1 legacy-link backfill acceptance | **APPROVAL-GATED** | Separately approved non-production deployment, reviewed dry run and explicit owner/admin apply approval |
+| R4 | Paired Android/Windows device-sync acceptance | **PENDING** | Actual test devices and dedicated non-production accounts; logic tests are not device acceptance |
+| R5 | Fresh integrated-head Windows installer and Android APK builds | **PASS** | No remaining build action at this checkpoint |
+| R6 | Independent security/privacy/licence/tenant/accessibility review | **PENDING** | Independent reviewer and documented findings/sign-off |
+
+**Next safe action:** continue only with source-level fixes or additional automated tests that are independently justified by evidence. Do not bypass R1/R2 with mocked credentials, infer R3 approval, substitute logic tests for R4, or call the targeted R6 spot-check an independent audit.
+
+**Acceleration/tooling decision:** use the existing AXIVESTRA CI, regression suite and integrated stack first. The 123-entry reconciliation deliberately keeps OpenHands/Repo Auditor as optional isolated developer tools and rejects RepoSwarm as a duplicate orchestration stack; none is an approved AXIVESTRA runtime dependency. No external tool repository was installed or executed in this refresh.
