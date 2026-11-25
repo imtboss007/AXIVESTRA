@@ -286,7 +286,7 @@ export default function DiscoveryJobQueue({
                   <small>{result.fetchEligible ? "Exact URL is within approved source: " + result.approvedSourceName : "No attached approved source matches this exact host and path. Register/review it first."}</small>
                   {result.fetchEligible
                     ? <button type="button" className="secondary-button" onClick={() => addSearchCandidate(result)} disabled={busy === "enqueue" || busy === "search"}>Add URL to E04 draft</button>
-                    : <span className="discovery-unverified-label">Unverified · no fetch permission</span>}
+                    : <span className="discovery-unverified-label">Unverified · No fetch permission</span>}
                 </div>
               </article>)}
             </div>}
