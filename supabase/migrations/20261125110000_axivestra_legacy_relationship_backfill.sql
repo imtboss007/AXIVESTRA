@@ -94,17 +94,20 @@ begin
     group by company_id,deal_record_key,party_record_key,role_code,effective_from
     order by deal_record_key,party_record_key,role_code,effective_from
     limit p_limit
+  ), ranked as (
+    select *,row_number() over(order by deal_record_key,party_record_key,role_code,effective_from) as preview_rank
+    from candidates
   )
   select count(*)::integer,
     coalesce(jsonb_agg(jsonb_build_object(
-      'deal_record_key',sample.deal_record_key,
-      'party_record_key',sample.party_record_key,
-      'role_code',sample.role_code,
-      'effective_from',sample.effective_from,
-      'source_fields',sample.metadata->'source_fields'
-    ) order by sample.deal_record_key,sample.party_record_key,sample.role_code),'[]'::jsonb)
+      'deal_record_key',deal_record_key,
+      'party_record_key',party_record_key,
+      'role_code',role_code,
+      'effective_from',effective_from,
+      'source_fields',metadata->'source_fields'
+    ) order by deal_record_key,party_record_key,role_code) filter(where preview_rank<=20),'[]'::jsonb)
   into v_candidate_count,v_preview
-  from (select * from candidates order by deal_record_key,party_record_key,role_code limit 20) sample;
+  from ranked;
 
   if p_apply then
     with raw_links as (
