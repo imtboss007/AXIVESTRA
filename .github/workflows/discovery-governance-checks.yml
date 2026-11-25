@@ -44,6 +44,7 @@ on:
       - "src/DiscoverySourceManager.tsx"
       - "src/DiscoveryPublicApiCatalogue.tsx"
       - "src/lib/public-api-catalog.mjs"
+      - "src/lib/public-api-catalog.d.mts"
       - "src/DiscoveryAiMatchingReviewWorkspace.tsx"
       - "src/DiscoveryVerificationWorkspace.tsx"
       - "src/DiscoveryOrchestrationWorkspace.tsx"
@@ -69,7 +70,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: axivestra-discovery-governance-${{ github.ref }}
+  group: axivestra-discovery-governance-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
