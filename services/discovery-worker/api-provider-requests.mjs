@@ -57,6 +57,12 @@ export function prepareProviderRequestUrl(urlValue, { source, env = process.env 
   if (!match || !DATA_GOV_RESOURCE_ID.test(match[1])) {
     throw new Error("data.gov.in requests must target one exact registered resource ID.");
   }
+  const canonical = new URL(source.canonical_url);
+  const allowedPaths = Array.isArray(source.allowed_paths) ? source.allowed_paths : [];
+  if (canonical.origin !== url.origin || canonical.pathname !== url.pathname ||
+      !allowedPaths.includes(url.pathname)) {
+    throw new Error("data.gov.in resource path must exactly match the E02 canonical URL and an exact approved path.");
+  }
 
   if (suppliedSecretParameters.length) {
     throw new Error("Do not place a data.gov.in API key in a candidate URL; the worker injects it server-side.");
@@ -64,7 +70,7 @@ export function prepareProviderRequestUrl(urlValue, { source, env = process.env 
 
   const allowedParameters = new Set(["format", "limit", "offset"]);
   for (const key of url.searchParams.keys()) {
-    if (!allowedParameters.has(key.toLowerCase())) {
+    if (!allowedParameters.has(key)) {
       throw new Error("data.gov.in request contains a query parameter outside the approved format/limit/offset set.");
     }
   }
