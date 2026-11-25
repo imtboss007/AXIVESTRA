@@ -126,10 +126,21 @@ test("all sixteen workspace keys are accepted and invalid workspace keys are rej
   assert.throws(() => normalizeProfile({ workspaceKey: "not_a_workspace", discoveryMode: "CUSTOMER", purpose: "Find customers" }), /16 supported workspaces/);
 });
 
-test("profile is disabled unless explicitly enabled and has an approved source attached", () => {
+test("profiles can be enabled for E03 search without a target source; E04 remains gated separately", () => {
   assert.equal(normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers" }).enabled, false);
-  assert.throws(() => normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers", enabled: true }, 0), /Attach at least one approved source/);
-  assert.equal(normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers", enabled: true }, 1).enabled, true);
+  const searchOnly = normalizeProfile({
+    workspaceKey: "startup", discoveryMode: "LENDER",
+    purpose: "Find venture debt providers", enabled: true
+  }, 0);
+  assert.equal(searchOnly.enabled, true);
+  assert.equal(assertSourceCanBeAttached({
+    workspace_key: "startup", discovery_mode: "LENDER", purpose: searchOnly.purpose,
+    criteria: searchOnly.criteria
+  }, { ...approvedSource(), status: "pending" }), false);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "personal_loan", discoveryMode: "CUSTOMER",
+    purpose: "Find borrowers", enabled: true
+  }, 0), /cannot scrape or harvest individuals/);
 });
 
 test("server profile normalization enforces the explicit E11 match criteria contract", () => {
