@@ -18,20 +18,22 @@ All listed PRs are open drafts and none is merged to `main`.
 
 | PR | Branch | Current head | Purpose | State |
 |---|---|---|---|---|
-| #88 | `feat/discovery-e11-explainable-matching` | `a4e264a649e884f0ed7e7501a9411207825d91f4` | Main E01–E22 discovery/evidence/matching/orchestration feature stack; base for next integration | Open, draft |
+| #88 | `feat/discovery-e11-explainable-matching` | `undefined` | Main E01–E22 discovery/evidence/matching/orchestration feature stack; integration base | Open, draft |
 | #90 | `feat/axivestra-public-api-provider-bridge` | `97b83c2c445ed241467658aac5d870a848050fde` | Gated data.gov.in provider adapter and expanded public API catalogue | Open, draft |
-| #91 | `feat/axivestra-relationship-network-visual` | `28a994b45a3f3fdb39f3c563994b837db2ea51c9` | E17 ECharts relationship network visual | Open, draft |
+| #91 | `feat/axivestra-relationship-network-visual` | `undefined` | Original E17 ECharts relationship-network source branch; retained for traceability | Open, draft |
+| #92 | `integration/axivestra-api-relationship-e11-review` | `undefined` | Combined #90 public-API bridge + #91 E17 network, reconciled on the E11 baseline | Open, draft; mergeable; CI running |
 | #89 | Theme Studio branch | `17a5f46e73f5c686b0fa9b86ffdd704a778eddac` | Independent theme studio work | Open/independent; inspect live state before action |
 
-PR #90 and #91 both target the #88 feature branch, not `main`. They diverged from the same earlier ancestor `c6809e8f32ac21750a22071327cb5f3d91654f5a`; comparison against the current #88 head showed #90 is 45 commits ahead and 9 behind, while #91 is 27 ahead and 9 behind. Their diffs overlap in shared discovery contract/test files. Do not assume their separate green CI proves combined compatibility.
+PR #90 and #91 remain open source drafts and are retained for traceability. They originally diverged from the same earlier ancestor. Their implementation has now been copied into PR #92 on top of the current E11 branch. The integration deliberately preserves the newer E11 shared contract files, applies the public-API-specific catalogue/enrichment/UI deltas, and adds the E17 ECharts visual without introducing a second graph library. PR #92 is the combined review path; separate green CI on #90/#91 is not a substitute for the new combined checks. Its latest PR metadata reports mergeable=true, but it remains a draft and must not be merged until fresh CI and the authenticated/backfill acceptance gates are complete.
 
-A merge attempt for #90 was rejected by GitHub because it is still a draft (HTTP 405). Do not silently change draft state or merge. First reconcile the overlapping changes and obtain green checks on the integrated feature branch; only then may the draft status be changed as part of an explicit, reviewable integration step. Never merge any of these feature branches to `main` without separate explicit approval.
+Never merge any of these feature branches to `main` without separate explicit approval.
 
 ## 3. Verified CI at this checkpoint
 
 - PR #88 head `a4e264a649e884f0ed7e7501a9411207825d91f4`: Discovery governance, WhatsApp Hub and Cloud Worker workflows completed successfully. Runs: 45544004500, 45544004577, 45544004533.
 - PR #90 head `97b83c2c445ed241467658aac5d870a848050fde`: Discovery governance and WhatsApp Hub workflows completed successfully. Runs: 45543098506, 45543098524.
 - PR #91 head `28a994b45a3f3fdb39f3c563994b837db2ea51c9`: Discovery governance and WhatsApp Hub workflows completed successfully. Runs: 45543373630, 45543373770.
+- PR #92 combined head `${head(f92)}`: Discovery Governance run 1328 and WhatsApp Hub run 2073 were **in progress** at the time of this update. Refresh live state before relying on this status. Cloud Worker checks were not triggered by PR #92's changed paths; this integration does not modify the WhatsApp Cloud Worker.
 
 These are branch-specific checks, not a combined integration test. No local clone, package installation, local test run or end-to-end authenticated QA was performed in this ChatGPT session. The authenticated E18/E19/E21/E22 browser acceptance path is explicitly skipped when the dedicated QA account/company, Supabase credentials and required fixtures are absent. Do not describe skipped acceptance as passed.
 
@@ -50,13 +52,12 @@ These are branch-specific checks, not a combined integration test. No local clon
 
 ## 5. Required next engineering sequence
 
-1. Re-read this file, PR #88/#90/#91 metadata, changed-file patches, branch comparisons and latest workflow runs before making changes. The live GitHub state supersedes this checkpoint if it has moved.
-2. Reconcile PR #90's provider bridge onto the current #88 feature branch without overwriting newer #88 code. Resolve shared test and package-script changes deliberately; preserve exact source governance, URL redaction, bounded paging, secret isolation and disabled-by-default behaviour.
-3. Reconcile PR #91's E17 graph visual onto the same current #88 feature branch. Preserve the existing ECharts dependency; do not add D3, Cytoscape or another graph library. Keep graph data company-scoped and based only on explicit E16 links.
-4. Run the full discovery governance, WhatsApp Hub and Cloud Worker CI against the integrated feature head. Run all relevant tests and build checks; inspect failures and fix regressions before proceeding.
-5. Configure private QA fixtures and credentials through GitHub/Supabase secret management (never in chat or source) and complete authenticated E18/E19/E21/E22 acceptance. Also verify E16 historical relationship reconciliation/backfill and device-local sync; these are not proven by the graph visual.
-6. Complete independent security/release review, licence/provenance review for any selected external code, and a data-retention/privacy review.
-7. Keep the feature stack draft and unmerged until its integrated acceptance is genuinely complete. Production migrations, provider activation, worker dispatch, deployment, public release and merge to `main` each require explicit approval.
+1. Refresh PR #92 metadata and workflow runs. The combined implementation is in `integration/axivestra-api-relationship-e11-review`; do not restart the #90/#91 code transfer.
+2. Complete the fresh Discovery Governance and WhatsApp Hub workflows on the combined #92 head. Inspect every failure, fix regressions on the same integration branch, and confirm the changed head reruns the applicable checks.
+3. Run/verify the complete discovery test set, provider-adapter tests, relationship-graph contract tests, type checks and production web build. Do not treat unrelated or skipped workflows as passed.
+4. Configure private QA fixtures and credentials through GitHub/Supabase secret management (never in chat or source) and complete authenticated E18/E19/E21/E22 acceptance. Also verify E16 historical relationship reconciliation/backfill and device-local sync; the graph visual alone does not prove either.
+5. Complete independent security/release review, licence/provenance review for any selected external code, and a data-retention/privacy review.
+6. Keep #92 and the feature stack as drafts until integrated acceptance is genuinely complete. Production migrations, provider activation, worker dispatch, deployment, public release and merge to `main` each require explicit approval.
 
 ## 6. Configuration blockers — do not invent credentials
 
