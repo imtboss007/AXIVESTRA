@@ -64,7 +64,7 @@ test("eCourts and GST verification wrappers are separated from official governme
 test("workspace filtering returns only relevant candidate APIs and does not mix mode intent", () => {
   assert.deepEqual(
     findPublicApiCandidates({ workspaceKey: "agricultural_land", mode: "CUSTOMER" }).map(x => x.id),
-    ["ogd-india", "api-setu", "india-mandi-prices", "india-lgd-index", "india-pincode"]
+    ["ogd-india", "api-setu", "india-mandi-prices", "india-lgd-index", "india-pincode", "searchpincode-in", "opencorporates"]
   );
   assert.deepEqual(
     findPublicApiCandidates({ workspaceKey: "litigation", mode: "LENDER" }),
@@ -72,8 +72,37 @@ test("workspace filtering returns only relevant candidate APIs and does not mix 
   );
   assert.deepEqual(
     findPublicApiCandidates({ workspaceKey: "fund_portfolio_management", mode: "CUSTOMER" }).map(x => x.id),
-    ["ogd-india", "indian-mutual-fund"]
+    ["ogd-india", "indian-mutual-fund", "opencorporates"]
   );
+});
+
+
+test("SearchPinCode is postal normalisation only, not authoritative address or property evidence", () => {
+  const item = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "searchpincode-in");
+  assert.ok(item.workspaceFit.includes("property_sale"));
+  assert.ok(item.guardrails.some(line => /not an India Post source or official proof of address/i.test(line)));
+  assert.ok(item.guardrails.some(line => /does not prove parcel location/i.test(line)));
+  assert.equal(item.reviewState, "research_only");
+});
+
+test("SEC EDGAR is restricted to US public issuer evidence and its fair-access requirements", () => {
+  const item = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "sec-edgar-data");
+  assert.equal(item.jurisdiction, "US");
+  assert.ok(item.workspaceFit.includes("equity"));
+  assert.ok(item.guardrails.some(line => /User-Agent/i.test(line)));
+  assert.ok(item.guardrails.some(line => /US public-issuer coverage only/i.test(line)));
+  assert.equal(item.reviewState, "approval_required");
+});
+
+test("OpenCorporates commercial reuse and OpenSanctions compliance-only use are gated", () => {
+  const companies = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "opencorporates");
+  const sanctions = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "opensanctions");
+  assert.equal(companies.reviewState, "legal_and_provider_review_required");
+  assert.ok(companies.guardrails.some(line => /proprietary application requires a suitable paid API\/data licence/i.test(line)));
+  assert.deepEqual(sanctions.workspaceFit, ["compliance_kyc"]);
+  assert.ok(sanctions.guardrails.some(line => /commercial licensing must be checked/i.test(line)));
+  assert.ok(sanctions.guardrails.some(line => /never a confirmed sanctions hit/i.test(line)));
+  assert.equal(sanctions.reviewState, "legal_and_provider_review_required");
 });
 
 test("search filters by names, source type and guardrail keywords", () => {
