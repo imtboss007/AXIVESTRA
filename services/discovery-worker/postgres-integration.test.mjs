@@ -83,6 +83,8 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
     await pool.query(leadWorkspaceMigration);
     const dealPartyMigration = await readFile(new URL("../../supabase/migrations/20261122310000_axivestra_deal_party_relationships.sql", import.meta.url), "utf8");
     await pool.query(dealPartyMigration);
+    const legacyRelationshipBackfillMigration = await readFile(new URL("../../supabase/migrations/20261125110000_axivestra_legacy_relationship_backfill.sql", import.meta.url), "utf8");
+    await pool.query(legacyRelationshipBackfillMigration);
     const relationshipGraphMigration = await readFile(new URL("../../supabase/migrations/20261122320000_axivestra_relationship_graph.sql", import.meta.url), "utf8");
     await pool.query(relationshipGraphMigration);
     const commitmentWorkspaceMigration = await readFile(new URL("../../supabase/migrations/20261122330000_axivestra_commitment_workspace.sql", import.meta.url), "utf8");
@@ -1344,6 +1346,20 @@ test("PostgreSQL migrations, atomic claims, shared quotas and kill-switch gating
       );
       assert.equal(expiredGraph.rows[0].graph.counts.relationship_count,0);
 
+      // The base harness begins with permissive membership stubs so earlier worker
+      // contracts can run without an auth service. Replace the role stub with the real
+      // membership predicate before testing E16.1 owner/admin authorization.
+      await partyClient.query(`
+        create or replace function public.has_company_role(target_company uuid, allowed_roles text[])
+        returns boolean language sql stable as $role_check$
+          select exists(
+            select 1 from public.company_memberships m
+            where m.company_id=target_company
+              and m.user_id=auth.uid()
+              and m.role=any(allowed_roles)
+          )
+        $role_check$
+      `);
       // E16.1: legacy contact-ID reconciliation is previewed first, owner/admin-only,
       // then explicitly applied in this disposable PostgreSQL integration database.
       await partyClient.query(
