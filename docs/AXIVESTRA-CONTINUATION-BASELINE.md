@@ -284,3 +284,45 @@ This is a **targeted source spot-check**, not an independent penetration test, f
 **Next safe action:** continue only with source-level fixes or additional automated tests that are independently justified by evidence. Do not bypass R1/R2 with mocked credentials, infer R3 approval, substitute logic tests for R4, or call the targeted R6 spot-check an independent audit.
 
 **Acceleration/tooling decision:** use the existing AXIVESTRA CI, regression suite and integrated stack first. The 123-entry reconciliation deliberately keeps OpenHands/Repo Auditor as optional isolated developer tools and rejects RepoSwarm as a duplicate orchestration stack; none is an approved AXIVESTRA runtime dependency. No external tool repository was installed or executed in this refresh.
+
+
+---
+
+## 11. Connected Supabase read-only check — 25 November 2026
+
+### Database state
+
+- Read-only inspection found one connected Supabase project in the existing `PROPERTY` organisation; the organisation is on the **Free** plan.
+- The database migration history currently ends at `20261114035526 axivestra_custom_module_sync`. The newer E16–E22 migrations are not present in that applied migration history.
+- The table inventory response showed RLS enabled on the returned `companies`, `company_memberships`, `company_records`, `company_audit_events`, `whatsapp_cloud_messages` and `personal_records` tables. This is not a claim that every schema/table has been audited.
+- No SQL writes, migration applications, project creation, branch creation, function deployment or database configuration changes were performed.
+
+### Current Supabase Security Advisor findings
+
+- Five `authenticated_security_definer_function_executable` warnings:
+  - `public.is_company_member(uuid)`
+  - `public.has_company_role(uuid,text[])`
+  - `public.create_company_with_owner(text)`
+  - `public.cancel_whatsapp_cloud_message(uuid,uuid)`
+  - `public.retry_whatsapp_cloud_message(uuid,uuid)`
+- One `auth_leaked_password_protection` warning: leaked-password protection is disabled.
+- The Health Advisor returned no lints.
+
+### Source review of the five SECURITY DEFINER functions
+
+- `is_company_member` and `has_company_role` use `auth.uid()` and company-membership predicates, set an empty search path and are granted to `authenticated` after revoking `PUBLIC`. Their definer execution is intentional to avoid recursive RLS membership checks. Do not revoke authenticated execution without redesigning the dependent RLS policies.
+- `create_company_with_owner` requires an authenticated caller and atomically creates a new company with that caller as its first owner; it does not accept an arbitrary target user or join an existing company.
+- WhatsApp cancel/retry require an authenticated caller, company membership, an exact company/message match, the expected current message state and either record ownership or owner/admin/manager role.
+- These five findings remain visible as Advisor warnings because the functions are callable by authenticated users. The source review found their intended authorization guards; this is not a formal penetration test and does not replace independent release review.
+
+### Leaked-password protection
+
+Supabase's current Password Security documentation says leaked-password protection uses the Pwned Passwords API and is available on Pro plan and above: https://supabase.com/docs/guides/auth/password-security
+
+The connected organisation is currently Free. Do not upgrade, purchase a service or change subscription without explicit approval. This warning is therefore recorded as a plan-limited configuration item, not silently dismissed or represented as fixed.
+
+### Release consequence
+
+- The E16–E22 feature migrations remain unapplied to the connected database; the feature-branch CI/PostgreSQL integration is not production deployment.
+- R6 remains pending for independent review. The current work includes a source spot-check and current Advisor snapshot, not a formal security certification.
+- Keep all production migration, deployment, provider activation and dispatch gates closed.
