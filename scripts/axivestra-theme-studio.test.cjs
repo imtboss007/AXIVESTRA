@@ -8,6 +8,7 @@ const studio = fs.readFileSync(path.join(root, "src", "ThemeStudio.tsx"), "utf8"
 const helper = fs.readFileSync(path.join(root, "src", "lib", "theme-preferences.ts"), "utf8");
 const css = fs.readFileSync(path.join(root, "src", "styles.css"), "utf8");
 const portfolio = fs.readFileSync(path.join(root, "src", "PortfolioAnalytics.tsx"), "utf8");
+const workbench = fs.readFileSync(path.join(root, "src", "ModuleWorkbench.tsx"), "utf8");
 
 for (const name of [
   "AXIVESTRA Signature", "Titanium Graphite", "Obsidian Emerald", "Midnight Sapphire",
