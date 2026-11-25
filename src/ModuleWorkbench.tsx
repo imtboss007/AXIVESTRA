@@ -13,6 +13,9 @@ type ModuleRecord = {
 type ModuleField = { key: string; label: string; placeholder: string; type?: "text" | "number" | "date" };
 type Contact = { id: string; name: string; phone: string; role: string; notes: string };
 type Group = {id:string;jid:string;name:string};
+type RelatedTask = { id:string; title:string; date:string; time:string; type:string; done:boolean; propertyId?:string; contactId?:string };
+type RelatedDocument = { id:string; name:string; category:string; propertyId:string; contactId?:string; expiresOn:string };
+type RelatedFinancial = { id:string; type:string; amount:string; date:string; party:string; reference:string; propertyId:string; contactId?:string };
 type Props = {
   moduleName: string;
   description: string;
@@ -20,6 +23,13 @@ type Props = {
   fields: ModuleField[];
   contacts: Contact[];
   groups: Group[];
+  tasks: RelatedTask[];
+  documents: RelatedDocument[];
+  financials: RelatedFinancial[];
+  onOpenContact: (id:string) => void;
+  onOpenTask: (id:string) => void;
+  onOpenFinancial: (id:string) => void;
+  onOpenDocument: (id:string) => void;
   onAdd: () => void;
   onEdit: (record: ModuleRecord) => void;
   onDelete: (id: string) => void;
@@ -95,7 +105,7 @@ function ModuleAnalyticsChart({ items, total, type, metric, onSelect }: {
   return <div className="ax-module-chart-line"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Module records trend"><defs><linearGradient id="axModuleLineFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#20d9ef" stopOpacity=".22"/><stop offset="100%" stopColor="#20d9ef" stopOpacity="0"/></linearGradient></defs>{[0,1,2,3,4].map(n=><line key={n} x1={left} x2={width-right} y1={top+n*(height-top-bottom)/4} y2={top+n*(height-top-bottom)/4} stroke="#203e55" strokeDasharray="4 6"/>)}{points.length>1&&<polygon points={points.map(point=>point.x+","+point.y).join(" ")+" "+points[points.length-1].x+","+(height-bottom)+" "+points[0].x+","+(height-bottom)} fill="url(#axModuleLineFill)"/>}<polyline points={points.map(point=>point.x+","+point.y).join(" ")} fill="none" stroke="#20d9ef" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>{points.map(point=><g key={point.name} tabIndex={0} role="button" onClick={()=>onSelect(point.name)} className="ax-chart-point"><circle cx={point.x} cy={point.y} r="5" fill={point.color} stroke="#071827" strokeWidth="2"/><text x={point.x} y={point.y-13} textAnchor="middle" fill="#e7f8ff" fontSize="10">{metric==="value"?currency(point.value):point.value}</text><text x={point.x} y={height-15} textAnchor="middle" fill="#8aa9bf" fontSize="10">{point.name.length>12?point.name.slice(0,11)+"…":point.name}</text></g>)}</svg></div>;
 }
 
-export default function ModuleWorkbench({ moduleName, description, records, fields, contacts, groups, onAdd, onEdit, onDelete, onSchedule, onWhatsApp, onUpdateFollowUpContacts, onAddFollowUp, onOpenDiscovery }: Props) {
+export default function ModuleWorkbench({ moduleName, description, records, fields, contacts, groups, tasks, documents, financials, onOpenContact, onOpenTask, onOpenFinancial, onOpenDocument, onAdd, onEdit, onDelete, onSchedule, onWhatsApp, onUpdateFollowUpContacts, onAddFollowUp, onOpenDiscovery }: Props) {
   const discoveryWorkspaceKey = WORKSPACE_DISCOVERY_KEYS[moduleName];
   const [view, setView] = useState<"overview" | "table" | "pipeline" | "analytics" | "data">("overview");
   const [filter, setFilter] = useState("All");
@@ -163,6 +173,19 @@ export default function ModuleWorkbench({ moduleName, description, records, fiel
       if (legacy) linked.push(legacy);
     }
     return linked.filter((contact,index) => linked.findIndex(other=>other.id===contact.id)===index);
+  };
+  const linkedByStableIds = (record:ModuleRecord) => Array.from(new Set(contactIds(record).filter(id=>contactsById.has(id))));
+  const relatedTasks = (record:ModuleRecord) => {
+    const ids = new Set(linkedByStableIds(record));
+    return tasks.filter(item=>item.propertyId===record.id || Boolean(item.contactId && ids.has(item.contactId)));
+  };
+  const relatedDocuments = (record:ModuleRecord) => {
+    const ids = new Set(linkedByStableIds(record));
+    return documents.filter(item=>item.propertyId===record.id || Boolean(item.contactId && ids.has(item.contactId)));
+  };
+  const relatedFinancials = (record:ModuleRecord) => {
+    const ids = new Set(linkedByStableIds(record));
+    return financials.filter(item=>item.propertyId===record.id || Boolean(item.contactId && ids.has(item.contactId)));
   };
 
   const moduleAmount = (record: ModuleRecord, exactKeys: string[], labelPattern: RegExp) => {
@@ -290,6 +313,16 @@ export default function ModuleWorkbench({ moduleName, description, records, fiel
       {dataFields.filter(field=>getFieldValue(inspectedRecord,field.key).trim()).map(field=><article key={field.key}><span>{field.label}</span><strong>{formatField(field,getFieldValue(inspectedRecord,field.key))}</strong></article>)}</div>
       {parseFollowUps(inspectedRecord.moduleData).length>0&&<div className="ax-module-detail-notes"><strong>Follow-up history</strong>{parseFollowUps(inspectedRecord.moduleData).map(entry=><p key={entry.id}>{entry.date}{entry.time?" · "+entry.time:""} · {entry.description} · {entry.status} · {entry.priority}{entry.nextAction?" · Next: "+entry.nextAction:""}</p>)}</div>}
       {inspectedRecord.notes&&<div className="ax-module-detail-notes"><strong>Notes / evidence</strong><p>{inspectedRecord.notes}</p></div>}
+      <section className="ax-module-related-records" aria-label="Related saved records">
+        <div className="ax-module-related-records__heading"><strong>Connected records</strong><small>Only explicit saved IDs are used for contact links; no fuzzy name matching is performed here.</small></div>
+        <div className="ax-module-related-records__groups">
+          {linkedByStableIds(inspectedRecord).map(id=>{const person=contactsById.get(id);return person?<button type="button" key={"contact-"+id} onClick={()=>onOpenContact(id)}><span>CONTACT</span><strong>{person.name}</strong><small>{person.role}</small></button>:null;})}
+          {relatedTasks(inspectedRecord).map(item=><button type="button" key={"task-"+item.id} onClick={()=>onOpenTask(item.id)}><span>TASK · {item.done?"COMPLETED":"OPEN"}</span><strong>{item.title}</strong><small>{item.date}{item.time?" · "+item.time:""}</small></button>)}
+          {relatedFinancials(inspectedRecord).map(item=><button type="button" key={"financial-"+item.id} onClick={()=>onOpenFinancial(item.id)}><span>FINANCIAL · {item.type}</span><strong>{currency(item.amount)}</strong><small>{item.date} · {item.party||"Counterparty not entered"}</small></button>)}
+          {relatedDocuments(inspectedRecord).map(item=><button type="button" key={"document-"+item.id} onClick={()=>onOpenDocument(item.id)}><span>DOCUMENT · {item.category}</span><strong>{item.name}</strong><small>{item.expiresOn?"Expiry / renewal "+dateLabel(item.expiresOn):"Saved in local vault"}</small></button>)}
+        </div>
+        {!linkedByStableIds(inspectedRecord).length&&!relatedTasks(inspectedRecord).length&&!relatedFinancials(inspectedRecord).length&&!relatedDocuments(inspectedRecord).length&&<p className="ax-module-related-records__empty">No saved related contacts, tasks, financial movements or documents are linked to this record yet.</p>}
+      </section>
       <div className="ax-hub-modal-actions"><button type="button" className="secondary-button" onClick={()=>setInspectedRecord(null)}>Close</button><button type="button" className="primary-button" onClick={()=>{const record=inspectedRecord;if(record){setInspectedRecord(null);onEdit(record);}}}>Edit record</button></div>
     </section></div>}</>
     : view==="pipeline" ? <div className="ax-kanban">
