@@ -18,7 +18,7 @@ All listed PRs are open drafts and none is merged to `main`.
 
 | PR | Branch | Current head | Purpose | State |
 |---|---|---|---|---|
-| #88 | `feat/discovery-e11-explainable-matching` | `7dde185504ff858263794c89a4d7dc6a02c8a3c0` | Main E01–E22 discovery/evidence/matching/orchestration feature stack; integration base | Open, draft |
+| #88 | `feat/discovery-e11-explainable-matching` | `live — refresh before resuming` | Main E01–E22 discovery/evidence/matching/orchestration feature stack; integration base | Open, draft |
 | #90 | `feat/axivestra-public-api-provider-bridge` | `97b83c2c445ed241467658aac5d870a848050fde` | Gated data.gov.in provider adapter and expanded public API catalogue | Open, draft |
 | #91 | `feat/axivestra-relationship-network-visual` | `28a994b45a3f3fdb39f3c563994b837db2ea51c9` | Original E17 ECharts relationship-network source branch; retained for traceability | Open, draft |
 | #92 | `integration/axivestra-api-relationship-e11-review` | `a5b8a5ab5cbc7fcd828da9a3ee59bfdb4314c02c` | Combined #90 public-API bridge + #91 E17 network, reconciled on the E11 baseline | Open, draft; mergeable; CI running |
@@ -33,7 +33,7 @@ Never merge any of these feature branches to `main` without separate explicit ap
 - PR #88 head `a4e264a649e884f0ed7e7501a9411207825d91f4`: Discovery governance, WhatsApp Hub and Cloud Worker workflows completed successfully. Runs: 45544004500, 45544004577, 45544004533.
 - PR #90 head `97b83c2c445ed241467658aac5d870a848050fde`: Discovery governance and WhatsApp Hub workflows completed successfully. Runs: 45543098506, 45543098524.
 - PR #91 head `28a994b45a3f3fdb39f3c563994b837db2ea51c9`: Discovery governance and WhatsApp Hub workflows completed successfully. Runs: 45543373630, 45543373770.
-- PR #92 combined head `${head(f92)}`: Discovery Governance run 1328 and WhatsApp Hub run 2073 were **in progress** at the time of this update. Refresh live state before relying on this status. Cloud Worker checks were not triggered by PR #92's changed paths; this integration does not modify the WhatsApp Cloud Worker.
+- PR #92 combined head `a5b8a5ab5cbc7fcd828da9a3ee59bfdb4314c02c`: Discovery Governance run 1328 was **in progress** and WhatsApp Hub run 2073 had **succeeded** at the time of this update. Refresh live state before relying on this status. Cloud Worker checks were not triggered by PR #92's changed paths; this integration does not modify the WhatsApp Cloud Worker.
 
 These are branch-specific checks, not a combined integration test. No local clone, package installation, local test run or end-to-end authenticated QA was performed in this ChatGPT session. The authenticated E18/E19/E21/E22 browser acceptance path is explicitly skipped when the dedicated QA account/company, Supabase credentials and required fixtures are absent. Do not describe skipped acceptance as passed.
 
