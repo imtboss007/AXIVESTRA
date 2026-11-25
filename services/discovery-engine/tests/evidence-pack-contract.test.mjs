@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const root = new URL("../../../", import.meta.url);
 const read = path => readFile(new URL(path, root), "utf8");
 
-const [migration, edge, workspace, manager, packageJson, integration, roadmap, docs, browserAcceptance, workflow] = await Promise.all([
+const [migration, edge, workspace, manager, packageJson, integration, roadmap, docs, browserAcceptance, workflow, seedScript] = await Promise.all([
   read("supabase/migrations/20261123260000_axivestra_evidence_pack_management.sql"),
   read("supabase/functions/discovery-control/index.ts"),
   read("src/DiscoveryEvidenceWorkspace.tsx"),
@@ -15,7 +15,8 @@ const [migration, edge, workspace, manager, packageJson, integration, roadmap, d
   read("docs/AXIVESTRA-REVISED-DISCOVERY-ROADMAP-E05-E16.md"),
   read("docs/AXIVESTRA-DISCOVERY-E21-EVIDENCE-OPERATIONS.md"),
   read("tests/browser/axivestra-evidence-pack-workspace.spec.ts"),
-  read(".github/workflows/discovery-governance-checks.yml")
+  read(".github/workflows/discovery-governance-checks.yml"),
+  read("scripts/seed-axivestra-browser-qa.mjs")
 ]);
 const packageManifest = JSON.parse(packageJson);
 
@@ -92,6 +93,8 @@ test("E21 authenticated browser acceptance is gated to a dedicated QA provenance
   assert.match(browserAcceptance, /Export SHA-256 hashed manifest/);
   assert.match(browserAcceptance, /leaves the approved QA pack and its immutable history/i);
   assert.match(workflow, /tests\/browser\/axivestra-evidence-pack-workspace\.spec\.ts/);
-  assert.match(workflow, /AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID/);
-  assert.match(workflow, /Validate authenticated browser acceptance test discovery/);
+  assert.match(seedScript, /AXIVESTRA_E2E_E21_PROVENANCE_EVENT_ID/);
+  assert.match(workflow, /authenticated-browser-acceptance/);
+  assert.match(workflow, /seed-axivestra-browser-qa\.mjs/);
+  assert.match(workflow, /Run authenticated E18, E19, E21 and E22 browser acceptance/);
 });
