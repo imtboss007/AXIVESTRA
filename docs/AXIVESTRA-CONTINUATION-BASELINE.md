@@ -430,3 +430,41 @@ The visual changes have not yet been inspected on a physical Android device. The
 ### Release boundaries preserved
 
 No branch merge, deployment, hosted Supabase migration, production data change, provider activation, paid upgrade or public release was performed or authorised. Keep PR #88 in draft until CI and the required review gates are complete. Do not mark E15 visually complete until the physical Android check is recorded.
+
+---
+
+## 14. E15 final code checkpoint and build verification — 25 November 2026
+
+### Latest code head and PR state
+
+- Tested code head: 82c4bd43c3507ec0ccf9d8b9acd0486a8685cb20.
+- Repository: imtboss007/AXIVESTRA.
+- Branch: feat/discovery-e11-explainable-matching.
+- PR #88 remains open and draft, targeting feat/discovery-e10-enrichment. It is not merged.
+- Follow-up code commits after the earlier Section 13 checkpoint:
+  - 61d5deeeb1b627718552b1a2552a7b149d24e3e4 — corrected search control semantics and added live result-count announcement.
+  - 82c4bd43c3507ec0ccf9d8b9acd0486a8685cb20 — expanded regression assertions for accessible Lender/Customer filters.
+- E15 feature and verification documentation updated in docs/AXIVESTRA-DISCOVERY-E15-LEAD-WORKSPACE.md.
+
+### CI results observed on tested code head
+
+| Workflow / gate | Run | Result |
+|---|---:|---|
+| Discovery governance, policy tests, worker/PostgreSQL integration, E05 benchmark, full regression and web build | 45676192783 | **PASS** — policy/build job 24/24 steps |
+| Windows installer and Android APK build | 45676192697 | **PASS** — both platform jobs |
+| Cloud Worker checks | 45676200773 | **PASS** |
+| WhatsApp Hub checks | 45676200831 | **PASS** |
+| Authenticated E18–E22 browser acceptance on disposable local Supabase | 45676192783 / 45676200952 | **IN PROGRESS** at Chromium setup in the last observation; no browser pass claimed |
+
+The Android artifact build is a packaging result only. It is not a substitute for opening and inspecting the E15 Lender/Customer interface on a physical Android device.
+
+### E15 acceptance distinction
+
+- Implemented: Lender/Customer mode filtering, company/workspace/stage/priority search, mode labels, match-score meters, pipeline card hierarchy, responsive filters, restrained motion, focus states and reduced-motion support.
+- Automated code verification: E15 discovery test suite, full regression and Vite/TypeScript build passed on code head 82c4bd4.
+- Still pending: a dedicated E15 authenticated browser interaction/screenshot test and hands-on Android visual inspection at phone width. Verify both Lender and Customer mode views, search/clear behaviour, no-result state, focus treatment, animations and reduced-motion mode.
+- Keep E15 in implementation-complete / visual-acceptance-pending status until those checks are recorded.
+
+### Release boundaries
+
+No merge, hosted Supabase migration, deployment, production-data change, external-provider activation, paid upgrade or public release was performed. Keep PR #88 in draft. Existing E20 dispatch and external outreach gates remain closed.
