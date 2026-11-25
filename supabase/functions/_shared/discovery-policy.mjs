@@ -327,7 +327,7 @@ function normalizeProfileCriteria(criteria, workspaceKey, discoveryMode) {
   return result;
 }
 
-export function normalizeProfile(input, sourceCount = 0) {
+export function normalizeProfile(input, _sourceCount = 0) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("A discovery profile object is required.");
   const workspaceKey = requiredText(input.workspaceKey, "Workspace", 80);
   if (!WORKSPACES.includes(workspaceKey)) throw new Error("Choose one of AXIVESTRA's 16 supported workspaces.");
@@ -343,7 +343,8 @@ export function normalizeProfile(input, sourceCount = 0) {
   if (criteria.disabledByPolicy === true && enabled) {
     throw new Error("This workspace/mode is disabled by discovery policy and cannot be enabled.");
   }
-  if (enabled && sourceCount < 1) throw new Error("Attach at least one approved source before enabling this profile.");
+  // Enabling a profile permits bounded E03 search only. E04 fetching remains
+  // impossible until a matching source is separately approved and attached.
   return {
     workspace_key: workspaceKey,
     discovery_mode: discoveryMode,
