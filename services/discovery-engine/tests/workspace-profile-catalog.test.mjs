@@ -98,7 +98,7 @@ test("workspace E11 criteria can be passed directly to the deterministic scorer 
     matchCriteria: {
       geography: { value: ["Karnataka"], weight: 2 },
       type: { value: ["bank", "nbfc"], weight: 3, required: true },
-      ticket: { value: { min: 5000000, max: 50000000 }, weight: 2 },
+      ticket: { value: { min: 5000000, max: 50000000, currencyCode: "INR" }, weight: 2 },
       evidence_freshness: { maxAgeDays: 60, weight: 1 }
     }
   }, "property_loans", "LENDER");
