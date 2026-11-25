@@ -25,7 +25,7 @@ test("enqueue bounds criteria size and requires idempotency key", () => {
 
 test("enqueue ignores browser-supplied criteria and snapshots the company profile criteria", () => {
   const enqueue = handler.slice(handler.indexOf('if (action === "jobs.enqueue")'), handler.indexOf('if (action === "matches.candidates.list")'));
-  assert.match(enqueue, /const criteria = profile\.criteria/);
+  assert.match(enqueue, /const criteria = profile\.criteria && typeof profile\.criteria === "object"/);
   assert.match(enqueue, /p_payload:\s*\{\s*purpose,\s*criteria,\s*candidateUrls\s*\}/);
   assert.doesNotMatch(enqueue, /payload\.criteria/);
   assert.match(enqueue, /company-scoped database profile is the sole authority/);
