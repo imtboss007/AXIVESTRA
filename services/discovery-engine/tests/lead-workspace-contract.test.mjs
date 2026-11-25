@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const migration=await readFile(new URL("../../../supabase/migrations/20261122300000_discovery_lead_workspace.sql",import.meta.url),"utf8");
 const edge=await readFile(new URL("../../../supabase/functions/discovery-control/index.ts",import.meta.url),"utf8");
 const ui=await readFile(new URL("../../../src/DiscoveryLeadWorkspace.tsx",import.meta.url),"utf8");
+const styles=await readFile(new URL("../../../src/styles.css",import.meta.url),"utf8");
 
 test("E15 creates a company-scoped lead pipeline from human-accepted E11 matches only",()=>{
   for(const table of ["discovery_leads","discovery_lead_match_reviews","discovery_lead_events"])
@@ -61,4 +62,24 @@ test("E15 UI keeps review and workflow actions owner/admin-only and disables ine
   assert.match(ui,/leads\.priority/);
   assert.match(ui,/leads\.next-action/);
   assert.match(ui,/No email, phone, WhatsApp, underwriting or external outreach is triggered/);
+});
+
+test("E15 lender/customer workspace exposes mode filters, unified search and responsive score cues",()=>{
+  for(const fragment of [
+    'useState<"all"|"LENDER"|"CUSTOMER">',
+    'aria-label="Workspace mode"',
+    'aria-label="Search lender and customer records"',
+    'modeFilter==="LENDER"',
+    'modeFilter==="CUSTOMER"',
+    'const visibleMatches=useMemo',
+    'const visibleLeads=useMemo',
+    'discovery-match-meter',
+    'discovery-mode-pill'
+  ]) assert.ok(ui.includes(fragment),fragment);
+  assert.match(styles,/\.discovery-mode-switch/);
+  assert.match(styles,/\.discovery-lead-search/);
+  assert.match(styles,/\.discovery-match-meter/);
+  assert.match(styles,/@keyframes ax-e15-panel-in/);
+  assert.match(styles,/@keyframes ax-e15-card-in/);
+  assert.match(styles,/prefers-reduced-motion:reduce/);
 });
