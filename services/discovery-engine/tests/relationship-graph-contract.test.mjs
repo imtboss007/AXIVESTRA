@@ -81,9 +81,9 @@ test("E17 node focus is a read-only projection filter and never writes relations
 
 test("E17 escapes untrusted record labels before HTML tooltip rendering",()=>{
   assert.match(ui,/const escapeTooltipText=/);
-  assert.match(ui,/escapeTooltipText\\(source\\)/);
-  assert.match(ui,/escapeTooltipText\\(target\\)/);
-  assert.match(ui,/escapeTooltipText\\(name\\)/);
+  assert.match(ui,/escapeTooltipText\(source\)/);
+  assert.match(ui,/escapeTooltipText\(target\)/);
+  assert.match(ui,/escapeTooltipText\(name\)/);
   assert.match(ui,/&amp;/);
   assert.match(ui,/&lt;/);
   assert.match(ui,/&quot;/);
