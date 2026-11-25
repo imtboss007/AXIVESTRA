@@ -75,5 +75,46 @@ test.describe("AXIVESTRA E22 authenticated review desk acceptance", () => {
     } else {
       await expect(card).toContainText("Read-only view");
     }
+
+  test("E15 separates lender/customer review views with searchable responsive cards and reduced motion", async ({ page }) => {
+    await openCompanyDiscovery(page);
+    const workspace = page.locator(".discovery-lead-panel");
+    await expect(workspace).toBeVisible();
+    await expect(workspace.getByRole("heading", { name: "Lead review & workspace pipeline" })).toBeVisible();
+    await expect(workspace.locator(".discovery-match-card")).toHaveCount(2);
+
+    const modes = workspace.getByRole("group", { name: "Workspace mode" });
+    const lender = modes.getByRole("button", { name: "Lender" });
+    const customer = modes.getByRole("button", { name: "Customer" });
+    await lender.click();
+    await expect(lender).toHaveAttribute("aria-pressed", "true");
+    await expect(customer).toHaveAttribute("aria-pressed", "false");
+    await expect(workspace.locator(".discovery-match-card")).toHaveCount(1);
+    await expect(workspace.locator(".discovery-mode-pill.mode-lender")).toBeVisible();
+    await expect(workspace.locator(".discovery-match-meter")).toBeVisible();
+
+    await customer.click();
+    await expect(customer).toHaveAttribute("aria-pressed", "true");
+    await expect(lender).toHaveAttribute("aria-pressed", "false");
+    await expect(workspace.locator(".discovery-match-card")).toHaveCount(1);
+    await expect(workspace.locator(".discovery-mode-pill.mode-customer")).toBeVisible();
+
+    const search = workspace.getByRole("searchbox", { name: "Search lender and customer records" });
+    await search.fill("startup");
+    await expect(workspace.locator(".discovery-match-card")).toHaveCount(1);
+    await search.fill("no-such-qa-company");
+    await expect(workspace.locator(".discovery-match-card")).toHaveCount(0);
+    await expect(workspace).toContainText("No pending matches match this workspace/search filter.");
+    await workspace.getByRole("button", { name: "Clear search" }).click();
+    await expect(search).toHaveValue("");
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(modes).toHaveCSS("display", "grid");
+    await expect(lender).toBeVisible();
+    await expect(customer).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(workspace).toHaveCSS("animation-name", "none");
+    await expect(workspace.locator(".discovery-lead-stats > div").first()).toHaveCSS("animation-name", "none");
+  });
   });
 });
