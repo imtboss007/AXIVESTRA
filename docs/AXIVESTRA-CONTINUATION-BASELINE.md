@@ -3,7 +3,7 @@
 **Checkpoint:** 25 November 2026  
 **Repository:** https://github.com/imtboss007/AXIVESTRA  
 **Integrated development branch:** `feat/discovery-e11-explainable-matching`  
-**Current integrated head:** `83b73483f07a0ee9164fa271ae32dc52f52ca7a5`  
+**Current integrated code head:** `8596b523687c06e77a1844cf832e1d42d4a6c16b`  
 **Base branch:** `feat/discovery-e10-enrichment`  
 **Production/default branch:** `main`
 
