@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, Search, ShieldAlert, BookOpen, Database } from "lucide-react";
+import { ExternalLink, Search, ShieldAlert, BookOpen } from "lucide-react";
 import { findPublicApiCandidates, PUBLIC_API_CATALOGUE_SOURCE } from "./lib/public-api-catalog.mjs";
 
 type Props = {
