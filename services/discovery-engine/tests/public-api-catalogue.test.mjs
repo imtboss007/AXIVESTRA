@@ -27,6 +27,16 @@ test("the India API candidate catalogue is non-empty, HTTPS-only and has indepen
   }
 });
 
+test("MCA Company Master Data is an official entity-research candidate, not a lender licence authority", () => {
+  const item = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "mca-company-master");
+  assert.equal(item.sourceType, "official_government_dataset_api");
+  assert.ok(item.workspaceFit.includes("property_loans"));
+  assert.ok(item.workspaceFit.includes("unsecured_company_loan"));
+  assert.ok(item.guardrails.some(line => /do not establish current lender authorisation/i.test(line)));
+  assert.ok(item.guardrails.some(line => /do not guess or hardcode a resource ID/i.test(line)));
+  assert.equal(item.reviewState, "catalogue_only");
+});
+
 test("API Setu is described as a controlled gateway despite the directory's Auth=No metadata", () => {
   const item = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "api-setu");
   assert.equal(item.authAsListed, "No");
