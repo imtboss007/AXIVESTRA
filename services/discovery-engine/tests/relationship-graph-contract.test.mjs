@@ -74,7 +74,7 @@ test("E17 renders an interactive ECharts relationship network from the canonical
 test("E17 node focus is a read-only projection filter and never writes relationship state",()=>{
   const selection=ui.slice(ui.indexOf("const selectGraphNode"),ui.indexOf("const graphOption"));
   assert.match(selection,/setSelectedNodeId/);
-  assert.doesNotMatch(selection,/supabase\\.from|supabase\\.rpc|insert\\(|update\\(/);
-  assert.match(ui,/graph\\.edges\\.filter\\(edge=>edge\\.source===selectedNodeId\\|\\|edge\\.target===selectedNodeId\\)/);
-  assert.match(ui,/onSelect=\\{selectGraphNode\\}/);
+  assert.doesNotMatch(selection,/supabase\.from|supabase\.rpc|insert\(|update\(/);
+  assert.match(ui,/graph\.edges\.filter\(edge=>edge\.source===selectedNodeId\|\|edge\.target===selectedNodeId\)/);
+  assert.match(ui,/onSelect=\{selectGraphNode\}/);
 });
