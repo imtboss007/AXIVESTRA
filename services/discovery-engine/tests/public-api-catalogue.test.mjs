@@ -104,7 +104,7 @@ test("OpenCorporates commercial reuse and OpenSanctions compliance-only use are 
   const companies = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "opencorporates");
   const sanctions = PUBLIC_API_CANDIDATES.find(candidate => candidate.id === "opensanctions");
   assert.equal(companies.reviewState, "legal_and_provider_review_required");
-  assert.ok(companies.guardrails.some(line => /proprietary application requires a suitable paid API\/data licence/i.test(line)));
+  assert.ok(companies.guardrails.some(line => /written licence expressly covering AXIVESTRA SaaS\/multi-tenant/i.test(line)));
   assert.deepEqual(sanctions.workspaceFit, ["compliance_kyc"]);
   assert.ok(sanctions.guardrails.some(line => /commercial licensing must be checked/i.test(line)));
   assert.ok(sanctions.guardrails.some(line => /never a confirmed sanctions hit/i.test(line)));
