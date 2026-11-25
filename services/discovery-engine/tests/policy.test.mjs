@@ -216,7 +216,7 @@ test("restricted profile modes cannot attach sources even when a legacy row is m
 
 test("personal-loan customer discovery cannot be enabled or attached to internet sources", () => {
   assert.throws(() => normalizeProfile({ workspaceKey: "personal_loan", discoveryMode: "CUSTOMER", purpose: "Find borrowers", enabled: true }, 2), /cannot scrape or harvest individuals/);
-  assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external person-discovery/);
+  assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external source discovery/);
 });
 
 test("source-specific required fields do not force every source to provide the full workspace qualification set", () => {

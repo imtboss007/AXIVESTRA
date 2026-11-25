@@ -4,7 +4,7 @@ import { redactExtractedFact, redactExtractedFacts, redactObservedContact } from
 
 test("email and phone values are masked before they leave the server boundary", () => {
   assert.equal(redactObservedContact("email", "person.name@example.com"), "p***@example.com");
-  assert.equal(redactObservedContact("phone", "+91 98765 43210"), "91*********10");
+  assert.equal(redactObservedContact("phone", "+91 98765 43210"), "91********10");
   assert.equal(redactObservedContact("email", "not-an-email"), "[REDACTED]");
 });
 

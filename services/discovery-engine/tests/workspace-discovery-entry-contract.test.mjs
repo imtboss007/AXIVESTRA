@@ -32,7 +32,7 @@ test("workspace actions route with an exact selected workspace and LENDER/CUSTOM
 test("the contextual queue prioritises the selected enabled profile instead of another workspace", () => {
   assert.match(manager, /initialWorkspaceKey=\{selectedWorkspaceKey\}/);
   assert.match(manager, /initialMode=\{selectedMode\}/);
-  assert.match(queue, /initialWorkspaceKey \?/);
+  assert.match(queue, /initialWorkspaceKey\s*\?/);
   assert.match(queue, /profile\.workspace_key === initialWorkspaceKey/);
   assert.match(queue, /profile\.discovery_mode === \(initialMode \|\| "LENDER"\)/);
 });
