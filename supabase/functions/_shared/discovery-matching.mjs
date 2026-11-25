@@ -37,6 +37,7 @@ function numericAmount(value) {
  * Build a scoring candidate only from E10 observations explicitly accepted
  * by a human reviewer. No pending/conflicting observation is used.
  */
+/** @param {{canonicalEntity?: Record<string, any>, observations?: Array<Record<string, any>>}} [input] */
 export function buildE11CandidateFromAcceptedObservations({
   canonicalEntity = {},
   observations = []
@@ -152,6 +153,7 @@ function evaluateCriterion(key, actual, expected, now) {
  * Unknown criteria do not receive points and reduce confidence; no AI or
  * inferred values are used. Candidate facts must already be E10-reviewed.
  */
+/** @param {{candidate?: Record<string, any>, criteria?: Record<string, any>, evidence?: Array<Record<string, any>>, now?: number|string}} [input] */
 export function scoreDiscoveryMatch({candidate={},criteria={},evidence=[],now=Date.now()}={}) {
   const instant=typeof now==="string"?Date.parse(now):Number(now);
   if(!Number.isFinite(instant)) throw new TypeError("E11 now must be a valid timestamp.");
