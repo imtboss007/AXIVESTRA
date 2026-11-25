@@ -267,13 +267,18 @@ function validateProfileMatchCriteria(value) {
     if (!Object.hasOwn(rule, "value")) throw new Error("E11 " + key + " needs an explicit expected value.");
     const item = rule.value;
     if (key === "ticket") {
+      const hasRangeBound = item && typeof item === "object" && !Array.isArray(item) &&
+        (item.min !== undefined || item.max !== undefined);
+      const validRangeBounds = hasRangeBound &&
+        ["min","max"].every(part => item[part] === undefined ||
+          (typeof item[part] === "number" && Number.isFinite(item[part]) && item[part] >= 0));
+      const validCurrencyCode = typeof item?.currencyCode === "string" && /^[A-Z]{3}$/.test(item.currencyCode);
       if (!item || typeof item !== "object" || Array.isArray(item) ||
           Object.keys(item).some(part => !["min","max","currencyCode"].includes(part)) ||
-          Object.keys(item).length === 0 ||
-          Object.values(item).some(part => typeof part !== "number" || !Number.isFinite(part) || part < 0) ||
+          !validRangeBounds ||
           (item.min !== undefined && item.max !== undefined && item.min > item.max) ||
-          (typeof item.currencyCode !== "string" || !/^[A-Z]{3}$/.test(item.currencyCode))) {
-        throw new Error("E11 ticket requires a valid non-negative min/max range.");
+          !validCurrencyCode) {
+        throw new Error("E11 ticket requires a valid non-negative min/max range with an explicit three-letter currency code.");
       }
     } else {
       const valid = typeof item === "string" && item.trim().length > 0 ||
