@@ -133,10 +133,10 @@ test("profiles can be enabled for E03 search without a target source; E04 remain
     purpose: "Find venture debt providers", enabled: true
   }, 0);
   assert.equal(searchOnly.enabled, true);
-  assert.equal(assertSourceCanBeAttached({
+  assert.throws(() => assertSourceCanBeAttached({
     workspace_key: "startup", discovery_mode: "LENDER", purpose: searchOnly.purpose,
     criteria: searchOnly.criteria
-  }, { ...approvedSource(), status: "pending" }), false);
+  }, { ...approvedSource(), status: "pending" }), /Only approved sources/);
   assert.throws(() => normalizeProfile({
     workspaceKey: "personal_loan", discoveryMode: "CUSTOMER",
     purpose: "Find borrowers", enabled: true
