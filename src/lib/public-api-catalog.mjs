@@ -253,7 +253,7 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
     httpsAsListed: true,
     corsAsListed: "Yes",
     modeFit: ["LENDER", "CUSTOMER"],
-    workspaceFit: ["property_sale", "agricultural_land", "commercial_land", "property_loans", "jv_jda_jd", "housing_loan", "house_purchase", "unsecured_company_loan", "startup", "fund_portfolio_management"],
+    workspaceFit: ["property_sale", "agricultural_land", "commercial_land", "property_loans", "jv_jda_jd", "housing_loan", "house_purchase", "unsecured_company_loan", "startup"],
     relevance: "Potential Indian PIN-code, post-office and district reference for location normalisation across lender and customer workspaces.",
     guardrails: [
       "Third-party lookup service, not an India Post source or official proof of address.",
@@ -336,6 +336,10 @@ export const PUBLIC_API_CANDIDATES = Object.freeze([
 export function findPublicApiCandidates({ query = "", workspaceKey = "", mode = "" } = {}) {
   const term = String(query || "").trim().toLowerCase();
   const selectedMode = String(mode || "").toUpperCase();
+  // The catalogue UI mirrors E02/E03 workspace policy; do not surface external
+  // discovery candidates for modes that AXIVESTRA explicitly disables.
+  if ((workspaceKey === "personal_loan" && selectedMode === "CUSTOMER") ||
+      (workspaceKey === "litigation" && selectedMode === "LENDER")) return [];
   return PUBLIC_API_CANDIDATES.filter(candidate => {
     if (workspaceKey && !candidate.workspaceFit.includes(workspaceKey)) return false;
     if (selectedMode && !candidate.modeFit.includes(selectedMode)) return false;
