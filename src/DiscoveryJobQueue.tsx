@@ -275,7 +275,7 @@ export default function DiscoveryJobQueue({
             <button type="button" className="secondary-button" onClick={() => void searchPublicDirectories()} disabled={!selectedProfile || busy === "search"}>
               {busy === "search" ? <LoaderCircle size={15}/> : <RefreshCw size={15}/>} Search public directories
             </button>
-            <small>Uses the separately configured self-hosted search service. Search results remain unverified and are never fetched automatically. You can discover new domains before attaching a target source; those links cannot be fetched until their exact source is registered, approved and attached. No provider is activated by this screen.</small>
+            <small>Uses the separately configured self-hosted search service. Search results remain unverified and are never fetched automatically. You can discover new domains before attaching a target source; links cannot be queued until their exact URL path is registered, approved and attached. No provider is activated by this screen.</small>
             {searchQueries.length > 0 && <div className="discovery-search-queries"><b>Queries used</b>{searchQueries.map(query => <span key={query}>{query}</span>)}</div>}
             {searchResults.length > 0 && <div className="discovery-search-results">
               {searchResults.map(result => <article className="discovery-search-result" key={result.url}>
@@ -286,7 +286,7 @@ export default function DiscoveryJobQueue({
                   <small>{result.fetchEligible ? "Exact URL is within approved source: " + result.approvedSourceName : "No attached approved source matches this exact host and path. Register/review it first."}</small>
                   {result.fetchEligible
                     ? <button type="button" className="secondary-button" onClick={() => addSearchCandidate(result)} disabled={busy === "enqueue" || busy === "search"}>Add URL to E04 draft</button>
-                    : <span className="discovery-unverified-label">Unverified · no fetch permission</span>}
+                    : <span className="discovery-unverified-label">Unverified · No fetch permission</span>}
                 </div>
               </article>)}
             </div>}
