@@ -48,3 +48,15 @@ test("profile catalogue encodes separate lender and customer target classes with
   assert.match(profiles, /disabledByPolicy/);
   assert.match(profiles, /Equity investors are not debt lenders/);
 });
+
+test("new profiles allow an exact free-text purpose before any source is approved", () => {
+  assert.match(manager, /list="axivestra-discovery-purposes"/);
+  assert.match(manager, /Enter the exact discovery purpose/);
+  assert.doesNotMatch(manager, /purposeOptions\.length/);
+});
+
+test("profile activation is independent from target-source attachment, while E04 remains source-gated", () => {
+  assert.match(manager, /Search-only profile enabled/);
+  assert.match(manager, /E04 stays blocked until an exact target source is approved and attached/);
+  assert.doesNotMatch(manager, /!profile\.enabled && attached\.filter\(source => source\.status === "approved"\)\.length === 0/);
+});
