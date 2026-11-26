@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - feat/discovery-e11-explainable-matching
   pull_request:
     branches:
       - main

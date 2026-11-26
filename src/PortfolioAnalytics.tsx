@@ -17,7 +17,7 @@ type Props = {
   onOpenModule: (name: string) => void;
 };
 
-const PALETTE = ["#69b9ae","#7694bd","#b99a68","#8ba6a0","#9e8fad","#d17c79","#709aaf","#8f9c84"];
+const PALETTE = ["var(--ax-theme-chart, #69b9ae)","var(--ax-theme-graph, #7694bd)","var(--ax-theme-accent, #b99a68)","var(--ax-theme-primary, #8ba6a0)","var(--ax-theme-secondary, #9e8fad)","var(--ax-theme-graph, #d17c79)","var(--ax-theme-chart, #709aaf)","var(--ax-theme-muted, #8f9c84)"];
 const INFLOW = new Set(["Sale", "Advance", "Loan Disbursal", "Receipt"]);
 const OUTFLOW = new Set(["Purchase", "Loan Repayment", "Interest", "Instalment", "Brokerage", "Expense", "Settlement"]);
 const compact = (value: number) => formatIndianCompactAmount(value) || "—";
@@ -154,8 +154,8 @@ export default function PortfolioAnalytics({ properties, financials, tasks, modu
 }
 
 function PortfolioEmptyChartPreview({ type }: { type: "donut" | "bar" | "line" }) {
-  if (type === "donut") return <svg className="ax-empty-chart-ring" viewBox="0 0 180 180" role="img" aria-label="Empty portfolio chart"><circle cx="90" cy="90" r="62" fill="none" stroke="#1a354a" strokeWidth="21" strokeDasharray="6 7"/><circle cx="90" cy="90" r="45" fill="#0b1d2d"/><text x="90" y="86" textAnchor="middle" fill="#69879c" fontSize="9" letterSpacing="1">NO DATA</text><text x="90" y="105" textAnchor="middle" fill="#89a7bb" fontSize="14" fontWeight="800">0</text></svg>;
+  if (type === "donut") return <svg className="ax-empty-chart-ring" viewBox="0 0 180 180" role="img" aria-label="Empty portfolio chart"><circle cx="90" cy="90" r="62" fill="none" stroke="var(--ax-theme-border, #1a354a)" strokeWidth="21" strokeDasharray="6 7"/><circle cx="90" cy="90" r="45" fill="var(--ax-theme-panel, #0b1d2d)"/><text x="90" y="86" textAnchor="middle" fill="var(--ax-theme-readable-muted-surface, #69879c)" fontSize="9" letterSpacing="1">NO DATA</text><text x="90" y="105" textAnchor="middle" fill="var(--ax-theme-readable-text-panel, #89a7bb)" fontSize="14" fontWeight="800">0</text></svg>;
   if (type === "bar") return <div className="ax-empty-chart-bars" aria-label="Empty bar chart preview">{[0,1,2,3].map(item=><span key={item}><i/><b/></span>)}</div>;
-  return <svg className="ax-empty-chart-line" viewBox="0 0 220 150" role="img" aria-label="Empty trend chart preview">{[0,1,2,3].map(n=><line key={n} x1="24" x2="208" y1={18+n*32} y2={18+n*32} stroke="#1a354a" strokeDasharray="4 6"/>)}<polyline points="24,114 80,92 136,104 208,72" fill="none" stroke="#244b61" strokeWidth="2" strokeDasharray="5 7"/><text x="116" y="139" textAnchor="middle" fill="#6b8ca2" fontSize="9">EMPTY TREND PREVIEW</text></svg>;
+  return <svg className="ax-empty-chart-line" viewBox="0 0 220 150" role="img" aria-label="Empty trend chart preview">{[0,1,2,3].map(n=><line key={n} x1="24" x2="208" y1={18+n*32} y2={18+n*32} stroke="var(--ax-theme-border, #1a354a)" strokeDasharray="4 6"/>)}<polyline points="24,114 80,92 136,104 208,72" fill="none" stroke="var(--ax-theme-graph, #244b61)" strokeWidth="2" strokeDasharray="5 7"/><text x="116" y="139" textAnchor="middle" fill="var(--ax-theme-readable-muted-surface, #6b8ca2)" fontSize="9">EMPTY TREND PREVIEW</text></svg>;
 }
 

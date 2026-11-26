@@ -17,6 +17,8 @@ AXIVESTRA is designed around four connected layers:
 
 See [AXIVESTRA-PRODUCT-ARCHITECTURE.md](AXIVESTRA-PRODUCT-ARCHITECTURE.md) for the canonical product definition, current maturity assessment, target architecture and delivery gates.
 
+For the current engineering handoff, open [AXIVESTRA-CONTINUATION-BASELINE.md](docs/AXIVESTRA-CONTINUATION-BASELINE.md). When continuing development, refresh the live PR/CI state and resume from that checkpoint; do not create another repository.
+
 ## Included workspaces
 
 - Sixteen workspaces: Property Sale, Property Loans, JV / JDA / JD, SR Rate Settlement, Agricultural Land, Commercial Land, Startup, Equity, Unsecured Company Loan, Personal Loan, Housing Loan, House Purchase, Litigation, Fund & Portfolio Management, Investor Relations, and Compliance & KYC.
