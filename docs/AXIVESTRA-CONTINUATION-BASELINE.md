@@ -517,3 +517,55 @@ The E15 browser test explicitly passed mode switching, correct LENDER/CUSTOMER r
 The next E15 action is physical Android installation and visual inspection, if device acceptance is required. Check mode switching, search, mobile overflow, card layout, animations and reduced-motion preferences on the actual phone.
 
 No merge, deployment, hosted Supabase migration, production data modification, provider activation, paid upgrade or public release was performed. Keep PR #88 in draft pending the user's review and outstanding release gates. Existing E20 dispatch and outreach gates remain closed.
+
+---
+
+## 16. Latest integration and release-readiness continuation — 26 November 2026
+
+### Integrated branch and merge state
+
+- Repository: imtboss007/AXIVESTRA.
+- Active integration branch: feat/discovery-e10-enrichment.
+- PR #88 from feat/discovery-e11-explainable-matching is **CLOSED / MERGED** into feat/discovery-e10-enrichment.
+- Merge commit: c2c8fb173e2e80c3eface6c574a616c8b498227b.
+- PR #88 is no longer an open draft. Its changes are now part of the integration branch; do not recreate or reapply them.
+- Production/default branch main remains separate and unchanged by this integration merge.
+
+### Post-merge verification
+
+- Discovery Governance PR run 45826453426 — PASS.
+- Discovery Governance push run 45826476793 — PASS.
+- Authenticated E18/E19/E21/E22 browser job within run 45826453426 — PASS. It provisions disposable local Supabase, creates a temporary QA owner/company and synthetic deal/party/task/source/evidence/provenance/match/suggestion fixtures, runs the authenticated Playwright suites, uploads redacted browser evidence and stops the local stack.
+- WhatsApp Hub run 45826453454 — PASS.
+- Cloud Worker run 45826453430 — PASS.
+- Windows installer and Android APK run 45824041085 — PASS on pre-merge commit b4b6f72e94d86d4d9edb12841c9da6aaf6544d9e. The merge commit c2c8fb173e2e80c3eface6c574a616c8b498227b has the **same Git tree** as that build-tested commit.
+- Cloudflare Pages generated a branch preview during the feature-branch workflow. This is a preview, not a production deployment.
+- E15's dedicated authenticated browser acceptance previously passed 9/9 tests; physical Android inspection remains pending.
+
+### New continuation work in the release-readiness increment
+
+- Added docs/AXIVESTRA-RELEASE-REVIEW-PACK.md. This is a review-preparation packet, not an independent audit or sign-off. It maps tenant isolation, RLS/SECURITY DEFINER, privacy, retention, evidence/licence, orchestration, AI, sync, accessibility and packaging review.
+- Added docs/AXIVESTRA-PAIRED-DEVICE-ACCEPTANCE.md. It defines physical Android/Windows test cases and makes clear which legacy local/device collections are covered; cloud-native E16–E22 workflows are outside the existing device snapshot contract.
+- Updated the E18, E19, E20, E21 and E22 stage documentation to distinguish current authenticated local-QA acceptance from hosted/production acceptance.
+- Updated .github/workflows/estateflow-download-builds.yml so Windows/Android artifact builds trigger for relevant changes and pull requests targeting feat/discovery-e10-enrichment. Existing legacy branch trigger and manual workflow dispatch are preserved. Publishing remains disabled by electron-builder configuration.
+
+### Ordered next actions
+
+| ID | Task | Status | Next action |
+|---|---|---|---|
+| R1 | Disposable local QA stack and synthetic fixtures | PASS | Continue using the ephemeral CI implementation; no production credentials. |
+| R2 | Authenticated E18/E19/E21/E22 browser acceptance | PASS | Re-run on every relevant code change; retain PASS/FAIL/SKIPPED distinction. |
+| R3 | E16.1 backfill in isolated PostgreSQL | PASS — CI only | Any hosted non-production deployment, dry run or real-data apply is still a separately approved action. |
+| R4 | Paired physical Android/Windows device acceptance | PENDING | Use docs/AXIVESTRA-PAIRED-DEVICE-ACCEPTANCE.md with two physical devices and disposable QA data. |
+| R5 | Windows/Android build on current integration branch | PASS on identical source tree; fresh trigger enabled | Verify the workflow triggered for this release-readiness PR/merge and record both artifact results. |
+| R6 | Independent security/privacy/retention/licence/tenant/accessibility review | PENDING | Give docs/AXIVESTRA-RELEASE-REVIEW-PACK.md to a genuinely independent reviewer and record a signed report. |
+
+### Current release boundaries
+
+- No merge to main, production deployment, hosted Supabase migration, real-data backfill, provider activation, E20 dispatch, official WhatsApp send, paid upgrade or public release.
+- The prior recorded hosted Supabase migration history ended at 20261114035526 axivestra_custom_module_sync; re-check before any future release decision.
+- Five SECURITY DEFINER Advisor warnings and the plan-limited leaked-password protection notice remain items for independent review; do not mark them resolved solely from source inspection.
+- E20 dispatch remains hard-disabled. E22 provider execution remains disabled and its synthetic QA data does not establish model accuracy.
+- Physical device testing and independent review have not been performed by this update.
+
+**Continuation rule:** This Section 16 overrides stale branch/PR status and older pending/completed labels in Sections 1–15. Continue from the latest commit on feat/discovery-e10-enrichment, not from the original project baseline. Integrate each completed increment into this same development line; never restart discovery from scratch or create another repository.
