@@ -468,3 +468,52 @@ The Android artifact build is a packaging result only. It is not a substitute fo
 ### Release boundaries
 
 No merge, hosted Supabase migration, deployment, production-data change, external-provider activation, paid upgrade or public release was performed. Keep PR #88 in draft. Existing E20 dispatch and external outreach gates remain closed.
+
+---
+
+## 15. E15 authenticated browser acceptance complete — 26 November 2026
+
+### Tested code head
+
+- Code head tested: 50533b46b4c559358e53deae12318071b4f9e7ed.
+- Repository: imtboss007/AXIVESTRA.
+- Branch: feat/discovery-e11-explainable-matching.
+- PR #88: open / draft, targeting feat/discovery-e10-enrichment; not merged.
+
+### E15 functionality and visual work
+
+- Added All workspaces / Lender / Customer view filters to the existing E15 lead workspace.
+- Added unified company/workspace/stage/priority search, clear-search control and live result count.
+- Added Lender/Customer mode badges, match score meter, stronger pipeline/priority hierarchy, restrained entry/feedback motion and responsive mobile filter layout.
+- Added accessibility semantics and reduced-motion support.
+- Seeded separate synthetic LENDER and CUSTOMER match results in disposable browser QA only.
+- Added authenticated browser coverage for mode switching, record filtering, search/clear/no-results, score presentation, 390px layout and reduced motion.
+- Fixed a Playwright test-registration nesting defect detected by the first browser run; corrected test is now part of the authenticated workflow.
+
+### Final CI results
+
+| Gate | Workflow | Result |
+|---|---:|---|
+| Discovery governance, E15 contract, worker/PostgreSQL integration, E05 benchmark, full regression, type-check and web build | 45823362748 (PR), 45823355164 (push) | **PASS** — both policy/build jobs 24/24 steps |
+| Authenticated E18/E19/E21/E22 plus E15 browser acceptance on disposable local Supabase | 45823362748 (PR), 45823355164 (push) | **PASS** — both jobs 17/17 steps; Playwright **9/9 passed** |
+| Windows installer | 45823355180 | **PASS** — 13/13 steps |
+| Android APK | 45823355180 | **PASS** — 20/20 steps; artifact uploaded |
+| Cloud Worker | 45823362649 | **PASS** |
+| WhatsApp Hub | 45823362720 | **PASS** |
+
+The E15 browser test explicitly passed mode switching, correct LENDER/CUSTOMER record visibility, search and clear-search behaviour, empty state, match-score meter, 390px viewport layout and reduced-motion rules. It uses synthetic data in a disposable local Supabase stack; the stack is stopped after acceptance.
+
+### E15 completion status
+
+- Functional implementation: **COMPLETE**.
+- Automated contract/regression/build verification: **PASS**.
+- Authenticated browser interaction and mobile-viewport acceptance: **PASS**.
+- Android APK / Windows installer packaging: **PASS**.
+- Physical Android device inspection: **PENDING**. Browser viewport emulation is not physical-device testing.
+- Independent security/privacy/accessibility review: remains a separate programme release gate (R6 in Section 12).
+
+### Continuation and release boundaries
+
+The next E15 action is physical Android installation and visual inspection, if device acceptance is required. Check mode switching, search, mobile overflow, card layout, animations and reduced-motion preferences on the actual phone.
+
+No merge, deployment, hosted Supabase migration, production data modification, provider activation, paid upgrade or public release was performed. Keep PR #88 in draft pending the user's review and outstanding release gates. Existing E20 dispatch and outreach gates remain closed.
