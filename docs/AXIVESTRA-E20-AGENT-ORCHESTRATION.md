@@ -1,0 +1,98 @@
+# AXIVESTRA technical E20 — Agent Orchestration Control Plane
+
+**Revised roadmap alias:** E16 — Agent Orchestration  
+**Depends on:** technical E04–E12 stage queues, E02 source governance, E13 provenance, E14 privacy controls and E19 verification workflow  
+**Migrations:** `20261123130000_axivestra_agent_orchestration.sql`, `20261123150000_axivestra_orchestration_preflight.sql`, `20261123170000_axivestra_orchestration_execution_contracts.sql`, `20261123190000_axivestra_orchestration_context_binding.sql`, `20261123210000_axivestra_orchestration_worker_identity_leases.sql`, `20261123230000_axivestra_orchestration_adapter_approvals.sql`, `20261123240000_axivestra_orchestration_retry_recovery.sql` and `20261123250000_axivestra_orchestration_execution_console.sql`, plus the `discovery-orchestration-worker` Edge Function
+
+## Purpose
+
+AXIVESTRA already has separate source-fetch, extraction, entity, role, contact, geo, enrichment, matching and deduplication queues. They are not a single cross-stage orchestrator. E20 adds a company-scoped control plane to define ordered stage plans, preserve prerequisite relationships, collect an owner/admin decision and retain a durable decision history.
+
+## Implemented foundation
+
+- A versionable stage registry records technical stage ID, capability, dependency keys, permission class and adapter readiness.
+- Workflow presets define an explicit, topologically ordered subset of existing E04–E12 stages: company identity, identity plus geo, and full discovery.
+- A run request creates a company-scoped run, dependency-aware step rows and an append-only request event in one database transaction.
+- Idempotency keys prevent duplicate run requests from producing duplicate plans.
+- Any authenticated company member may request a plan. Only an owner/admin may approve, reject, pause, resume or cancel it.
+- Approval transitions to `approved_not_dispatched`. It does not start an agent, create a discovery job, invoke a provider or contact an external source.
+- Per-company/per-stage kill-switch rows are created OFF by default. No user-facing enable path is provided until a specific adapter, policy check and acceptance test have been registered.
+- Company members can read runs, steps and history. Direct table writes are revoked; state changes pass through role-checked database functions.
+- A read-only preflight view computes per-step blockers: approval state, dispatch configuration, stage kill switch, adapter registration, dependency completion, worker grant, source/purpose grants, personal-data policy and dispatcher registration.
+- E20.2 adds adapter-contract metadata, durable execution and lease schemas, bounded retry/lease/concurrency parameters and append-only execution-event storage. All adapter contracts remain unseeded.
+- E20.3 adds owner/admin-only context binding in the workspace. A run must reference an enabled company profile, an approved source attached to that profile, the profile's exact purpose and a required-field subset of that source's allow-list. The context is timestamp-snapshotted; changed profile/source policy becomes a preflight blocker. Bind/rebind receipts are append-only.
+- E20.4 adds temporary, company-scoped worker identities with exact E04–E12 stage scopes, max active leases, bounded lease duration and expiry that cannot outlive the existing one-hour company worker grant. Only SHA-256 credential hashes are stored; the raw worker token is shown once by the workspace and is not written to audit history.
+- Owners/admins can pause or permanently revoke an identity. Both actions release active leases immediately; revocation cannot be resumed without a new grant. Disabling or shortening the company-wide worker grant automatically pauses scoped identities and releases their leases. Natural expiry blocks new claims and heartbeat renewal; each scoped identity and lease is capped so neither can outlive the company grant. An expired identity may still retain its historical `active` row status until a later control/sweep operation, but it is operationally unusable.
+- Worker lease operations are brokered through `supabase/functions/discovery-orchestration-worker`, which accepts only the temporary scoped worker token and the Supabase public API key. The service-role credential remains inside the Edge Function; the worker process never receives it. The broker hashes the worker token, creates and hashes lease tokens server-side, and returns a lease token only to the worker client. The client keeps it in a private in-memory map; it is not returned to adapter code or persisted. It sanitizes errors and never logs credentials or token hashes.
+- The broker invokes service-role-only claim, heartbeat, release and expiry RPCs, which validate worker identity, company grant, stage scope, token and expiry. The safe lease inspector omits lease-token hashes. Claim also requires `dispatch_permitted=true` and zero preflight blockers; the current view still hard-codes dispatch to false, so no E20 execution can be claimed.
+- E20.6 adds a platform-controlled failure taxonomy with explicit transient, rate-limited, permanent, policy-blocked, security-blocked and unknown classes. Only listed error codes may be submitted; arbitrary error strings and raw exception details are not accepted as retry instructions.
+- Every newly issued orchestration lease consumes exactly one bounded attempt and creates one idempotency-keyed attempt receipt. Attempt identity is immutable; the receipt may transition once from `started` to a final outcome and is immutable thereafter.
+- Transient and rate-limited outcomes use capped exponential backoff. Attempt and policy limits are independently enforced against execution `max_attempts` and the policy's own maximum. Permanent, policy, security and unknown failures are terminal. A failure on the final allowed attempt becomes terminal; it cannot schedule another retry.
+- A terminal failed or cancelled stage is reflected in the dependency schedule as `blocked_by_failed_dependency`; the downstream preflight still blocks dependent steps. E20.6 does not auto-skip or dispatch downstream work, and no dependency failure is inferred from arbitrary error text.
+- Expired leases and explicit worker releases are finalized through the same retry classifier instead of being silently returned to ready. Pause, revoke, company-grant expiry and company-grant revocation close the active attempt and release its lease. Cancellation/rejection prevents new retries; paused plans remain unclaimable until owner/admin resume.
+- The worker broker's `finish` action is token-scoped and accepts only `succeeded` or `failed` plus an approved uppercase error code. The service-role RPC checks the worker credential, lease token, company grant and (for success) live preflight. Repeated identical outcomes return the existing receipt without another attempt or state transition.
+- Safe execution and attempt views show state, attempt count, failure class, retry eligibility and next retry time while hiding credential hashes, lease tokens, private source content and arbitrary worker input. No retry polling loop or dispatcher is activated by E20.6.
+- A future worker process instantiates `createOrchestrationLeaseClient` with only `supabaseUrl`, `publicApiKey`, `companyId`, `workerIdentityId` and its one-time `workerToken`. It must not receive `SUPABASE_SERVICE_ROLE_KEY`. The helper pins the broker path to `/functions/v1/discovery-orchestration-worker`, requires HTTPS (except localhost tests), rejects redirects and keeps any returned lease token in process memory.
+- E20.5 adds company-specific approval, rejection and suspension of an exact platform-reviewed adapter contract version. Every review is owner/admin-only, company-scoped and recorded in an append-only event history. Company approval does not enable the global contract, a stage kill switch or dispatch.
+- E20.5 extends preflight with separate blockers for a platform-unreviewed/disabled adapter contract and a missing, rejected, suspended or stale company approval. It reports the platform-contract and company-approval states separately.
+- E20.5 adds a read-only dependency schedule preview that distinguishes satisfied prerequisites, waiting dependencies and failed/cancelled dependencies. A preview state never changes a step, creates an execution or enqueues an existing queue.
+- E20.5 adds a nine-stage contract map from the E20 registry to the existing E04–E12 queues. E04–E10 and E12 point to their actual queue table and enqueue/claim path; E11 is explicitly mapped as a deterministic inline engine with no dedicated queue. This prevents an invented duplicate queue for matching.
+- The stage-queue contract table is read-only to authenticated company users and its `bridge_enabled` field is constrained OFF. Preflight reports a missing mapping or disabled bridge. E20 does not call any legacy enqueue/claim routine and does not alter the existing E04–E12 queue workers.
+
+| E20 stage | Existing E04–E12 implementation | Queue mode |
+|---|---|---|
+| E04 source capture | `discovery_jobs`; `enqueue_discovery_job()` via `discovery-control.jobs.enqueue`; claim: `claim_discovery_job()` | Existing durable queue |
+| E05 extraction | `discovery_extraction_jobs`; evidence trigger `enqueue_discovery_extraction_for_evidence()`; claim: `claim_discovery_extraction_job()` | Existing durable queue |
+| E06 entity resolution | `discovery_entity_resolution_jobs`; extraction-run trigger `enqueue_discovery_entity_resolution_job()`; claim: `claim_discovery_entity_resolution_job()` | Existing durable queue |
+| E07 professional roles | `discovery_professional_role_jobs`; reviewed-entity assignment trigger; claim: `claim_discovery_professional_role_job()` | Existing durable queue |
+| E08 contact validation | `discovery_contact_validation_jobs`; extraction trigger; claim: `claim_discovery_contact_validation_job()` | Existing durable queue |
+| E09 geo resolution | `discovery_geo_resolution_jobs`; extraction trigger; claim: `claim_discovery_geo_resolution_job()` | Existing durable queue |
+| E10 enrichment | `discovery_enrichment_jobs`; reviewed-entity assignment trigger; claim: `claim_discovery_enrichment_job()` | Existing durable queue |
+| E11 matching | Deterministic weighted scoring engine; no dedicated stage queue | Deterministic inline |
+| E12 deduplication | `discovery_deduplication_jobs`; existing entity/contact/role triggers; claim: `claim_discovery_deduplication_job()` | Existing durable queue |
+- The Discovery Sources workspace displays the stage inventory, versioned adapter contracts, company review actions/history, dependency schedule preview, run approvals, disabled stage gates, per-step preflight blockers, context binding controls, scoped worker grant/revoke controls and separate decision/context/worker histories.
+- E20.7 adds a company-scoped read-only operations projection. It reports queue age and retry delay for ready/retry-wait executions, latest lease state and heartbeat age, worker lifecycle status, platform contract version, company-approved version and explicit adapter readiness/drift classifications. The view never exposes lease-token or worker credential hashes.
+- The E20.7 console aggregates eligible queue items, oldest queue age, active/expired leases, terminal failures and adapter/version exceptions; execution cards include latest worker/lease heartbeat and contract version comparison. Worker identity cards show active lease counts. Adapter readiness exceptions distinguish stage/adapter mismatch, missing contract, platform review requirement, missing/rejected/suspended company approval and stale company-approved versions.
+- The operational projection is observational only. It adds no scheduler, poller, enqueue/claim bridge, automatic retry loop or worker process; it cannot change run/execution/lease state and does not alter the permanent dispatch-off gate.
+
+## E20.7 execution console
+
+The operations inbox is a membership-filtered, read-only view over existing execution, stage, adapter-contract, company-approval, lease and worker records. It computes queue age from execution creation time, retry wait from `available_at`, lease state from the latest lease, and heartbeat age from the last heartbeat. Adapter readiness is evaluated against the stage registry's current adapter key, current platform contract and the company's approval for that exact version. A changed platform version with an older company approval is explicitly classified as `company_approval_stale`.
+
+The workspace surfaces queue depth/age, active and expired leases, terminal failures, worker lifecycle and adapter/version exceptions. It continues to use the existing nine-stage queue map; no new queue is created and no legacy bridge is enabled. The view excludes `lease_token_hash` and `credential_hash`; authenticated users receive access only to the safe projection, not the underlying lease or worker-credential tables.
+
+## Current boundaries
+
+- **Governed planning and non-dispatchable retry/recovery foundations only.** Preflight and the E20.5 dependency schedule are dry-run projections; they do not enqueue legacy stage jobs. E20.4/E20.6 provide scoped lease and attempt APIs, but claims return no work while `dispatch_permitted=false`.
+- No production adapter is registered or dispatch-ready. Platform adapter contracts are a controlled, versioned catalogue; company owners/admins can review only a platform-enabled exact version. There is no UI path to register arbitrary executable adapter code, and company approval is not a dispatch permission.
+- The existing stage queues remain independently governed and are not bridged to E20. There is still no dispatcher, queue bridge, automatic dependency scheduler, adapter execution loop or cross-agent recovery loop. E20.6's retry classifier only evaluates explicitly submitted worker outcomes or lease expiry after a lease exists.
+- The existing company-wide worker grant is mandatory and checked dynamically by E20.4; each scoped identity expires no later than that grant. Personal-data policy checks remain an explicit preflight blocker. E20.3 verifies run-specific profile/source/purpose/field context but does not replace separate privacy approval.
+- No agent autonomy, internet search, unapproved scraping, outreach, underwriting, credit/property decision, model-provider call or automatic entity merge is introduced.
+- E13 remains the source lineage ledger; E19 remains the human verification workflow. E20 adds its own append-only orchestration decision receipts.
+
+## Validation
+
+The E20 contract suite checks schema, dependency maps, disabled-by-default execution gates, UI approval boundaries, preflight blockers, company adapter approvals, dependency schedule preview, all nine legacy queue mappings, bounded failure taxonomy, immutable attempt receipts, idempotent outcome handling, authenticated worker broker boundaries and E20.7 console wiring. PostgreSQL integration applies E20 after E19 and exercises plan idempotency, approval, governed run-context binding, worker grants/scopes/expiry, credential privacy, service-role broker boundaries, blocked claims while dispatch is false, attempt start/finalization, duplicate outcome idempotency, transient backoff, permanent failure, expired-lease recovery, immutable finalized attempts, downstream blocking after terminal failure, pause/revoke, company-grant revocation and E20.7's safe console ACLs, active lease/heartbeat projection, queue age and stale adapter-version detection.
+
+At feature-branch head `ae4c4f07899eba6878404ff31f4f8e8855326688`, the following GitHub Actions workflows completed successfully: discovery governance (contract tests, PostgreSQL integration, E05 benchmark, full regression, discovery Edge Function type-check and AXIVESTRA application build), WhatsApp Hub (repository tests/checks, cloud security contracts, invitation function type-check and application build), and Cloud Worker checks. Authenticated E18/E19 browser acceptance was skipped, not passed, because QA account/company and Supabase credentials are not configured; E18 commitment browser acceptance also lacks its dedicated deal/party fixtures.
+
+## Remaining E20 sequence
+
+E20.5 adapter governance, dependency preview and the read-only E04–E12 queue map are implemented. E20.6 adds bounded attempt receipts, retry classification, backoff and lease recovery while the dispatch gate remains hard-off.
+
+1. **E20.7 — Execution console:** implemented as a read-only operational projection and company workspace with queue-age/retry telemetry, latest lease/heartbeat and worker lifecycle visibility, terminal-failure metrics and adapter/version drift exceptions. Contract and PostgreSQL acceptance are wired into CI. Authenticated browser acceptance remains pending until a real QA account/company, Supabase credentials and E18 fixtures are available.
+2. **Separate release acceptance:** perform authenticated end-to-end browser acceptance with configured QA fixtures and complete independent security/release review before any activation decision. This remains a release prerequisite, not permission to enable dispatch.
+
+E20.5 does not create a production adapter or bridge to the legacy queues. E20.6 does not create a dispatcher or worker loop. Versioned catalogue entries remain controlled migration/release artefacts; company review is scoped to an exact enabled version. The dependency schedule and stage-to-queue contract map remain observational only. E04–E10/E12 retain their existing queue triggers and claim routines; E11 remains deterministic inline scoring.
+
+These are engineering slices, not permission to activate a worker. The `dispatch_permitted` flag remains hard-coded false; E20.4's claim RPC cannot acquire work. Any future change to that invariant requires a separate explicit release decision after policy integration, production adapter review, security and end-to-end acceptance.
+
+E20.6/E20.7 database and application checks are validated by the current feature-branch workflows. E20.7 PostgreSQL acceptance exercises safe console privileges, active lease/heartbeat projection, retry queue-age reporting and stale adapter-version approval detection. Authenticated browser acceptance remains a separately outstanding QA prerequisite because the QA account/company, Supabase credentials and E18 deal/party fixtures are not configured. No production migration, worker activation, provider connection, deployment or merge is performed by this implementation.
+
+---
+
+## Current integration verification status — 26 November 2026
+
+The merged integration commit is c2c8fb173e2e80c3eface6c574a616c8b498227b on feat/discovery-e10-enrichment. Post-merge Discovery Governance, WhatsApp Hub and Cloud Worker runs 45826476793, 45826453454 and 45826453430 completed successfully. The Discovery Governance run includes the E20 contract/PostgreSQL integration coverage. The authenticated browser workflow covers E18, E19, E21, E22 and the E15 lender/customer workspace; it is not a dedicated authenticated E20 execution-console acceptance test.
+
+E20 dispatch remains hard-disabled, adapters remain unregistered/not dispatch-ready, and no queue bridge or worker activation is permitted. Independent security review remains pending.
