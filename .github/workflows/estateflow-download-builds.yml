@@ -4,6 +4,30 @@ on:
   push:
     branches:
       - "feature/estateflow-unified-whatsapp-automation"
+      - "feat/discovery-e10-enrichment"
+    paths:
+      - "src/**"
+      - "services/**"
+      - "electron/**"
+      - "android/**"
+      - "capacitor.config.*"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.*"
+      - ".github/workflows/estateflow-download-builds.yml"
+  pull_request:
+    branches:
+      - "feat/discovery-e10-enrichment"
+    paths:
+      - "src/**"
+      - "services/**"
+      - "electron/**"
+      - "android/**"
+      - "capacitor.config.*"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.*"
+      - ".github/workflows/estateflow-download-builds.yml"
   workflow_dispatch:
 
 permissions:

@@ -12,6 +12,9 @@ on:
       - feat/discovery-e06-entity-intelligence
       - feat/discovery-e07-professional-roles
       - feat/discovery-e08-contact-validation
+      - feat/discovery-e09-geo-resolution
+      - feat/discovery-e10-enrichment
+      - feat/discovery-e11-explainable-matching
   pull_request:
     branches:
       - main
@@ -21,22 +24,54 @@ on:
       - feat/discovery-e06-entity-intelligence
       - feat/discovery-e07-professional-roles
       - feat/discovery-e08-contact-validation
+      - feat/discovery-e09-geo-resolution
+      - feat/discovery-e10-enrichment
+      - feat/discovery-e11-explainable-matching
     paths:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
+      - "supabase/functions/discovery-orchestration-worker/**"
       - "services/discovery-engine/**"
       - "services/discovery-worker/**"
       - "supabase/migrations/*discovery*"
       - "services/discovery-engine/tests/**"
       - "services/discovery-worker/**"
+      - "services/discovery-worker/requirements-scrapling-parser.txt"
+      - "services/discovery-worker/scrapling-parser.py"
+      - "services/discovery-worker/scrapling-parser.test.py"
+      - "src/App.tsx"
+      - "src/CompanyCommitmentWorkspace.tsx"
+      - "src/DiscoverySourceManager.tsx"
+      - "src/DiscoveryPublicApiCatalogue.tsx"
+      - "src/lib/public-api-catalog.mjs"
+      - "src/lib/public-api-catalog.d.mts"
+      - "src/DiscoveryAiMatchingReviewWorkspace.tsx"
+      - "src/DiscoveryVerificationWorkspace.tsx"
+      - "src/DiscoveryOrchestrationWorkspace.tsx"
+      - "src/styles.css"
+      - "supabase/migrations/*axivestra_verification*"
+      - "supabase/migrations/*axivestra_agent_orchestration*"
+      - "supabase/migrations/*axivestra_orchestration_preflight*"
+      - "supabase/migrations/*axivestra_orchestration_execution_contracts*"
+      - "supabase/migrations/*axivestra_orchestration_context_binding*"
+      - "supabase/migrations/*axivestra_orchestration_worker_identity_leases*"
+      - "tests/browser/axivestra-commitment-workspace.spec.ts"
+      - "tests/browser/axivestra-verification-workspace.spec.ts"
+      - "tests/browser/axivestra-ai-matching-review.spec.ts"
+      - "tests/browser/axivestra-evidence-pack-workspace.spec.ts"
+      - "docs/AXIVESTRA-E18-COMMITMENTS-WORKSPACE.md"
+      - "docs/AXIVESTRA-E19-VERIFICATION-CONFIDENCE.md"
+      - "docs/AXIVESTRA-E20-AGENT-ORCHESTRATION.md"
+      - "docs/AXIVESTRA-REVISED-DISCOVERY-ROADMAP-E05-E16.md"
       - "package.json"
+      - "scripts/seed-axivestra-browser-qa.mjs"
       - ".github/workflows/discovery-governance-checks.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: axivestra-discovery-governance-${{ github.ref }}
+  group: axivestra-discovery-governance-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -76,6 +111,10 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
+      - name: Validate authenticated browser acceptance test discovery
+        run: npm run test:e2e -- --list tests/browser/axivestra-commitment-workspace.spec.ts tests/browser/axivestra-verification-workspace.spec.ts tests/browser/axivestra-ai-matching-review.spec.ts tests/browser/axivestra-evidence-pack-workspace.spec.ts
+
+
       - name: Install governed fetch worker dependencies
         run: npm --prefix services/discovery-worker install --no-package-lock --no-audit --no-fund
         env:
@@ -83,6 +122,17 @@ jobs:
 
       - name: Install isolated Playwright Chromium runtime
         run: npm --prefix services/discovery-worker run install:browser
+
+      - name: Set up Python for the optional Scrapling parser
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install parser-only Scrapling dependency
+        run: python -m pip install --disable-pip-version-check -r services/discovery-worker/requirements-scrapling-parser.txt
+
+      - name: Smoke-test Scrapling against offline synthetic HTML
+        run: python services/discovery-worker/scrapling-parser.test.py
 
       - name: Run discovery governance tests
         run: npm run test:discovery
@@ -98,8 +148,104 @@ jobs:
       - name: Run full regression suite
         run: npm test
 
-      - name: Type-check discovery Edge Function
-        run: deno check supabase/functions/discovery-control/index.ts
+      - name: Type-check discovery Edge Functions
+        run: |
+          deno check supabase/functions/discovery-control/index.ts
+          deno check supabase/functions/discovery-orchestration-worker/index.ts
 
       - name: Build AXIVESTRA web application
         run: npm run build
+
+
+  authenticated-browser-acceptance:
+    name: Authenticated E18–E22 acceptance on disposable local Supabase
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Supabase CLI (pinned stable)
+        uses: supabase/setup-cli@v1
+        with:
+          version: 3.4.0
+
+      - name: Install project dependencies
+        run: npm install --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Start an isolated local Supabase stack
+        run: supabase start
+
+      - name: Apply every repository migration to the disposable local database
+        run: supabase db reset
+
+      - name: Create disposable company, owner, E16–E22 fixtures and browser environment
+        run: |
+          supabase status -o env > "$RUNNER_TEMP/axivestra-supabase.env"
+          set -a
+          . "$RUNNER_TEMP/axivestra-supabase.env"
+          set +a
+          API_URL="$API_URL" ANON_KEY="$ANON_KEY" SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            node scripts/seed-axivestra-browser-qa.mjs
+
+      - name: Serve the real discovery-control Edge Function locally
+        run: |
+          set -a
+          . "$RUNNER_TEMP/axivestra-supabase.env"
+          set +a
+          printf 'SUPABASE_URL=%s\\nSUPABASE_ANON_KEY=%s\\nSUPABASE_SERVICE_ROLE_KEY=%s\\n' \
+            "$API_URL" "$ANON_KEY" "$SERVICE_ROLE_KEY" > "$RUNNER_TEMP/axivestra-functions.env"
+          supabase functions serve discovery-control --env-file "$RUNNER_TEMP/axivestra-functions.env" \
+            > "$RUNNER_TEMP/axivestra-discovery-control.log" 2>&1 &
+          for attempt in $(seq 1 45); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -X POST \
+              -H "apikey: $ANON_KEY" \
+              http://127.0.0.1:54321/functions/v1/discovery-control || true)"
+            if [ "$status" = "401" ]; then
+              echo "Local discovery-control Edge Function is responding."
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/axivestra-discovery-control.log"
+          echo "Local discovery-control Edge Function did not become ready." >&2
+          exit 1
+
+      - name: Build AXIVESTRA against the disposable local Supabase stack
+        run: npm run build
+
+      - name: Install desktop Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authenticated E18, E19, E21 and E22 browser acceptance
+        run: |
+          npm run test:e2e -- \
+            tests/browser/axivestra-commitment-workspace.spec.ts \
+            tests/browser/axivestra-verification-workspace.spec.ts \
+            tests/browser/axivestra-evidence-pack-workspace.spec.ts \
+            tests/browser/axivestra-ai-matching-review.spec.ts \
+            --project=desktop-chromium
+
+      - name: Upload authenticated browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: axivestra-authenticated-browser-evidence
+          path: |
+            test-results/
+            playwright-report/
+            ${{ runner.temp }}/axivestra-discovery-control.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop the disposable local Supabase stack
+        if: always()
+        run: supabase stop --no-backup || true
