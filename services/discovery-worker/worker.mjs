@@ -11,6 +11,7 @@ import {
   assertSourceCanBeAttached
 } from "../../supabase/functions/_shared/discovery-policy.mjs";
 import { assertPurposeAllowed } from "../../supabase/functions/_shared/discovery-execution-policy.mjs";
+import { prepareProviderRequestUrl } from "./api-provider-requests.mjs";
 import {
   assertPublicResolvedAddresses, parseRobotsRules, redactUrl,
   validateCandidateUrls, makeRobotsUrl
@@ -23,7 +24,7 @@ const USER_AGENT = "AXIVESTRA-DiscoveryBot/1.0";
 const CACHE_SECONDS = 6 * 60 * 60;
 const ALLOWED_CONTENT_TYPES = new Set([
   "text/html", "text/plain", "application/json", "application/ld+json",
-  "application/xml", "text/xml", "application/pdf"
+  "application/xml", "text/xml", "application/pdf", "text/csv", "application/csv"
 ]);
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -149,7 +150,10 @@ async function controlledGet(admin, job, source, workerId, urlValue, signal, bud
       event_type: "request_started", url: safeUrl, outcome: "requesting",
       metadata: { method: "GET", purpose, redirect_hop: hop }
     });
-    const response = await rawHttpsGet(current.toString(), signal);
+    const requestUrl = purpose === "robots"
+      ? current.toString()
+      : prepareProviderRequestUrl(current.toString(), { source });
+    const response = await rawHttpsGet(requestUrl, signal);
     await writeEvent(admin, {
       company_id: job.company_id, job_id: job.id, source_id: job.source_id,
       event_type: "response_received", url: safeUrl, http_status: response.status,
