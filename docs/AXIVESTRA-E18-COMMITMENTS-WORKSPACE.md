@@ -35,3 +35,11 @@ A dedicated Playwright spec now covers authenticated E18 commitment creation, su
 - Optional: `AXIVESTRA_E2E_RELATIONSHIP_LABEL` to select a particular active E16 edge and `AXIVESTRA_E2E_LEGACY_TASK_TITLE` to exercise one unlinked cloud-synced task
 
 Build with the Vite variables, then run `npm run test:e2e -- tests/browser/axivestra-commitment-workspace.spec.ts` with the test variables. Use a dedicated QA company: the first test creates and cancels a commitment (history is retained), and the legacy-task test consumes the selected source-task link once. The original task itself remains unchanged. Do not put credentials or keys in source control.
+
+---
+
+## Current authenticated acceptance status — 26 November 2026
+
+The current integration-branch workflow provisions a disposable local Supabase stack, creates a random disposable owner and synthetic QA company/deal/party/task fixtures, and runs the authenticated E18 browser suite against the local stack. The post-merge Discovery Governance authenticated browser job in run 45826453426 completed successfully. The suite creates and edits a commitment linked to the matching E16 relationship, then cancels it while retaining immutable history. The seeder also supplies the dedicated legacy-task fixture used by the one-time task-linking assertion. The local stack is stopped after the run.
+
+This is disposable local QA acceptance, not acceptance against a hosted or production company. No hosted migration or real-data task link was performed. Recheck the current Actions run before using this as evidence for a later commit.
