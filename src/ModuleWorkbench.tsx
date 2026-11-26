@@ -13,6 +13,9 @@ type ModuleRecord = {
 type ModuleField = { key: string; label: string; placeholder: string; type?: "text" | "number" | "date" };
 type Contact = { id: string; name: string; phone: string; role: string; notes: string };
 type Group = {id:string;jid:string;name:string};
+type RelatedTask = { id:string; title:string; date:string; time:string; type:string; done:boolean; propertyId?:string; contactId?:string };
+type RelatedDocument = { id:string; name:string; category:string; propertyId:string; contactId?:string; expiresOn:string };
+type RelatedFinancial = { id:string; type:string; amount:string; date:string; party:string; reference:string; propertyId:string; contactId?:string };
 type Props = {
   moduleName: string;
   description: string;
@@ -20,6 +23,13 @@ type Props = {
   fields: ModuleField[];
   contacts: Contact[];
   groups: Group[];
+  tasks: RelatedTask[];
+  documents: RelatedDocument[];
+  financials: RelatedFinancial[];
+  onOpenContact: (id:string) => void;
+  onOpenTask: (id:string) => void;
+  onOpenFinancial: (id:string) => void;
+  onOpenDocument: (id:string) => void;
   onAdd: () => void;
   onEdit: (record: ModuleRecord) => void;
   onDelete: (id: string) => void;
@@ -27,7 +37,29 @@ type Props = {
   onAddFollowUp: (record: ModuleRecord, contact?: Contact) => void;
   onWhatsApp: (contactId?: string, propertyId?: string) => void;
   onUpdateFollowUpContacts: (record: ModuleRecord, contactIds: string[]) => void;
+  onOpenDiscovery?: (workspaceKey: string, mode: "LENDER" | "CUSTOMER") => void;
 };
+
+const WORKSPACE_DISCOVERY_KEYS: Record<string, string> = {
+  "Property Sale": "property_sale",
+  "Property Loans": "property_loans",
+  "JV / JDA / JD": "jv_jda_jd",
+  "SR Rate Settlement": "sr_rate_settlement",
+  "Agricultural Land": "agricultural_land",
+  "Commercial Land": "commercial_land",
+  "House Purchase": "house_purchase",
+  "Unsecured Company Loan": "unsecured_company_loan",
+  "Personal Loan": "personal_loan",
+  "Housing Loan": "housing_loan",
+  "Startup": "startup",
+  "Equity": "equity",
+  "Fund & Portfolio Management": "fund_portfolio_management",
+  "Investor Relations": "investor_relations",
+  "Litigation": "litigation",
+  "Compliance & KYC": "compliance_kyc"
+};
+
+
 
 const CLOSED = new Set(["completed", "closed", "settled", "rejected", "cancelled"]);
 const currency = (value: number | string) => formatIndianCompactAmount(value) || "—";
@@ -45,9 +77,9 @@ const followUpContactIds = (record: ModuleRecord) => Array.from(new Set([
 ]));
 
 function ModuleEmptyChartPreview({ type }: { type: "donut" | "bar" | "line" }) {
-  if (type === "donut") return <svg className="ax-empty-chart-ring" viewBox="0 0 180 180" role="img" aria-label="Empty donut chart preview"><circle cx="90" cy="90" r="62" fill="none" stroke="#1a354a" strokeWidth="21" strokeDasharray="6 7"/><circle cx="90" cy="90" r="45" fill="#0b1d2d"/><text x="90" y="86" textAnchor="middle" fill="#69879c" fontSize="9" letterSpacing="1">NO DATA</text><text x="90" y="105" textAnchor="middle" fill="#89a7bb" fontSize="14" fontWeight="800">0</text></svg>;
+  if (type === "donut") return <svg className="ax-empty-chart-ring" viewBox="0 0 180 180" role="img" aria-label="Empty donut chart preview"><circle cx="90" cy="90" r="62" fill="none" stroke="var(--ax-theme-border, #1a354a)" strokeWidth="21" strokeDasharray="6 7"/><circle cx="90" cy="90" r="45" fill="var(--ax-theme-panel, #0b1d2d)"/><text x="90" y="86" textAnchor="middle" fill="var(--ax-theme-readable-muted-surface, #69879c)" fontSize="9" letterSpacing="1">NO DATA</text><text x="90" y="105" textAnchor="middle" fill="var(--ax-theme-readable-text-panel, #89a7bb)" fontSize="14" fontWeight="800">0</text></svg>;
   if (type === "bar") return <div className="ax-empty-chart-bars" aria-label="Empty bar chart preview">{[0,1,2,3].map(item=><span key={item}><i/><b/></span>)}</div>;
-  return <svg className="ax-empty-chart-line" viewBox="0 0 220 150" role="img" aria-label="Empty trend chart preview">{[0,1,2,3].map(n=><line key={n} x1="24" x2="208" y1={18+n*32} y2={18+n*32} stroke="#1a354a" strokeDasharray="4 6"/>)}<polyline points="24,114 80,92 136,104 208,72" fill="none" stroke="#244b61" strokeWidth="2" strokeDasharray="5 7"/><text x="116" y="139" textAnchor="middle" fill="#6b8ca2" fontSize="9">EMPTY TREND PREVIEW</text></svg>;
+  return <svg className="ax-empty-chart-line" viewBox="0 0 220 150" role="img" aria-label="Empty trend chart preview">{[0,1,2,3].map(n=><line key={n} x1="24" x2="208" y1={18+n*32} y2={18+n*32} stroke="var(--ax-theme-border, #1a354a)" strokeDasharray="4 6"/>)}<polyline points="24,114 80,92 136,104 208,72" fill="none" stroke="var(--ax-theme-graph, #244b61)" strokeWidth="2" strokeDasharray="5 7"/><text x="116" y="139" textAnchor="middle" fill="var(--ax-theme-readable-muted-surface, #6b8ca2)" fontSize="9">EMPTY TREND PREVIEW</text></svg>;
 }
 
 function ModuleAnalyticsChart({ items, total, type, metric, onSelect }: {
@@ -62,18 +94,19 @@ function ModuleAnalyticsChart({ items, total, type, metric, onSelect }: {
     const radius=70, circumference=2*Math.PI*radius;
     let offset=0;
     return <div className="ax-module-donut-chart"><svg viewBox="0 0 220 220" role="img" aria-label={metric==="value"?"Value allocation by status":"Record distribution by status"}>
-      <circle cx="110" cy="110" r={radius} fill="none" stroke="#142c41" strokeWidth="23"/>
+      <circle cx="110" cy="110" r={radius} fill="none" stroke="var(--ax-theme-border, #142c41)" strokeWidth="23"/>
       {items.map(item=>{const length=total>0?circumference*item.value/total:0;const currentOffset=offset;offset+=length;return <circle key={item.name} cx="110" cy="110" r={radius} fill="none" stroke={item.color} strokeWidth="23" strokeDasharray={length+" "+Math.max(0,circumference-length)} strokeDashoffset={-currentOffset} transform="rotate(-90 110 110)" strokeLinecap="butt" onClick={()=>onSelect(item.name)} className="ax-donut-segment"><title>{item.name}: {metric==="value"?currency(item.value):item.value}</title></circle>})}
-      <circle cx="110" cy="110" r="51" fill="#0b1d2d"/><text x="110" y="103" textAnchor="middle" fill="#80a5bf" fontSize="9" letterSpacing="1">TOTAL</text><text x="110" y="125" textAnchor="middle" fill="#f0faff" fontSize={metric==="value"?"14":"19"} fontWeight="800">{metric==="value"?currency(total):total}</text>
+      <circle cx="110" cy="110" r="51" fill="var(--ax-theme-panel, #0b1d2d)"/><text x="110" y="103" textAnchor="middle" fill="var(--ax-theme-readable-muted-surface, #80a5bf)" fontSize="9" letterSpacing="1">TOTAL</text><text x="110" y="125" textAnchor="middle" fill="var(--ax-theme-readable-text-panel, #f0faff)" fontSize={metric==="value"?"14":"19"} fontWeight="800">{metric==="value"?currency(total):total}</text>
     </svg><div className="ax-module-chart-center-note"><strong>{items.length} data segments</strong><small>Tap any segment or legend to filter records.</small></div></div>;
   }
   if(type==="bar")return <div className="ax-module-chart-bars">{items.map(item=><button className="ax-module-chart-bar" key={item.name} onClick={()=>onSelect(item.name)}><span>{item.name}</span><i><b style={{width:(item.value/max*100)+"%",background:item.color}}/></i><strong>{metric==="value"?currency(item.value):item.value}</strong></button>)}</div>;
   const width=600,height=260,left=40,right=20,top=26,bottom=42;
   const points=items.map((item,index)=>({...item,x:left+(items.length<2?(width-left-right)/2:index*(width-left-right)/(items.length-1)),y:top+(1-item.value/max)*(height-top-bottom)}));
-  return <div className="ax-module-chart-line"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Module records trend"><defs><linearGradient id="axModuleLineFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#20d9ef" stopOpacity=".22"/><stop offset="100%" stopColor="#20d9ef" stopOpacity="0"/></linearGradient></defs>{[0,1,2,3,4].map(n=><line key={n} x1={left} x2={width-right} y1={top+n*(height-top-bottom)/4} y2={top+n*(height-top-bottom)/4} stroke="#203e55" strokeDasharray="4 6"/>)}{points.length>1&&<polygon points={points.map(point=>point.x+","+point.y).join(" ")+" "+points[points.length-1].x+","+(height-bottom)+" "+points[0].x+","+(height-bottom)} fill="url(#axModuleLineFill)"/>}<polyline points={points.map(point=>point.x+","+point.y).join(" ")} fill="none" stroke="#20d9ef" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>{points.map(point=><g key={point.name} tabIndex={0} role="button" onClick={()=>onSelect(point.name)} className="ax-chart-point"><circle cx={point.x} cy={point.y} r="5" fill={point.color} stroke="#071827" strokeWidth="2"/><text x={point.x} y={point.y-13} textAnchor="middle" fill="#e7f8ff" fontSize="10">{metric==="value"?currency(point.value):point.value}</text><text x={point.x} y={height-15} textAnchor="middle" fill="#8aa9bf" fontSize="10">{point.name.length>12?point.name.slice(0,11)+"…":point.name}</text></g>)}</svg></div>;
+  return <div className="ax-module-chart-line"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Module records trend"><defs><linearGradient id="axModuleLineFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--ax-theme-chart, #20d9ef)" stopOpacity=".22"/><stop offset="100%" stopColor="var(--ax-theme-chart, #20d9ef)" stopOpacity="0"/></linearGradient></defs>{[0,1,2,3,4].map(n=><line key={n} x1={left} x2={width-right} y1={top+n*(height-top-bottom)/4} y2={top+n*(height-top-bottom)/4} stroke="var(--ax-theme-border, #203e55)" strokeDasharray="4 6"/>)}{points.length>1&&<polygon points={points.map(point=>point.x+","+point.y).join(" ")+" "+points[points.length-1].x+","+(height-bottom)+" "+points[0].x+","+(height-bottom)} fill="url(#axModuleLineFill)"/>}<polyline points={points.map(point=>point.x+","+point.y).join(" ")} fill="none" stroke="var(--ax-theme-chart, #20d9ef)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>{points.map(point=><g key={point.name} tabIndex={0} role="button" onClick={()=>onSelect(point.name)} className="ax-chart-point"><circle cx={point.x} cy={point.y} r="5" fill={point.color} stroke="var(--ax-theme-panel, #071827)" strokeWidth="2"/><text x={point.x} y={point.y-13} textAnchor="middle" fill="var(--ax-theme-readable-text-panel, #e7f8ff)" fontSize="10">{metric==="value"?currency(point.value):point.value}</text><text x={point.x} y={height-15} textAnchor="middle" fill="var(--ax-theme-readable-muted-surface, #8aa9bf)" fontSize="10">{point.name.length>12?point.name.slice(0,11)+"…":point.name}</text></g>)}</svg></div>;
 }
 
-export default function ModuleWorkbench({ moduleName, description, records, fields, contacts, groups, onAdd, onEdit, onDelete, onSchedule, onWhatsApp, onUpdateFollowUpContacts, onAddFollowUp }: Props) {
+export default function ModuleWorkbench({ moduleName, description, records, fields, contacts, groups, tasks, documents, financials, onOpenContact, onOpenTask, onOpenFinancial, onOpenDocument, onAdd, onEdit, onDelete, onSchedule, onWhatsApp, onUpdateFollowUpContacts, onAddFollowUp, onOpenDiscovery }: Props) {
+  const discoveryWorkspaceKey = WORKSPACE_DISCOVERY_KEYS[moduleName];
   const [view, setView] = useState<"overview" | "table" | "pipeline" | "analytics" | "data">("overview");
   const [filter, setFilter] = useState("All");
   const [query, setQuery] = useState("");
@@ -118,7 +151,7 @@ export default function ModuleWorkbench({ moduleName, description, records, fiel
     const groups = new Map<string, { name: string; value: number; color: string; records: number }>();
     records.forEach(record => {
       const name = moduleMetric === "followup" ? (record.nextFollowUpDate ? "Follow-up set" : "No follow-up") : (record.status || "Unspecified");
-      const existing = groups.get(name) || { name, value: 0, color: ["#20d9ef","#2877ff","#8171ff","#28c78a","#ffbf68","#fc7796"][groups.size%6], records: 0 };
+      const existing = groups.get(name) || { name, value: 0, color: ["var(--ax-theme-chart, #20d9ef)","var(--ax-theme-graph, #2877ff)","var(--ax-theme-accent, #8171ff)","var(--ax-theme-secondary, #28c78a)","var(--ax-theme-primary, #ffbf68)","var(--ax-theme-muted, #fc7796)"][groups.size%6], records: 0 };
       existing.records += 1;
       existing.value += moduleMetric === "value" ? (numericINR(record.value)) : 1;
       groups.set(name,existing);
@@ -140,6 +173,19 @@ export default function ModuleWorkbench({ moduleName, description, records, fiel
       if (legacy) linked.push(legacy);
     }
     return linked.filter((contact,index) => linked.findIndex(other=>other.id===contact.id)===index);
+  };
+  const linkedByStableIds = (record:ModuleRecord) => Array.from(new Set(contactIds(record).filter(id=>contactsById.has(id))));
+  const relatedTasks = (record:ModuleRecord) => {
+    const ids = new Set(linkedByStableIds(record));
+    return tasks.filter(item=>item.propertyId===record.id || Boolean(item.contactId && ids.has(item.contactId)));
+  };
+  const relatedDocuments = (record:ModuleRecord) => {
+    const ids = new Set(linkedByStableIds(record));
+    return documents.filter(item=>item.propertyId===record.id || Boolean(item.contactId && ids.has(item.contactId)));
+  };
+  const relatedFinancials = (record:ModuleRecord) => {
+    const ids = new Set(linkedByStableIds(record));
+    return financials.filter(item=>item.propertyId===record.id || Boolean(item.contactId && ids.has(item.contactId)));
   };
 
   const moduleAmount = (record: ModuleRecord, exactKeys: string[], labelPattern: RegExp) => {
@@ -205,6 +251,10 @@ export default function ModuleWorkbench({ moduleName, description, records, fiel
         <div className="ax-module-hero-actions">
           <button className="ax-action-primary" onClick={onAdd}><Plus size={15}/> Create record</button>
           <button className="ax-action-ghost" onClick={()=>setView("data")}><ClipboardList size={15}/> Data completeness</button>
+          {discoveryWorkspaceKey && onOpenDiscovery && <>
+            <button className="ax-action-ghost ax-module-intelligence-action" onClick={() => onOpenDiscovery(discoveryWorkspaceKey, "LENDER")}><ShieldCheck size={15}/> Find Lenders</button>
+            <button className="ax-action-ghost ax-module-intelligence-action" onClick={() => onOpenDiscovery(discoveryWorkspaceKey, "CUSTOMER")}><Users size={15}/> Discover Customers</button>
+          </>}
         </div>
         <div className="ax-module-export-tools">
           <label>Report grouping<select value={reportGroupBy} onChange={event=>setReportGroupBy(event.target.value)}><option value="all">All filtered records</option><option value="primary">Primary-contact-wise</option><option value="follow">Follow-up-contact-wise</option><option value="date">Follow-up date-wise</option></select></label>
@@ -263,6 +313,16 @@ export default function ModuleWorkbench({ moduleName, description, records, fiel
       {dataFields.filter(field=>getFieldValue(inspectedRecord,field.key).trim()).map(field=><article key={field.key}><span>{field.label}</span><strong>{formatField(field,getFieldValue(inspectedRecord,field.key))}</strong></article>)}</div>
       {parseFollowUps(inspectedRecord.moduleData).length>0&&<div className="ax-module-detail-notes"><strong>Follow-up history</strong>{parseFollowUps(inspectedRecord.moduleData).map(entry=><p key={entry.id}>{entry.date}{entry.time?" · "+entry.time:""} · {entry.description} · {entry.status} · {entry.priority}{entry.nextAction?" · Next: "+entry.nextAction:""}</p>)}</div>}
       {inspectedRecord.notes&&<div className="ax-module-detail-notes"><strong>Notes / evidence</strong><p>{inspectedRecord.notes}</p></div>}
+      <section className="ax-module-related-records" aria-label="Related saved records">
+        <div className="ax-module-related-records__heading"><strong>Connected records</strong><small>Only explicit saved IDs are used for contact links; no fuzzy name matching is performed here.</small></div>
+        <div className="ax-module-related-records__groups">
+          {linkedByStableIds(inspectedRecord).map(id=>{const person=contactsById.get(id);return person?<button type="button" key={"contact-"+id} onClick={()=>onOpenContact(id)}><span>CONTACT</span><strong>{person.name}</strong><small>{person.role}</small></button>:null;})}
+          {relatedTasks(inspectedRecord).map(item=><button type="button" key={"task-"+item.id} onClick={()=>onOpenTask(item.id)}><span>TASK · {item.done?"COMPLETED":"OPEN"}</span><strong>{item.title}</strong><small>{item.date}{item.time?" · "+item.time:""}</small></button>)}
+          {relatedFinancials(inspectedRecord).map(item=><button type="button" key={"financial-"+item.id} onClick={()=>onOpenFinancial(item.id)}><span>FINANCIAL · {item.type}</span><strong>{currency(item.amount)}</strong><small>{item.date} · {item.party||"Counterparty not entered"}</small></button>)}
+          {relatedDocuments(inspectedRecord).map(item=><button type="button" key={"document-"+item.id} onClick={()=>onOpenDocument(item.id)}><span>DOCUMENT · {item.category}</span><strong>{item.name}</strong><small>{item.expiresOn?"Expiry / renewal "+dateLabel(item.expiresOn):"Saved in local vault"}</small></button>)}
+        </div>
+        {!linkedByStableIds(inspectedRecord).length&&!relatedTasks(inspectedRecord).length&&!relatedFinancials(inspectedRecord).length&&!relatedDocuments(inspectedRecord).length&&<p className="ax-module-related-records__empty">No saved related contacts, tasks, financial movements or documents are linked to this record yet.</p>}
+      </section>
       <div className="ax-hub-modal-actions"><button type="button" className="secondary-button" onClick={()=>setInspectedRecord(null)}>Close</button><button type="button" className="primary-button" onClick={()=>{const record=inspectedRecord;if(record){setInspectedRecord(null);onEdit(record);}}}>Edit record</button></div>
     </section></div>}</>
     : view==="pipeline" ? <div className="ax-kanban">

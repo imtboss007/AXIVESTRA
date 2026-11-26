@@ -59,6 +59,32 @@ test("source registration normalises exact HTTPS host and always begins pending"
   assert.deepEqual(source.allowed_paths, ["/api/v1/entities"]);
 });
 
+test("source registration creates validated field schemas inside the allowed-field boundary", () => {
+  const source = normalizeSourceRegistration({
+    ...baseSource,
+    fieldSchema: {
+      legal_name: { type: "string", aliases: ["legalName", "companyName"], required: true, entityKind: "organization" },
+      registration_id: { type: "identifier", aliases: ["CIN", "registrationNumber"] }
+    }
+  });
+  assert.equal(source.field_schema.legal_name.type, "string");
+  assert.equal(source.field_schema.legal_name.entityKind, "organization");
+  assert.deepEqual(source.field_schema.registration_id.aliases, ["registration_id", "CIN", "registrationNumber"]);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource, fieldSchema: { secret_personal_field: { type: "string" } }
+  }), /outside the source allow-list/);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource, fieldSchema: { legal_name: { type: "invented-type" } }
+  }), /Unsupported extraction field type/);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource,
+    fieldSchema: {
+      legal_name: { type: "string", aliases: ["Company Name"] },
+      registration_id: { type: "identifier", aliases: ["company-name"] }
+    }
+  }), /Ambiguous source field alias/);
+});
+
 test("source registration rejects non-HTTPS, wildcard and query-bearing canonical URLs", () => {
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, canonicalUrl: "http://example.gov.in" }), /HTTPS/);
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, canonicalUrl: "https://*.example.gov.in" }), /exact hostname/);
@@ -68,6 +94,18 @@ test("source registration rejects non-HTTPS, wildcard and query-bearing canonica
 test("source registration rejects wildcard and traversal path policies", () => {
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, allowedPaths: ["/api/*"] }), /wildcards/);
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, allowedPaths: ["/api/%2e%2e/private"] }), /traversal/);
+});
+
+test("browser rendering is opt-in and only allowed for permitted public websites", () => {
+  assert.throws(() => normalizeSourceRegistration({ ...baseSource, sourceType: "official_api", renderMode: "browser" }), /only for an explicitly permitted public website/);
+  assert.throws(() => normalizeSourceRegistration({ ...baseSource, renderMode: "browser" }), /only for an explicitly permitted public website/);
+  const publicPage = normalizeSourceRegistration({
+    ...baseSource,
+    sourceType: "permitted_public_page",
+    canonicalUrl: "https://registry.example.gov.in/public",
+    renderMode: "browser"
+  });
+  assert.equal(publicPage.render_mode, "browser");
 });
 
 test("source approval requires a reviewed licence reference and legal basis", () => {
@@ -88,22 +126,119 @@ test("all sixteen workspace keys are accepted and invalid workspace keys are rej
   assert.throws(() => normalizeProfile({ workspaceKey: "not_a_workspace", discoveryMode: "CUSTOMER", purpose: "Find customers" }), /16 supported workspaces/);
 });
 
-test("profile is disabled unless explicitly enabled and has an approved source attached", () => {
+test("profiles can be enabled for E03 search without a target source; E04 remains gated separately", () => {
   assert.equal(normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers" }).enabled, false);
-  assert.throws(() => normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers", enabled: true }, 0), /Attach at least one approved source/);
-  assert.equal(normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers", enabled: true }, 1).enabled, true);
+  const searchOnly = normalizeProfile({
+    workspaceKey: "startup", discoveryMode: "LENDER",
+    purpose: "Find venture debt providers", enabled: true
+  }, 0);
+  assert.equal(searchOnly.enabled, true);
+  assert.throws(() => assertSourceCanBeAttached({
+    workspace_key: "startup", discovery_mode: "LENDER", purpose: searchOnly.purpose,
+    criteria: searchOnly.criteria
+  }, { ...approvedSource(), status: "pending" }), /Only approved sources/);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "personal_loan", discoveryMode: "CUSTOMER",
+    purpose: "Find borrowers", enabled: true
+  }, 0), /cannot scrape or harvest individuals/);
+});
+
+test("server profile normalization enforces the explicit E11 match criteria contract", () => {
+  const profile = normalizeProfile({
+    workspaceKey: "property_loans",
+    discoveryMode: "LENDER",
+    purpose,
+    enabled: false,
+    criteria: {
+      schemaVersion: 1,
+      workspaceKey: "property_loans",
+      mode: "LENDER",
+      targetClasses: ["bank"],
+      requiredFields: ["institution_name"],
+      sourceRequiredFields: [],
+      preferredFields: ["ticket_size_band"],
+      matchDimensions: ["ticket"],
+      sourcePriorities: ["regulator_register"],
+      guardrails: ["Verify current licence status."],
+      disabledByPolicy: false,
+      matchCriteria: {
+        geography: { value: ["Karnataka"], weight: 2 },
+        ticket: { value: { min: 1000000, max: 50000000, currencyCode: "INR" }, weight: 3, required: true },
+        evidence_freshness: { maxAgeDays: 90, weight: 1 }
+      }
+    }
+  });
+  assert.equal(profile.criteria.matchCriteria.ticket.required, true);
+  assert.equal(profile.criteria.matchCriteria.ticket.value.currencyCode, "INR");
+  assert.equal(profile.criteria.matchCriteria.evidence_freshness.maxAgeDays, 90);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "property_loans", discoveryMode: "LENDER", purpose, enabled: false,
+    criteria: { matchCriteria: { private_credit_score: { value: 700, weight: 1 } } }
+  }), /Unsupported E11 match criterion/);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "property_loans", discoveryMode: "LENDER", purpose, enabled: false,
+    criteria: { matchCriteria: { ticket: { value: { min: 50, max: 5 } } } }
+  }), /valid non-negative min\/max range/);
+});
+
+test("server blocks Litigation lender discovery but allows explicitly configured Investor Relations fund finance", () => {
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "litigation", discoveryMode: "LENDER", purpose: "Find approved institutional funding providers",
+    enabled: true, criteria: { disabledByPolicy: false }
+  }, 1), /disabled by discovery policy/);
+  const ir = normalizeProfile({
+    workspaceKey: "investor_relations", discoveryMode: "LENDER",
+    purpose: "Approved fund finance provider research",
+    enabled: true, criteria: {
+      schemaVersion: 1, workspaceKey: "investor_relations", mode: "LENDER",
+      targetClasses: ["optional_fund_or_portfolio_finance_provider"],
+      requiredFields: ["institution_name"], sourceRequiredFields: [],
+      preferredFields: ["facility_type"], matchDimensions: ["facility_type"],
+      sourcePriorities: ["official_lender_page"], guardrails: ["Use only for an explicitly approved fund-finance workflow."],
+      disabledByPolicy: false, matchCriteria: {}
+    }
+  }, 1);
+  assert.equal(ir.enabled, true);
+  assert.equal(ir.criteria.disabledByPolicy, false);
+});
+
+test("restricted profile modes cannot attach sources even when a legacy row is marked enabled", () => {
+  const source = approvedSource();
+  for (const workspaceKey of ["litigation", "investor_relations"]) {
+    assert.throws(() => assertSourceCanBeAttached({
+      workspace_key: workspaceKey,
+      discovery_mode: "LENDER",
+      purpose,
+      criteria: { disabledByPolicy: true }
+    }, source), /disabled by discovery policy/);
+  }
 });
 
 test("personal-loan customer discovery cannot be enabled or attached to internet sources", () => {
   assert.throws(() => normalizeProfile({ workspaceKey: "personal_loan", discoveryMode: "CUSTOMER", purpose: "Find borrowers", enabled: true }, 2), /cannot scrape or harvest individuals/);
-  assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external person-discovery/);
+  assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external source discovery/);
+});
+
+test("source-specific required fields do not force every source to provide the full workspace qualification set", () => {
+  const source = approvedSource();
+  const profile = {
+    workspace_key: "property_loans",
+    discovery_mode: "LENDER",
+    purpose,
+    criteria: { requiredFields: ["legal_name", "product_type", "jurisdiction"], sourceRequiredFields: ["legal_name"] }
+  };
+  assert.equal(assertSourceCanBeAttached(profile, source), true);
+  assert.throws(() => assertSourceCanBeAttached({
+    ...profile,
+    criteria: { ...profile.criteria, sourceRequiredFields: ["legal_name", "product_type"] }
+  }, source), /does not allow every field explicitly required from this source/);
 });
 
 test("source path policy enforces exact host and path boundaries", () => {
   const source = approvedSource();
   assert.equal(assertAllowedSourceUrl(source, endpoint + "/123").hostname, "registry.example.gov.in");
   assert.throws(() => assertAllowedSourceUrl(source, "https://sub.registry.example.gov.in/api/v1/entities"), /exact approved source origin/);
-  assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /exact approved source origin/);
+  assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /standard-port HTTPS/);
   assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in/private"), /approved source path list/);
   assert.throws(() => assertAllowedSourceUrl(source, "http://registry.example.gov.in/api/v1/entities"), /HTTPS/);
 });
@@ -184,7 +319,7 @@ test("source attachment enforces exact approved purpose and field allow-lists", 
   };
   assert.equal(assertSourceCanBeAttached(profile, approvedSource()), true);
   assert.throws(() => assertSourceCanBeAttached({ ...profile, purpose: "lead generation" }, approvedSource()), /exact purpose/);
-  assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { requiredFields: ["private_credit_score"] } }, approvedSource()), /field allow-list/);
+  assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { sourceRequiredFields: ["private_credit_score"] } }, approvedSource()), /explicitly required from this source/);
 });
 
 test("connector search endpoint is checked against exact approved host and paths", async () => {
