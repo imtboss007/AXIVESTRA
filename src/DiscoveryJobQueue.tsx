@@ -3,9 +3,10 @@ import type { FormEvent } from "react";
 import { supabase } from "./lib/supabase";
 import { Activity, Clock3, LoaderCircle, PlayCircle, RefreshCw, ShieldAlert, ShieldCheck, Square, Waypoints } from "lucide-react";
 import { BorderBeam } from "./components/BorderBeam";
+import { buildDiscoveryQueryHints } from "./lib/discovery-profiles.mjs";
 
-type Source = { id: string; name: string; status: string; max_pages_per_job: number; rate_limit_per_minute: number };
-type Profile = { id: string; workspace_key: string; discovery_mode: "LENDER" | "CUSTOMER"; purpose: string; enabled: boolean };
+type Source = { id: string; name: string; canonical_url: string; status: string; max_pages_per_job: number; rate_limit_per_minute: number };
+type Profile = { id: string; workspace_key: string; discovery_mode: "LENDER" | "CUSTOMER"; purpose: string; enabled: boolean; criteria: Record<string, unknown> };
 type Link = { profile_id: string; source_id: string };
 type Job = {
   id: string; profile_id: string; source_id: string; status: string;
@@ -14,7 +15,16 @@ type Job = {
   last_error_message?: string | null;
 };
 type WorkerGrant = { enabled: boolean; expiresAt?: string | null; updatedAt?: string | null; reason?: string };
-type ApiResponse = { ok?: boolean; error?: string; jobs?: Job[]; job?: Job; worker?: WorkerGrant; duplicate?: boolean; message?: string };
+type SearchCandidate = {
+  title: string; url: string; domain: string; snippet: string; engine: string;
+  publishedAt: string | null; fetchedAt: string; status: "unverified_candidate";
+  verified: false; evidenceId: null; approvedSourceId: string | null;
+  approvedSourceName: string | null; fetchEligible: boolean;
+};
+type ApiResponse = {
+  ok?: boolean; error?: string; jobs?: Job[]; job?: Job; worker?: WorkerGrant;
+  duplicate?: boolean; message?: string; queries?: string[]; results?: SearchCandidate[];
+};
 
 function labelWorkspace(value: string) {
   return value.split("_").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
@@ -29,13 +39,15 @@ function errorMessage(error: unknown) {
 }
 
 export default function DiscoveryJobQueue({
-  companyId, companyRole, sources, profiles, links
+  companyId, companyRole, sources, profiles, links, initialWorkspaceKey, initialMode
 }: {
   companyId?: string;
   companyRole?: string;
   sources: Source[];
   profiles: Profile[];
   links: Link[];
+  initialWorkspaceKey?: string;
+  initialMode?: "LENDER" | "CUSTOMER";
 }) {
   const canManage = companyRole === "owner" || companyRole === "admin";
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -43,6 +55,9 @@ export default function DiscoveryJobQueue({
   const [profileId, setProfileId] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [candidateText, setCandidateText] = useState("");
+  const [searchFilters, setSearchFilters] = useState({ location: "", sector: "", product: "" });
+  const [searchResults, setSearchResults] = useState<SearchCandidate[]>([]);
+  const [searchQueries, setSearchQueries] = useState<string[]>([]);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -56,6 +71,9 @@ export default function DiscoveryJobQueue({
   }, [links, profileId, sources]);
   const selectedProfile = eligibleProfiles.find(profile => profile.id === profileId);
   const selectedSource = eligibleSources.find(source => source.id === sourceId);
+  const queryHints = useMemo(() => selectedProfile
+    ? buildDiscoveryQueryHints(selectedProfile.criteria || {})
+    : [], [selectedProfile]);
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("An authenticated company workspace is required.");
@@ -89,16 +107,71 @@ export default function DiscoveryJobQueue({
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
+    const preferred = initialWorkspaceKey
+      ? eligibleProfiles.find(profile => profile.workspace_key === initialWorkspaceKey && profile.discovery_mode === (initialMode || "LENDER"))
+      : undefined;
+    if (preferred && profileId !== preferred.id) {
+      setProfileId(preferred.id);
+      setSourceId("");
+      return;
+    }
     if (!eligibleProfiles.some(profile => profile.id === profileId)) {
-      const next = eligibleProfiles[0];
+      const next = preferred || eligibleProfiles[0];
       setProfileId(next?.id || "");
       setSourceId("");
     }
-  }, [eligibleProfiles, profileId]);
+  }, [eligibleProfiles, profileId, initialWorkspaceKey, initialMode]);
 
   useEffect(() => {
     if (!eligibleSources.some(source => source.id === sourceId)) setSourceId(eligibleSources[0]?.id || "");
   }, [eligibleSources, sourceId]);
+
+  const searchPublicDirectories = async () => {
+    if (!selectedProfile) {
+      setError("Choose an enabled, policy-eligible workspace profile before searching.");
+      return;
+    }
+    setBusy("search");
+    setError("");
+    setNotice("");
+    setSearchResults([]);
+    setSearchQueries([]);
+    try {
+      const result = await invoke("search.preview", {
+        profileId: selectedProfile.id,
+        filters: {
+          location: searchFilters.location,
+          sector: searchFilters.sector,
+          product: searchFilters.product
+        }
+      });
+      setSearchResults(result.results || []);
+      setSearchQueries(result.queries || []);
+      setNotice((result.message || "Search preview complete.") + " " + (result.results?.length || 0) + " unverified candidates returned.");
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const addSearchCandidate = (candidate: SearchCandidate) => {
+    if (!candidate.fetchEligible || !candidate.approvedSourceId) {
+      setError("This result is not inside an approved, attached source path. Register and approve its source before fetching.");
+      return;
+    }
+    const matchingSource = eligibleSources.find(source => source.id === candidate.approvedSourceId);
+    if (!matchingSource) {
+      setError("The approved source is no longer attached to the selected workspace profile.");
+      return;
+    }
+    setSourceId(matchingSource.id);
+    setCandidateText(current => {
+      const rows = current.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+      return rows.includes(candidate.url) ? current : [...rows, candidate.url].join("\n");
+    });
+    setNotice("Candidate URL added to the E04 draft under " + matchingSource.name + ". It has not been fetched or verified.");
+  };
 
   const enqueue = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -123,7 +196,7 @@ export default function DiscoveryJobQueue({
         profileId: selectedProfile.id,
         sourceId: selectedSource.id,
         purpose: selectedProfile.purpose,
-        criteria: {},
+        criteria: selectedProfile.criteria || {},
         candidateUrls: urls,
         idempotencyKey
       });
@@ -175,7 +248,7 @@ export default function DiscoveryJobQueue({
         <div className="discovery-queue-card-head"><div><span className="section-kicker">BOUNDED REQUEST</span><h3>Queue approved source URLs</h3></div><Waypoints size={19}/></div>
         <form onSubmit={enqueue} className="discovery-job-form">
           <label>Enabled workspace profile
-            <select value={profileId} onChange={event => { setProfileId(event.target.value); setSourceId(""); }} disabled={!eligibleProfiles.length || busy === "enqueue"}>
+            <select value={profileId} onChange={event => { setProfileId(event.target.value); setSourceId(""); setSearchResults([]); setSearchQueries([]); }} disabled={!eligibleProfiles.length || busy === "enqueue" || busy === "search"}>
               <option value="">Choose profile</option>
               {eligibleProfiles.map(profile => <option key={profile.id} value={profile.id}>{labelWorkspace(profile.workspace_key)} · {profile.discovery_mode}</option>)}
             </select>
@@ -186,9 +259,47 @@ export default function DiscoveryJobQueue({
               {eligibleSources.map(source => <option key={source.id} value={source.id}>{source.name}</option>)}
             </select>
           </label>
+          {selectedProfile && <div className="discovery-planner-preview">
+            <span className="section-kicker">E01 · PROFILE-DRIVEN SEARCH PLAN</span>
+            <b>Target classes</b><small>{Array.isArray(selectedProfile.criteria?.targetClasses) ? selectedProfile.criteria.targetClasses.join(" · ") : "Configure profile criteria first."}</small>
+            <b>Suggested research queries</b><small>{queryHints.length ? queryHints.slice(0, 8).join(" · ") : "No query hints available."}</small>
+            <small>These are deterministic research hints. Use the separate public-directory search below to retrieve unverified result links.</small>
+          </div>}
+          <div className="discovery-search-preview">
+            <div className="section-kicker">E03 · PUBLIC DIRECTORY SEARCH</div>
+            <div className="discovery-search-filter-grid">
+              <label>Location<input value={searchFilters.location} onChange={event => setSearchFilters({ ...searchFilters, location: event.target.value })} placeholder="Karnataka / Bengaluru" maxLength={120} disabled={!selectedProfile || busy === "search"}/></label>
+              <label>Sector<input value={searchFilters.sector} onChange={event => setSearchFilters({ ...searchFilters, sector: event.target.value })} placeholder="Banking / real estate" maxLength={100} disabled={!selectedProfile || busy === "search"}/></label>
+              <label>Product / mandate<input value={searchFilters.product} onChange={event => setSearchFilters({ ...searchFilters, product: event.target.value })} placeholder="LAP / project finance" maxLength={100} disabled={!selectedProfile || busy === "search"}/></label>
+            </div>
+            <button type="button" className="secondary-button" onClick={() => void searchPublicDirectories()} disabled={!selectedProfile || busy === "search"}>
+              {busy === "search" ? <LoaderCircle size={15}/> : <RefreshCw size={15}/>} Search public directories
+            </button>
+            <small>Uses the separately configured self-hosted search service. Search results remain unverified and are never fetched automatically. You can discover new domains before attaching a target source; links cannot be queued until their exact URL path is registered, approved and attached. No provider is activated by this screen.</small>
+            {searchQueries.length > 0 && <div className="discovery-search-queries"><b>Queries used</b>{searchQueries.map(query => <span key={query}>{query}</span>)}</div>}
+            {searchResults.length > 0 && <div className="discovery-search-results">
+              {searchResults.map(result => <article className="discovery-search-result" key={result.url}>
+                <div><strong>{result.title}</strong><small>{result.domain} · {result.engine} · {result.status.replaceAll("_", " ")}</small></div>
+                <p>{result.snippet || "No provider snippet supplied."}</p>
+                <a href={result.url} target="_blank" rel="noreferrer">Open result page</a>
+                <div className="discovery-search-result-actions">
+                  <small>{result.fetchEligible ? "Exact URL is within approved source: " + result.approvedSourceName : "No attached approved source matches this exact host and path. Register/review it first."}</small>
+                  {result.fetchEligible
+                    ? <button type="button" className="secondary-button" onClick={() => addSearchCandidate(result)} disabled={busy === "enqueue" || busy === "search"}>Add URL to E04 draft</button>
+                    : <span className="discovery-unverified-label">Unverified · No fetch permission</span>}
+                </div>
+              </article>)}
+            </div>}
+          </div>
           <label>Candidate URLs <span className="discovery-optional">(one per line)</span>
             <textarea rows={5} value={candidateText} onChange={event => setCandidateText(event.target.value)} disabled={!selectedSource || busy === "enqueue"} placeholder={"https://approved-source.example/api/v1/record/123"} />
           </label>
+          {selectedSource && <div className="discovery-source-url-actions">
+            <button type="button" className="secondary-button" onClick={() => setCandidateText(current => current.trim() ? current + "\n" + selectedSource.canonical_url : selectedSource.canonical_url)} disabled={busy === "enqueue"}>
+              Use registered source entry URL
+            </button>
+            <small>This adds only the exact registered entry point. It does not expand links, submit search forms or bypass CAPTCHA or access controls.</small>
+          </div>}
           {selectedSource && <div className="discovery-job-limits">
             <span><b>Purpose</b>{selectedProfile?.purpose}</span>
             <span><b>Page budget</b>{selectedSource.max_pages_per_job} max</span>

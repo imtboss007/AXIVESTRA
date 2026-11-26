@@ -89,6 +89,22 @@ test("E10 attribute taxonomy separates business, finance, property and operating
   assert.equal(getEnrichmentAttribute("guessed_private_rating"),null);
 });
 
+test("E10 taxonomy supports source-backed lender/customer matching attributes without adding personal data", () => {
+  for (const field of [
+    "sector", "lender_category", "borrower_type", "institution_type",
+    "capital_instrument", "funding_instrument", "collateral_type",
+    "eligible_collateral", "startup_stage", "project_stage",
+    "investment_mandate", "geography", "country", "state", "city", "district",
+    "minimum_ticket_size", "maximum_ticket_size",
+    "institution_name", "registration_status", "source_as_of_date", "registered_office_address",
+    "certificate_status", "legal_name", "registration_id", "registered_state"
+  ]) {
+    assert.ok(getEnrichmentAttribute(field), field + " must be a registered source-backed business attribute");
+  }
+  assert.equal(getEnrichmentAttribute("personal_credit_score"), null);
+  assert.equal(getEnrichmentAttribute("personal_income"), null);
+});
+
 test("E10 records potential disagreements across independent sources without collapsing timestamps",()=>{
   const incoming={
     canonical_entity_id:"canonical-1",attribute_key:"annual_revenue",

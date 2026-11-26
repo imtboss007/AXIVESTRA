@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import * as cheerio from "cheerio";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
@@ -124,6 +126,37 @@ function parseJsonEvidence(text, observations) {
   walkJson(value, "$", observations);
 }
 
+function parseScraplingTableEvidence(html, schema, observations) {
+  const python = process.env.AXIVESTRA_PYTHON_EXECUTABLE || "python3";
+  const script = fileURLToPath(new URL("./scrapling-parser.py", import.meta.url));
+  const execution = spawnSync(python, [script], {
+    input: JSON.stringify({ html, fieldSchema: schema || {} }),
+    encoding: "utf8",
+    timeout: 20_000,
+    maxBuffer: 5_000_000,
+    windowsHide: true,
+    env: { ...process.env, PYTHONIOENCODING: "utf-8" }
+  });
+  if (execution.error) {
+    throw new Error("Scrapling parser-only adapter could not start: " + execution.error.message);
+  }
+  if (execution.status !== 0) {
+    throw new Error("Scrapling parser-only adapter failed (" + execution.status + "). Check the pinned parser-only Python dependency.");
+  }
+  let result;
+  try { result = JSON.parse(execution.stdout || "{}"); }
+  catch { throw new Error("Scrapling parser-only adapter returned invalid JSON."); }
+  if (!Array.isArray(result.observations) || result.observations.length > MAX_OBSERVATIONS) {
+    throw new Error("Scrapling parser-only adapter output is outside the approved observation limit.");
+  }
+  for (const item of result.observations) {
+    if (!item || typeof item.key !== "string" || typeof item.value !== "string" ||
+        !item.span || typeof item.span !== "object" || Array.isArray(item.span)) continue;
+    pushObservation(observations, item.key, item.value, item.span,
+      Number.isFinite(item.confidence) ? Math.max(0, Math.min(1, item.confidence)) : 0.9);
+  }
+}
+
 function parseHtmlEvidence(text, observations, schema, htmlParserBackend) {
   // Use Cheerio's htmlparser2 backend for a faster, lower-allocation parse.
   // Source offsets are enabled so every table fact can point back to its exact cell.
@@ -192,60 +225,66 @@ function parseHtmlEvidence(text, observations, schema, htmlParserBackend) {
     };
   };
 
-  $("table").each((tableIndex, table) => {
-    // Exclude nested-table rows: each row belongs to its nearest table only.
-    const rows = $(table).find("tr").filter((_, row) => $(row).closest("table")[0] === table).toArray();
-    if (!rows.length) return;
-    const firstCells = $(rows[0]).children("th,td").toArray();
-    const firstHeaderValues = firstCells.map(cell => $(cell).text().trim()).filter(Boolean);
-    const schemaHeaderCount = firstHeaderValues.reduce((count, value) =>
-      count + (schemaAliases.has(normalizeKey(value)) ? 1 : 0), 0
-    );
-    // Registry sites frequently style header rows with <td> inside <tbody>.
-    // Require at least two schema-recognised labels and a majority match to
-    // avoid reclassifying ordinary key/value rows as column headers.
-    const schemaHeaderRow = firstCells.length > 1 &&
-      schemaHeaderCount >= 2 &&
-      schemaHeaderCount >= Math.ceil(firstHeaderValues.length * 0.5);
-    const firstRowIsHeader = firstCells.length > 1 && (
-      $(rows[0]).closest("thead").length > 0 ||
-      firstCells.every(cell => String(cell.name || cell.tagName || "").toLowerCase() === "th") ||
-      schemaHeaderRow
-    );
-
-    if (firstRowIsHeader) {
-      const headers = firstCells.map(cell => $(cell).text().trim());
-      rows.slice(1).forEach((row, rowOffset) => {
-        const rowNumber = rowOffset + 2;
+  if (htmlParserBackend === "scrapling") {
+    // Scrapling parses only the immutable HTML snapshot already captured by E04.
+    // It is deliberately not used as a fetcher, spider, stealth or proxy engine.
+    parseScraplingTableEvidence(text, schema, observations);
+  } else {
+    $("table").each((tableIndex, table) => {
+      // Exclude nested-table rows: each row belongs to its nearest table only.
+      const rows = $(table).find("tr").filter((_, row) => $(row).closest("table")[0] === table).toArray();
+      if (!rows.length) return;
+      const firstCells = $(rows[0]).children("th,td").toArray();
+      const firstHeaderValues = firstCells.map(cell => $(cell).text().trim()).filter(Boolean);
+      const schemaHeaderCount = firstHeaderValues.reduce((count, value) =>
+        count + (schemaAliases.has(normalizeKey(value)) ? 1 : 0), 0
+      );
+      // Registry sites frequently style header rows with <td> inside <tbody>.
+      // Require at least two schema-recognised labels and a majority match to
+      // avoid reclassifying ordinary key/value rows as column headers.
+      const schemaHeaderRow = firstCells.length > 1 &&
+        schemaHeaderCount >= 2 &&
+        schemaHeaderCount >= Math.ceil(firstHeaderValues.length * 0.5);
+      const firstRowIsHeader = firstCells.length > 1 && (
+        $(rows[0]).closest("thead").length > 0 ||
+        firstCells.every(cell => String(cell.name || cell.tagName || "").toLowerCase() === "th") ||
+        schemaHeaderRow
+      );
+  
+      if (firstRowIsHeader) {
+        const headers = firstCells.map(cell => $(cell).text().trim());
+        rows.slice(1).forEach((row, rowOffset) => {
+          const rowNumber = rowOffset + 2;
+          const cells = $(row).children("th,td").toArray();
+          cells.forEach((cell, columnIndex) => {
+            const header = headers[columnIndex];
+            const value = $(cell).text().trim();
+            if (!header || !value) return;
+            pushObservation(observations, header, value,
+              cellSpan(cell, tableIndex, rowNumber, columnIndex, cells, header), 0.92);
+          });
+        });
+        return;
+      }
+  
+      // Key/value table: preserve each value cell independently rather than
+      // collapsing several cells into one untraceable joined string.
+      rows.forEach((row, rowIndex) => {
+        const rowNumber = rowIndex + 1;
         const cells = $(row).children("th,td").toArray();
-        cells.forEach((cell, columnIndex) => {
-          const header = headers[columnIndex];
+        if (cells.length < 2) return;
+        const key = $(cells[0]).text().trim();
+        if (!key) return;
+        cells.slice(1).forEach((cell, valueOffset) => {
           const value = $(cell).text().trim();
-          if (!header || !value) return;
-          pushObservation(observations, header, value,
-            cellSpan(cell, tableIndex, rowNumber, columnIndex, cells, header), 0.92);
+          if (!value) return;
+          const columnIndex = valueOffset + 1;
+          pushObservation(observations, key, value,
+            cellSpan(cell, tableIndex, rowNumber, columnIndex, cells, key), 0.9);
         });
       });
-      return;
-    }
-
-    // Key/value table: preserve each value cell independently rather than
-    // collapsing several cells into one untraceable joined string.
-    rows.forEach((row, rowIndex) => {
-      const rowNumber = rowIndex + 1;
-      const cells = $(row).children("th,td").toArray();
-      if (cells.length < 2) return;
-      const key = $(cells[0]).text().trim();
-      if (!key) return;
-      cells.slice(1).forEach((cell, valueOffset) => {
-        const value = $(cell).text().trim();
-        if (!value) return;
-        const columnIndex = valueOffset + 1;
-        pushObservation(observations, key, value,
-          cellSpan(cell, tableIndex, rowNumber, columnIndex, cells, key), 0.9);
-      });
     });
-  });
+  }
 
   $("dl").each((dlIndex, dl) => {
     $(dl).find("dt").each((index, dt) => {

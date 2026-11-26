@@ -5,15 +5,21 @@ function define(category, valueTypes, keys) {
 }
 
 define("business",["string","date","boolean","identifier","array"],[
-  "company_status","status","legal_status","operating_status","industry","industry_sector",
+  "company_status","status","legal_status","operating_status","registration_status","source_as_of_date","institution_name","legal_name","industry","industry_sector",
   "business_description","business_model","founded_date","incorporation_date","registration_date",
-  "products","services","website","business_type","entity_type"
+  "products","services","website","business_type","entity_type","sector","business_sector",
+  "institution_type","registered_office_address","certificate_status","registration_id","registered_state","lender_category","borrower_type","counterparty_type","investor_type",
+  "capital_instrument","funding_instrument","debt_equity_instrument","facility_type","product_type",
+  "collateral_type","eligible_collateral","security_type","startup_stage","funding_stage",
+  "project_stage","development_stage","mandate","investment_mandate","lending_mandate",
+  "funding_mandate","investment_thesis","geography","country","state","city","district"
 ]);
 define("finance",["currency","number","percentage","date","string","identifier"],[
   "revenue","annual_revenue","turnover","annual_turnover","ebitda","profit","net_profit",
   "net_income","total_assets","total_liabilities","total_debt","assets_under_management","aum",
   "valuation","funding_amount","paid_up_capital","net_worth","ticket_size","interest_rate",
-  "profit_margin","revenue_growth","debt_to_equity","financial_year","reporting_period"
+  "profit_margin","revenue_growth","debt_to_equity","financial_year","reporting_period",
+  "minimum_ticket_size","maximum_ticket_size","min_ticket","max_ticket"
 ]);
 define("property",["number","currency","string","date","boolean","identifier"],[
   "land_area","plot_area","site_area","built_up_area","carpet_area","floor_area","property_area",
