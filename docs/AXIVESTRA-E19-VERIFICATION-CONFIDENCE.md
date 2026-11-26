@@ -53,3 +53,11 @@ The spec is serialized and runs only in the desktop Chromium project. It require
 - \`AXIVESTRA_E2E_COMPANY_NAME\`
 
 For a subject-level evidence inspection assertion, also set \`AXIVESTRA_E2E_VERIFICATION_SUBJECT_ID\` to a dedicated QA subject UUID. The governance workflow invokes this spec alongside the E18 browser spec when the required QA account, company and Supabase build secrets are configured. No authenticated browser run is claimed until those credentials/fixtures are present and the Actions step passes.
+
+---
+
+## Current authenticated acceptance status — 26 November 2026
+
+The authenticated E18–E22 workflow now provisions a disposable local Supabase stack and creates a synthetic canonical entity, E13 provenance event and corresponding E19 verification case. The QA seeder exports the dedicated subject ID to the browser job. In the post-merge Discovery Governance run 45826453426, the authenticated E18–E22 browser job completed successfully. The E19 spec checks the company verification inbox and inspects the configured evidence references without rendering raw contact values.
+
+This pass uses synthetic local data and does not verify live external facts, property title, legal rights, creditworthiness or investment suitability. Physical device acceptance and independent review remain separate release gates.

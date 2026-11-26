@@ -81,3 +81,11 @@ PostgreSQL integration coverage verifies suggestion persistence/idempotency, inv
 5. Complete authenticated browser/security acceptance and verify no AI path can bypass E11 review or E15 lead controls.
 
 The provider remains disabled. No production migration has been applied, no deployment/merge has occurred, and no queue, dispatch or provider activation is part of E22.
+
+---
+
+## Current authenticated acceptance status — 26 November 2026
+
+The authenticated browser workflow seeds a synthetic pending suggestion through the validated service-role recording RPC in a disposable local Supabase stack. In post-merge Discovery Governance run 45826453426, the authenticated E18–E22 browser job completed successfully. The E22 browser spec verifies the provider-off review desk, the E11 deterministic baseline beside the E22 advisory score, the no-automatic-decision notice and reason-required human-review gating. It deliberately does not submit a review decision. The same spec file also exercises the E15 lender/customer workspace.
+
+This verifies the review workflow contract using synthetic fixtures only. No model provider is configured or called; no real adjudicated evaluation set or model-accuracy claim exists. Provider activation, automatic decisions and lead promotion remain disabled.
