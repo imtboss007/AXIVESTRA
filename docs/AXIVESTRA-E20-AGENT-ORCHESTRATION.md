@@ -88,3 +88,11 @@ E20.5 does not create a production adapter or bridge to the legacy queues. E20.6
 These are engineering slices, not permission to activate a worker. The `dispatch_permitted` flag remains hard-coded false; E20.4's claim RPC cannot acquire work. Any future change to that invariant requires a separate explicit release decision after policy integration, production adapter review, security and end-to-end acceptance.
 
 E20.6/E20.7 database and application checks are validated by the current feature-branch workflows. E20.7 PostgreSQL acceptance exercises safe console privileges, active lease/heartbeat projection, retry queue-age reporting and stale adapter-version approval detection. Authenticated browser acceptance remains a separately outstanding QA prerequisite because the QA account/company, Supabase credentials and E18 deal/party fixtures are not configured. No production migration, worker activation, provider connection, deployment or merge is performed by this implementation.
+
+---
+
+## Current integration verification status — 26 November 2026
+
+The merged integration commit is c2c8fb173e2e80c3eface6c574a616c8b498227b on feat/discovery-e10-enrichment. Post-merge Discovery Governance, WhatsApp Hub and Cloud Worker runs 45826476793, 45826453454 and 45826453430 completed successfully. The Discovery Governance run includes the E20 contract/PostgreSQL integration coverage. The authenticated browser workflow covers E18, E19, E21, E22 and the E15 lender/customer workspace; it is not a dedicated authenticated E20 execution-console acceptance test.
+
+E20 dispatch remains hard-disabled, adapters remain unregistered/not dispatch-ready, and no queue bridge or worker activation is permitted. Independent security review remains pending.
