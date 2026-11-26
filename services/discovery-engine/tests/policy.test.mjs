@@ -8,6 +8,10 @@ import {
   assertAllowedSourceUrl
 } from "../../../supabase/functions/_shared/discovery-policy.mjs";
 import { ConnectorRegistry } from "../../../supabase/functions/_shared/discovery-connector-registry.mjs";
+import {
+  createExecutionSession,
+  buildEvidenceProvenance
+} from "../../../supabase/functions/_shared/discovery-execution-policy.mjs";
 
 const baseSource = {
   name: "Example company registry",
@@ -26,6 +30,7 @@ const baseSource = {
 function approvedSource() {
   const pending = normalizeSourceRegistration(baseSource);
   return {
+    id: "source-test-1",
     ...pending,
     ...normalizeSourceReview({ status: "approved", legalBasis: baseSource.legalBasis }, {
       ...pending,
@@ -36,11 +41,48 @@ function approvedSource() {
   };
 }
 
+function session(source, options = {}) {
+  return createExecutionSession(source, {
+    jobId: "job-test-1",
+    wait: async () => {},
+    ...options
+  });
+}
+
+const purpose = "company identity verification";
+const endpoint = "https://registry.example.gov.in/api/v1/entities";
+
 test("source registration normalises exact HTTPS host and always begins pending", () => {
   const source = normalizeSourceRegistration(baseSource);
   assert.equal(source.domain, "registry.example.gov.in");
   assert.equal(source.status, "pending");
   assert.deepEqual(source.allowed_paths, ["/api/v1/entities"]);
+});
+
+test("source registration creates validated field schemas inside the allowed-field boundary", () => {
+  const source = normalizeSourceRegistration({
+    ...baseSource,
+    fieldSchema: {
+      legal_name: { type: "string", aliases: ["legalName", "companyName"], required: true, entityKind: "organization" },
+      registration_id: { type: "identifier", aliases: ["CIN", "registrationNumber"] }
+    }
+  });
+  assert.equal(source.field_schema.legal_name.type, "string");
+  assert.equal(source.field_schema.legal_name.entityKind, "organization");
+  assert.deepEqual(source.field_schema.registration_id.aliases, ["registration_id", "CIN", "registrationNumber"]);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource, fieldSchema: { secret_personal_field: { type: "string" } }
+  }), /outside the source allow-list/);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource, fieldSchema: { legal_name: { type: "invented-type" } }
+  }), /Unsupported extraction field type/);
+  assert.throws(() => normalizeSourceRegistration({
+    ...baseSource,
+    fieldSchema: {
+      legal_name: { type: "string", aliases: ["Company Name"] },
+      registration_id: { type: "identifier", aliases: ["company-name"] }
+    }
+  }), /Ambiguous source field alias/);
 });
 
 test("source registration rejects non-HTTPS, wildcard and query-bearing canonical URLs", () => {
@@ -52,6 +94,18 @@ test("source registration rejects non-HTTPS, wildcard and query-bearing canonica
 test("source registration rejects wildcard and traversal path policies", () => {
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, allowedPaths: ["/api/*"] }), /wildcards/);
   assert.throws(() => normalizeSourceRegistration({ ...baseSource, allowedPaths: ["/api/%2e%2e/private"] }), /traversal/);
+});
+
+test("browser rendering is opt-in and only allowed for permitted public websites", () => {
+  assert.throws(() => normalizeSourceRegistration({ ...baseSource, sourceType: "official_api", renderMode: "browser" }), /only for an explicitly permitted public website/);
+  assert.throws(() => normalizeSourceRegistration({ ...baseSource, renderMode: "browser" }), /only for an explicitly permitted public website/);
+  const publicPage = normalizeSourceRegistration({
+    ...baseSource,
+    sourceType: "permitted_public_page",
+    canonicalUrl: "https://registry.example.gov.in/public",
+    renderMode: "browser"
+  });
+  assert.equal(publicPage.render_mode, "browser");
 });
 
 test("source approval requires a reviewed licence reference and legal basis", () => {
@@ -72,40 +126,145 @@ test("all sixteen workspace keys are accepted and invalid workspace keys are rej
   assert.throws(() => normalizeProfile({ workspaceKey: "not_a_workspace", discoveryMode: "CUSTOMER", purpose: "Find customers" }), /16 supported workspaces/);
 });
 
-test("profile is disabled unless explicitly enabled and has an approved source attached", () => {
+test("profiles can be enabled for E03 search without a target source; E04 remains gated separately", () => {
   assert.equal(normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers" }).enabled, false);
-  assert.throws(() => normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers", enabled: true }, 0), /Attach at least one approved source/);
-  assert.equal(normalizeProfile({ workspaceKey: "startup", discoveryMode: "LENDER", purpose: "Find venture debt providers", enabled: true }, 1).enabled, true);
+  const searchOnly = normalizeProfile({
+    workspaceKey: "startup", discoveryMode: "LENDER",
+    purpose: "Find venture debt providers", enabled: true
+  }, 0);
+  assert.equal(searchOnly.enabled, true);
+  assert.throws(() => assertSourceCanBeAttached({
+    workspace_key: "startup", discovery_mode: "LENDER", purpose: searchOnly.purpose,
+    criteria: searchOnly.criteria
+  }, { ...approvedSource(), status: "pending" }), /Only approved sources/);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "personal_loan", discoveryMode: "CUSTOMER",
+    purpose: "Find borrowers", enabled: true
+  }, 0), /cannot scrape or harvest individuals/);
+});
+
+test("server profile normalization enforces the explicit E11 match criteria contract", () => {
+  const profile = normalizeProfile({
+    workspaceKey: "property_loans",
+    discoveryMode: "LENDER",
+    purpose,
+    enabled: false,
+    criteria: {
+      schemaVersion: 1,
+      workspaceKey: "property_loans",
+      mode: "LENDER",
+      targetClasses: ["bank"],
+      requiredFields: ["institution_name"],
+      sourceRequiredFields: [],
+      preferredFields: ["ticket_size_band"],
+      matchDimensions: ["ticket"],
+      sourcePriorities: ["regulator_register"],
+      guardrails: ["Verify current licence status."],
+      disabledByPolicy: false,
+      matchCriteria: {
+        geography: { value: ["Karnataka"], weight: 2 },
+        ticket: { value: { min: 1000000, max: 50000000, currencyCode: "INR" }, weight: 3, required: true },
+        evidence_freshness: { maxAgeDays: 90, weight: 1 }
+      }
+    }
+  });
+  assert.equal(profile.criteria.matchCriteria.ticket.required, true);
+  assert.equal(profile.criteria.matchCriteria.ticket.value.currencyCode, "INR");
+  assert.equal(profile.criteria.matchCriteria.evidence_freshness.maxAgeDays, 90);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "property_loans", discoveryMode: "LENDER", purpose, enabled: false,
+    criteria: { matchCriteria: { private_credit_score: { value: 700, weight: 1 } } }
+  }), /Unsupported E11 match criterion/);
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "property_loans", discoveryMode: "LENDER", purpose, enabled: false,
+    criteria: { matchCriteria: { ticket: { value: { min: 50, max: 5 } } } }
+  }), /valid non-negative min\/max range/);
+});
+
+test("server blocks Litigation lender discovery but allows explicitly configured Investor Relations fund finance", () => {
+  assert.throws(() => normalizeProfile({
+    workspaceKey: "litigation", discoveryMode: "LENDER", purpose: "Find approved institutional funding providers",
+    enabled: true, criteria: { disabledByPolicy: false }
+  }, 1), /disabled by discovery policy/);
+  const ir = normalizeProfile({
+    workspaceKey: "investor_relations", discoveryMode: "LENDER",
+    purpose: "Approved fund finance provider research",
+    enabled: true, criteria: {
+      schemaVersion: 1, workspaceKey: "investor_relations", mode: "LENDER",
+      targetClasses: ["optional_fund_or_portfolio_finance_provider"],
+      requiredFields: ["institution_name"], sourceRequiredFields: [],
+      preferredFields: ["facility_type"], matchDimensions: ["facility_type"],
+      sourcePriorities: ["official_lender_page"], guardrails: ["Use only for an explicitly approved fund-finance workflow."],
+      disabledByPolicy: false, matchCriteria: {}
+    }
+  }, 1);
+  assert.equal(ir.enabled, true);
+  assert.equal(ir.criteria.disabledByPolicy, false);
+});
+
+test("restricted profile modes cannot attach sources even when a legacy row is marked enabled", () => {
+  const source = approvedSource();
+  for (const workspaceKey of ["litigation", "investor_relations"]) {
+    assert.throws(() => assertSourceCanBeAttached({
+      workspace_key: workspaceKey,
+      discovery_mode: "LENDER",
+      purpose,
+      criteria: { disabledByPolicy: true }
+    }, source), /disabled by discovery policy/);
+  }
 });
 
 test("personal-loan customer discovery cannot be enabled or attached to internet sources", () => {
   assert.throws(() => normalizeProfile({ workspaceKey: "personal_loan", discoveryMode: "CUSTOMER", purpose: "Find borrowers", enabled: true }, 2), /cannot scrape or harvest individuals/);
-  assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external person-discovery/);
+  assert.throws(() => assertSourceCanBeAttached({ workspace_key: "personal_loan", discovery_mode: "CUSTOMER" }, approvedSource()), /cannot use external source discovery/);
+});
+
+test("source-specific required fields do not force every source to provide the full workspace qualification set", () => {
+  const source = approvedSource();
+  const profile = {
+    workspace_key: "property_loans",
+    discovery_mode: "LENDER",
+    purpose,
+    criteria: { requiredFields: ["legal_name", "product_type", "jurisdiction"], sourceRequiredFields: ["legal_name"] }
+  };
+  assert.equal(assertSourceCanBeAttached(profile, source), true);
+  assert.throws(() => assertSourceCanBeAttached({
+    ...profile,
+    criteria: { ...profile.criteria, sourceRequiredFields: ["legal_name", "product_type"] }
+  }, source), /does not allow every field explicitly required from this source/);
 });
 
 test("source path policy enforces exact host and path boundaries", () => {
   const source = approvedSource();
-  assert.equal(assertAllowedSourceUrl(source, "https://registry.example.gov.in/api/v1/entities/123").hostname, "registry.example.gov.in");
+  assert.equal(assertAllowedSourceUrl(source, endpoint + "/123").hostname, "registry.example.gov.in");
   assert.throws(() => assertAllowedSourceUrl(source, "https://sub.registry.example.gov.in/api/v1/entities"), /exact approved source origin/);
-  assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /exact approved source origin/);
+  assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in:9443/api/v1/entities"), /standard-port HTTPS/);
   assert.throws(() => assertAllowedSourceUrl(source, "https://registry.example.gov.in/private"), /approved source path list/);
   assert.throws(() => assertAllowedSourceUrl(source, "http://registry.example.gov.in/api/v1/entities"), /HTTPS/);
 });
 
-test("connector registry refuses unknown sources and missing adapters", async () => {
+test("connector registry refuses unapproved sources and missing adapters", async () => {
   const registry = new ConnectorRegistry();
-  await assert.rejects(() => registry.search({ ...approvedSource(), status: "pending" }, { text: "company", limit: 5 }), /Only an approved source/);
-  await assert.rejects(() => registry.search(approvedSource(), { text: "company", limit: 5, endpointUrl: "https://registry.example.gov.in/api/v1/entities" }), /No implementation is installed/);
+  const pending = { ...approvedSource(), status: "pending" };
+  await assert.rejects(() => registry.search(pending, { text: "company", limit: 5 }, {
+    purpose, executionSession: session(approvedSource())
+  }), /Only an approved source/);
+  await assert.rejects(() => registry.search(approvedSource(), { text: "company", limit: 5 }, {
+    purpose, executionSession: session(approvedSource())
+  }), /No implementation is installed/);
 });
 
 test("connector registry rejects unbounded search limits", async () => {
   const registry = new ConnectorRegistry();
+  const source = approvedSource();
   registry.register({
     key: "official_api",
     async search() { return []; },
     async fetchEvidence() { return {}; }
   });
-  await assert.rejects(() => registry.search({ ...approvedSource(), max_pages_per_job: 2 }, { text: "company", limit: 51, endpointUrl: "https://registry.example.gov.in/api/v1/entities" }), /outside the approved job bounds/);
+  await assert.rejects(() => registry.search(source, { text: "company", limit: 51, endpointUrl: endpoint }, {
+    purpose, executionSession: session(source)
+  }), /outside the approved job bounds/);
 });
 
 test("connector evidence fetch validates host and path before adapter execution", async () => {
@@ -114,12 +273,22 @@ test("connector evidence fetch validates host and path before adapter execution"
   registry.register({
     key: "official_api",
     async search() { return []; },
-    async fetchEvidence({ candidate }) { called = true; return candidate.url; }
+    async fetchEvidence({ candidate, context }) {
+      called = true;
+      assert.ok(context.signal instanceof AbortSignal);
+      assert.equal(context.jobId, "job-test-1");
+      return candidate.url;
+    }
   });
   const source = approvedSource();
-  await assert.rejects(() => registry.fetchEvidence(source, { url: "https://elsewhere.example.org/api/v1/entities" }), /exact approved source origin/);
+  const jobSession = session(source);
+  await assert.rejects(() => registry.fetchEvidence(source, { url: "https://elsewhere.example.org/api/v1/entities" }, {
+    purpose, executionSession: jobSession
+  }), /exact approved source origin/);
   assert.equal(called, false);
-  assert.equal(await registry.fetchEvidence(source, { url: "https://registry.example.gov.in/api/v1/entities/42" }), "https://registry.example.gov.in/api/v1/entities/42");
+  assert.equal(await registry.fetchEvidence(source, { url: endpoint + "/42" }, {
+    purpose, executionSession: jobSession
+  }), endpoint + "/42");
   assert.equal(called, true);
 });
 
@@ -136,21 +305,21 @@ test("manual research connector accepts explicit user-supplied evidence only", a
     source_type: "manual_research"
   };
   const evidence = { sourceUrl: "https://registry.example.gov.in/public-record", note: "User reviewed source" };
-  assert.deepEqual(await registry.recordManual(source, evidence), evidence);
+  assert.deepEqual(await registry.recordManual(source, evidence, { purpose }), evidence);
   assert.equal(received, true);
-  await assert.rejects(() => registry.recordManual(source, "not-an-object"), /must be an object/);
+  await assert.rejects(() => registry.recordManual(source, "not-an-object", { purpose }), /must be an object/);
 });
 
 test("source attachment enforces exact approved purpose and field allow-lists", () => {
   const profile = {
     workspace_key: "startup",
     discovery_mode: "LENDER",
-    purpose: "company identity verification",
+    purpose,
     criteria: { requiredFields: ["legal_name", "registration_id"] }
   };
   assert.equal(assertSourceCanBeAttached(profile, approvedSource()), true);
   assert.throws(() => assertSourceCanBeAttached({ ...profile, purpose: "lead generation" }, approvedSource()), /exact purpose/);
-  assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { requiredFields: ["private_credit_score"] } }, approvedSource()), /field allow-list/);
+  assert.throws(() => assertSourceCanBeAttached({ ...profile, criteria: { sourceRequiredFields: ["private_credit_score"] } }, approvedSource()), /explicitly required from this source/);
 });
 
 test("connector search endpoint is checked against exact approved host and paths", async () => {
@@ -162,17 +331,17 @@ test("connector search endpoint is checked against exact approved host and paths
     async fetchEvidence() { return {}; }
   });
   const source = approvedSource();
+  const jobSession = session(source);
   await assert.rejects(() => registry.search(source, {
     text: "company", limit: 10, endpointUrl: "https://registry.example.gov.in/private"
-  }), /approved source path list/);
+  }, { purpose, executionSession: jobSession }), /approved source path list/);
   await registry.search(source, {
-    text: "company", limit: 10, endpointUrl: "https://registry.example.gov.in/api/v1/entities/search"
-  });
-  assert.equal(seenEndpoint, "https://registry.example.gov.in/api/v1/entities/search");
+    text: "company", limit: 10, endpointUrl: endpoint + "/search"
+  }, { purpose, executionSession: jobSession });
+  assert.equal(seenEndpoint, endpoint + "/search");
 });
 
 test("a paused or rejected source is not eligible for source use", async () => {
-  const pending = normalizeSourceRegistration(baseSource);
   const approved = approvedSource();
   const paused = { ...approved, ...normalizeSourceReview({ status: "paused", reason: "policy review" }, approved, "reviewer") };
   const rejected = { ...approved, ...normalizeSourceReview({ status: "rejected", reason: "terms do not permit reuse" }, approved, "reviewer") };
@@ -182,6 +351,102 @@ test("a paused or rejected source is not eligible for source use", async () => {
     async search() { return []; },
     async fetchEvidence() { return {}; }
   });
-  await assert.rejects(() => registry.search(paused, { text: "company", limit: 5 }), /Only an approved source/);
-  await assert.rejects(() => registry.search(rejected, { text: "company", limit: 5 }), /Only an approved source/);
+  await assert.rejects(() => registry.search(paused, { text: "company", limit: 5 }, {
+    purpose, executionSession: session(approved)
+  }), /Only an approved source/);
+  await assert.rejects(() => registry.search(rejected, { text: "company", limit: 5 }, {
+    purpose, executionSession: session(approved)
+  }), /Only an approved source/);
+});
+
+test("a job cannot fetch more evidence pages than the source page budget", async () => {
+  const registry = new ConnectorRegistry();
+  let calls = 0;
+  registry.register({
+    key: "official_api",
+    async search() { return []; },
+    async fetchEvidence() { calls += 1; return { ok: true }; }
+  });
+  const source = { ...approvedSource(), max_pages_per_job: 1 };
+  const jobSession = session(source);
+  await registry.fetchEvidence(source, { url: endpoint + "/1" }, { purpose, executionSession: jobSession });
+  await assert.rejects(() => registry.fetchEvidence(source, { url: endpoint + "/2" }, {
+    purpose, executionSession: jobSession
+  }), /maximum pages per job/);
+  assert.equal(calls, 1);
+  assert.equal(jobSession.snapshot().pageCount, 1);
+});
+
+test("each connector call is spaced at the source's declared per-minute rate", async () => {
+  const source = approvedSource();
+  let clock = 1000;
+  const delays = [];
+  const jobSession = createExecutionSession(source, {
+    jobId: "rate-test",
+    now: () => clock,
+    wait: async milliseconds => { delays.push(milliseconds); clock += milliseconds; }
+  });
+  await jobSession.run("search", async () => "one");
+  await jobSession.run("search", async () => "two");
+  assert.ok(delays.some(delay => delay >= 1000));
+});
+
+test("connector timeout aborts the adapter signal and rejects the operation", async () => {
+  const source = approvedSource();
+  const jobSession = createExecutionSession(source, { jobId: "timeout-test", timeoutMs: 5, wait: async () => {} });
+  await assert.rejects(() => jobSession.run("search", ({ signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new Error("adapter aborted")), { once: true });
+  })), /adapter aborted|configured timeout/);
+});
+
+test("only explicitly retryable transient errors use the configured retry budget", async () => {
+  const source = approvedSource();
+  const jobSession = createExecutionSession(source, { jobId: "retry-test", maxRetries: 1, wait: async () => {} });
+  let calls = 0;
+  const result = await jobSession.run("search", async () => {
+    calls += 1;
+    if (calls === 1) {
+      const error = new Error("temporary network failure");
+      error.retryable = true;
+      throw error;
+    }
+    return "recovered";
+  });
+  assert.equal(result, "recovered");
+  assert.equal(calls, 2);
+  assert.equal(jobSession.snapshot().requestCount, 2);
+});
+
+test("evidence provenance records the reviewed source and rejects fields outside its allow-list", () => {
+  const source = approvedSource();
+  const provenance = buildEvidenceProvenance(source, {
+    jobId: "job-provenance",
+    purpose,
+    url: endpoint + "/42",
+    fields: ["legal_name", "registration_id"],
+    retrievedAt: "2026-11-22T10:00:00.000Z"
+  });
+  assert.equal(provenance.source_id, source.id);
+  assert.equal(provenance.purpose, purpose);
+  assert.deepEqual(provenance.observed_fields, ["legal_name", "registration_id"]);
+  assert.equal(provenance.license_ref, baseSource.licenseRef);
+  assert.throws(() => buildEvidenceProvenance(source, {
+    jobId: "job-provenance", purpose, url: endpoint + "/42", fields: ["personal_mobile"]
+  }), /field allow-list/);
+  assert.throws(() => buildEvidenceProvenance(source, {
+    jobId: "job-provenance", purpose: "unapproved purpose", url: endpoint + "/42"
+  }), /purpose allow-list/);
+});
+
+test("connector search refuses adapter results above the requested result limit", async () => {
+  const registry = new ConnectorRegistry();
+  registry.register({
+    key: "official_api",
+    async search() { return Array.from({ length: 3 }, (_, index) => index); },
+    async fetchEvidence() { return {}; }
+  });
+  const source = approvedSource();
+  await assert.rejects(() => registry.search(source, { text: "company", limit: 2, endpointUrl: endpoint }, {
+    purpose, executionSession: session(source)
+  }), /more results than the approved search limit/);
 });

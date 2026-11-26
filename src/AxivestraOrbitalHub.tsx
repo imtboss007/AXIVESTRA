@@ -280,9 +280,9 @@ export default function AxivestraOrbitalHub({
           <svg className="ax-orbit-constellation" viewBox="0 0 1000 570" preserveAspectRatio="none">
             <defs>
               <linearGradient id="ax-orbit-constellation-line" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#70f2d0" stopOpacity=".05" />
-                <stop offset=".52" stopColor="#72c9f0" stopOpacity=".38" />
-                <stop offset="1" stopColor="#70f2d0" stopOpacity=".04" />
+                <stop offset="0" stopColor="var(--ax-theme-chart, #70f2d0)" stopOpacity=".05" />
+                <stop offset=".52" stopColor="var(--ax-theme-graph, #72c9f0)" stopOpacity=".38" />
+                <stop offset="1" stopColor="var(--ax-theme-chart, #70f2d0)" stopOpacity=".04" />
               </linearGradient>
             </defs>
             <path className="ax-orbit-constellation__path" d="M70 190 L176 112 L282 168 L384 82 L490 150 L606 78 L720 156 L838 94 L930 188" />

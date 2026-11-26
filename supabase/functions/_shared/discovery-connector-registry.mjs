@@ -1,9 +1,14 @@
 /**
- * AXIVESTRA connector contract and allow-list registry.
- * No connectors are registered by default and this module performs no network calls.
+ * AXIVESTRA connector contract and bounded execution registry.
+ * No connectors are registered by default and this module performs no
+ * provider/network call until a reviewed adapter is explicitly registered.
  */
 
 import { assertAllowedSourceUrl } from "./discovery-policy.mjs";
+import {
+  assertExecutionSession,
+  assertPurposeAllowed
+} from "./discovery-execution-policy.mjs";
 
 export const CONNECTOR_KEYS = Object.freeze([
   "official_api",
@@ -45,6 +50,8 @@ export class ConnectorRegistry {
 
   async search(source, query, context = {}) {
     assertUsableSource(source, "search");
+    const purpose = assertPurposeAllowed(source, context.purpose);
+    const session = assertExecutionSession(context.executionSession, source);
     const connector = this.#get(source.connector_key);
     const text = typeof query?.text === "string" ? query.text.trim() : "";
     const limit = Number(query?.limit ?? 10);
@@ -53,28 +60,41 @@ export class ConnectorRegistry {
       throw new Error("Search result limit is outside the approved job bounds.");
     }
     const endpointUrl = assertAllowedSourceUrl(source, query?.endpointUrl || source.canonical_url);
-    return connector.search({
+    const { executionSession, ...safeContext } = context;
+    const results = await session.run("search", ({ signal }) => connector.search({
       source,
       endpointUrl: endpointUrl.toString(),
       query: { ...query, text, limit },
-      context
-    });
+      context: { ...safeContext, purpose, jobId: session.jobId, signal }
+    }));
+    if (Array.isArray(results) && results.length > limit) {
+      throw new Error("The connector returned more results than the approved search limit.");
+    }
+    return results;
   }
 
   async fetchEvidence(source, candidate, context = {}) {
     assertUsableSource(source, "fetch_evidence");
+    const purpose = assertPurposeAllowed(source, context.purpose);
+    const session = assertExecutionSession(context.executionSession, source);
     const connector = this.#get(source.connector_key);
     const url = assertAllowedSourceUrl(source, candidate?.url);
-    return connector.fetchEvidence({ source, candidate: { ...candidate, url: url.toString() }, context });
+    const { executionSession, ...safeContext } = context;
+    return session.run("fetch_evidence", ({ signal }) => connector.fetchEvidence({
+      source,
+      candidate: { ...candidate, url: url.toString() },
+      context: { ...safeContext, purpose, jobId: session.jobId, signal }
+    }));
   }
 
   async recordManual(source, evidence, context = {}) {
     assertUsableSource(source, "manual_entry");
+    const purpose = assertPurposeAllowed(source, context.purpose);
     if (!evidence || typeof evidence !== "object" || Array.isArray(evidence) || JSON.stringify(evidence).length > 20000) {
       throw new Error("Manual evidence must be an object no larger than 20 KB.");
     }
     const connector = this.#get(source.connector_key);
-    return connector.recordManual({ source, evidence, context });
+    return connector.recordManual({ source, evidence, context: { ...context, purpose } });
   }
 
   #get(key) {
@@ -82,7 +102,6 @@ export class ConnectorRegistry {
     if (!connector) throw new Error("No implementation is installed for connector: " + key + ".");
     return connector;
   }
-
 }
 
 function assertUsableSource(source, capability) {
