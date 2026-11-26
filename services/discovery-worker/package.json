@@ -5,7 +5,7 @@
   "description": "AXIVESTRA governed fetch and deterministic extraction worker.",
   "scripts": {
     "start": "node worker.mjs",
-    "test": "node worker-policy.test.mjs && node extractor.test.mjs && node extraction-worker.test.mjs && node entity-resolution.test.mjs && node entity-resolution-worker.test.mjs && node professional-roles.test.mjs && node professional-role-worker.test.mjs && node contact-validation.test.mjs && node contact-validation-worker.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs && node retention.test.mjs && node geo-resolution.test.mjs && node photon-client.test.mjs && node geo-resolution-worker.test.mjs",
+    "test": "node orchestration-lease-client.test.mjs && node api-provider-requests.test.mjs && node worker-policy.test.mjs && node extractor.test.mjs && node extraction-worker.test.mjs && node entity-resolution.test.mjs && node entity-resolution-worker.test.mjs && node professional-roles.test.mjs && node professional-role-worker.test.mjs && node contact-validation.test.mjs && node contact-validation-worker.test.mjs && node playwright-smoke.test.mjs && node postgres-integration.test.mjs && node retention.test.mjs && node geo-resolution.test.mjs && node photon-client.test.mjs && node geo-resolution-worker.test.mjs && node enrichment.test.mjs && node enrichment-worker.test.mjs && node matching.test.mjs && node ai-matching.test.mjs && node deduplication.test.mjs && node deduplication-worker.test.mjs",
     "install:browser": "playwright install chromium",
     "start:extraction": "node extraction-worker.mjs",
     "start:entity-resolution": "node entity-resolution-worker.mjs",
@@ -13,7 +13,9 @@
     "bench:extractor": "node extractor.bench.mjs",
     "start:professional-roles": "node professional-role-worker.mjs",
     "start:contact-validation": "node contact-validation-worker.mjs",
-    "start:geo-resolution": "node geo-resolution-worker.mjs"
+    "start:geo-resolution": "node geo-resolution-worker.mjs",
+    "start:enrichment": "node enrichment-worker.mjs",
+    "start:deduplication": "node deduplication-worker.mjs"
   },
   "devDependencies": {
     "pg": "8.16.3"

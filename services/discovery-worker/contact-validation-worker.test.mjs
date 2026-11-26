@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { loadContactValidationInputs } from "./contact-validation-worker.mjs";
+import { encryptContactValue } from "./contact-validation.mjs";
 
 const worker = await readFile(new URL("./contact-validation-worker.mjs", import.meta.url), "utf8");
 
@@ -37,9 +38,16 @@ const job = {
 const run = { id: "run-1", evidence_id: "evidence-1", source_id: "source-1", status: "completed", source_content_hash: "a".repeat(64) };
 const evidence = { id: "evidence-1", content_hash: "a".repeat(64) };
 const source = { id: "source-1", status: "approved", allowed_fields: ["work_email"], field_schema: job.field_schema_snapshot };
+const encryptedFact = encryptContactValue("asha@example.com", keys.encryptionKey, keys.fingerprintKey);
 const facts = [{
   id: "fact-1", extracted_entity_id: "entity-1", field_name: "work_email", value_type: "email",
-  raw_value: "asha@example.com", validation_status: "valid", source_span: { kind: "json-pointer", locator: "$/email" }
+  raw_value: null,
+  raw_value_ciphertext: encryptedFact.value_ciphertext,
+  raw_value_nonce: encryptedFact.value_nonce,
+  raw_value_auth_tag: encryptedFact.value_auth_tag,
+  raw_value_fingerprint: encryptedFact.value_fingerprint,
+  raw_value_encryption_version: encryptedFact.encryption_version,
+  validation_status: "valid", source_span: { kind: "json-pointer", locator: "$/email" }
 }];
 const entities = [{ id: "entity-1", entity_kind: "person" }];
 
@@ -48,6 +56,14 @@ test("E08 worker creates only encrypted candidates from source-approved email/ph
   assert.equal(result.candidates.length, 1);
   assert.equal(result.candidates[0].validation.result, "syntax_valid");
   assert.equal(JSON.stringify(result.candidates).includes("asha@example.com"), false);
+});
+
+test("E08 worker rejects legacy plaintext contact facts without a complete authenticated encryption envelope", async () => {
+  const plaintextFact = { ...facts[0], raw_value: "asha@example.com", raw_value_ciphertext: null };
+  await assert.rejects(
+    loadContactValidationInputs(mockAdmin({ run,evidence,source,facts:[plaintextFact],entities }), job, keys),
+    /plaintext or incompletely encrypted E05 contact fact/
+  );
 });
 
 test("E08 worker fails closed when a source removes approval or changes its contact field schema", async () => {
