@@ -23,11 +23,21 @@ test("enqueue bounds criteria size and requires idempotency key", () => {
   assert.match(handler, /unique|23505/);
 });
 
+test("enqueue ignores browser-supplied criteria and snapshots the company profile criteria", () => {
+  const enqueue = handler.slice(handler.indexOf('if (action === "jobs.enqueue")'), handler.indexOf('if (action === "matches.candidates.list")'));
+  assert.match(enqueue, /const criteria = profile\.criteria && typeof profile\.criteria === "object"/);
+  assert.match(enqueue, /\?\s*profile\.criteria as Record<string, unknown> : \{\}/s);
+  assert.match(enqueue, /p_payload:\s*\{\s*purpose,\s*criteria,\s*candidateUrls\s*\}/);
+  assert.doesNotMatch(enqueue, /payload\.criteria/);
+  assert.match(enqueue, /company-scoped database profile is the sole authority/);
+  assert.match(enqueue, /saved workspace criteria must not exceed 8 KB/);
+});
+
 test("queue history is company scoped and bounded", () => {
   assert.match(handler, /action === "jobs\.list"/);
   assert.match(handler, /\.eq\("company_id", companyId\).*\.limit\(100\)/s);
 });
 
 test("enqueue explicitly does not perform source network access", () => {
-  assert.match(handler, /This action does not contact the source/);
+  assert.match(handler, /Enqueue does not contact the source/);
 });

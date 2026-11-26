@@ -16,7 +16,7 @@
 
 ## Cross-worker quota enforcement
 
-Every outbound connector request must call `reserve_discovery_source_request` immediately before network I/O. The function serializes reservations by locking one quota row per source, then enforces the source's registered request limit over a rolling 60-second window. This is shared across workers and Edge Function instances using the same database.
+Every outbound connector request must call `reserve_discovery_source_request` immediately before network I/O. The function serializes reservations by locking one quota row per source, then enforces the source's registered request limit over a 60-second window anchored at the first request. This is shared across workers and Edge Function instances using the same database.
 
 The quota RPC returns an allow/deny result and retry-after seconds. A worker must not send the request when denied. The per-job in-memory limiter from E04 remains an additional local guard, not a replacement for this shared reservation.
 
