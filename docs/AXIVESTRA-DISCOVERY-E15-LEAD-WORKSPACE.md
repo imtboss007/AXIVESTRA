@@ -78,3 +78,35 @@ Verified against code head 82c4bd43c3507ec0ccf9d8b9acd0486a8685cb20:
 - Existing authenticated E18–E22 disposable-browser acceptance was still in progress at the last observation (Chromium setup). It does not exercise the E15 visual changes.
 
 The E15 UI has not yet received a dedicated authenticated browser screenshot/interaction run or hands-on physical Android inspection. Keep those as explicit acceptance checks; do not equate the successful app build with visual acceptance on a device.
+
+## Final automated acceptance — 26 November 2026
+
+### Authenticated browser result
+
+The dedicated E15 authenticated browser test now runs inside the existing disposable local Supabase acceptance workflow. The QA seed creates one synthetic pending LENDER match and one synthetic pending CUSTOMER match for the isolated test company.
+
+The test verifies:
+- Both mode buttons switch state and filter the pending match cards correctly.
+- Lender and Customer labels and the match score meter render.
+- Workspace search returns the customer fixture, a no-results query renders the empty state, and Clear search restores results.
+- At 390px viewport width, the mode switch becomes a full-width grid and remains usable.
+- The E15 panel and KPI card animations are disabled when reduced motion is requested.
+
+**Result: 9/9 authenticated Chromium tests passed** in each trigger:
+- Pull-request workflow 45823362748 — authenticated browser job 17/17 steps.
+- Push workflow 45823355164 — authenticated browser job 17/17 steps.
+
+The test is named “E15 separates lender/customer review views with searchable responsive cards and reduced motion” in tests/browser/axivestra-ai-matching-review.spec.ts.
+
+### Other code and platform verification
+
+- Discovery governance, E15 contract, worker/PostgreSQL integration, parser benchmark, full regression, type-check and web build: **PASS**, 24/24 job steps, workflows 45823362748 and 45823355164.
+- Windows installer: **PASS**, 13/13 steps.
+- Android APK: **PASS**, 20/20 steps. The APK artifact is uploaded in workflow 45823355180.
+- Cloud Worker and WhatsApp Hub workflows: **PASS**, 45823362649 and 45823362720.
+
+### Remaining acceptance boundary
+
+The browser test covers a 390px mobile viewport in desktop Chromium; it is not a physical Android device inspection. The Android APK is built, but opening the app on a physical Android phone and visually inspecting the real device layout remains pending. Do not claim physical-device acceptance until that check has actually been performed.
+
+No hosted migration, production-data write, deployment, merge, external provider activation or release was performed.
