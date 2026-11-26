@@ -42,3 +42,11 @@ The spec runs once on desktop Chromium alongside E18/E19/E22 browser acceptance 
 ## Release boundary
 
 This is an additive schema/UI/API implementation on the existing AXIVESTRA feature branch. It does not apply migrations to production, deploy the edge function, change source approvals, activate a fetch worker or change any E20 dispatch/queue gate.
+
+---
+
+## Current authenticated acceptance status — 26 November 2026
+
+The authenticated browser workflow creates a disposable local Supabase stack and seeds a synthetic E13 provenance event with linked E04 evidence metadata. The seed script exports that provenance-event ID to the browser test. In the post-merge Discovery Governance run 45826453426, the authenticated E18–E22 browser job completed successfully. The E21 spec creates a QA evidence pack, includes the seeded citation, submits and approves the pack, downloads the metadata/provenance manifest, and verifies the export receipt and history. The approved synthetic QA pack is intentionally retained within the disposable CI stack, which is stopped after the run.
+
+This does not copy or export real evidence, test a hosted company, apply a hosted migration or waive the separate independent security/privacy review.
