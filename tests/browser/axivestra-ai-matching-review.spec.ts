@@ -75,6 +75,7 @@ test.describe("AXIVESTRA E22 authenticated review desk acceptance", () => {
     } else {
       await expect(card).toContainText("Read-only view");
     }
+  });
 
   test("E15 separates lender/customer review views with searchable responsive cards and reduced motion", async ({ page }) => {
     await openCompanyDiscovery(page);
@@ -115,6 +116,5 @@ test.describe("AXIVESTRA E22 authenticated review desk acceptance", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect(workspace).toHaveCSS("animation-name", "none");
     await expect(workspace.locator(".discovery-lead-stats > div").first()).toHaveCSS("animation-name", "none");
-  });
   });
 });
