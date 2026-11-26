@@ -15,12 +15,16 @@ import IntentCanvas from "./IntentCanvas";
 import IntelligenceHubExplorer from "./IntelligenceHubExplorer";
 import DiscoverySourceManager from "./DiscoverySourceManager";
 import RelationshipIntelligencePanel from "./RelationshipIntelligencePanel";
+import NormalizedRelationshipGraphPanel from "./NormalizedRelationshipGraphPanel";
+import CompanyCommitmentWorkspace from "./CompanyCommitmentWorkspace";
 import ModuleWorkbench from "./ModuleWorkbench";
 import UniversalInterface, { type UniversalEntity, type QuickAddAction } from "./UniversalInterface";
 import FollowUpRegistry from "./FollowUpRegistry";
 import FollowUpForm, { type FollowUpDraft } from "./FollowUpForm";
 import { isFollowUpClosed, legacyRecordFollowUp, parseFollowUps, serializeFollowUps, type FollowUpEntry } from "./lib/follow-ups";
 import AxivestraOrbitalHub from "./AxivestraOrbitalHub";
+import ThemeStudio from "./ThemeStudio";
+import { applyThemePreferences, readThemePreferences } from "./lib/theme-preferences";
 import { parsePropertyRangeQueries, propertyMatchesRange, getPropertyPriceForRangeSearch, getPropertyAreaInSquareFeet } from "./lib/property-range-search";
 import { parseIndianAmount, normalizeIndianAmount, formatIndianCompactAmount } from "./lib/indian-amount.mjs";
 import { canonicalContactPhone, deduplicateMasterContacts, remapWorkspaceContactReferences } from "./lib/contact-directory.mjs";
@@ -149,7 +153,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "agreedPrice", label: "Agreed price (₹)", placeholder: "Amount", type: "number" },
     { key: "offerDate", label: "Offer date", placeholder: "Date", type: "date" },
     { key: "targetClosingDate", label: "Target closing / registration date", placeholder: "Date", type: "date" },
-    { key: "closingStage", label: "Closing stage", placeholder: "Offer / diligence / agreement / registration" }
+    { key: "closingStage", label: "Closing stage", placeholder: "Offer / diligence / agreement / registration" },
+    { key: "dueDiligenceStatus", label: "Due diligence status", placeholder: "Title / EC / tax / approvals" },
+    { key: "paymentMilestones", label: "Advance and payment milestones", placeholder: "Advance / agreement / balance / registration" }
   ],
   "Property Loans": [
     { key: "borrower", label: "Borrower / applicant", placeholder: "Client or company" },
@@ -164,7 +170,11 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "targetSanctionDate", label: "Target sanction date", placeholder: "Date", type: "date" },
     { key: "targetDisbursementDate", label: "Target disbursement / completion date", placeholder: "Date", type: "date" },
     { key: "loanOfficer", label: "Loan officer / person to call", placeholder: "Name / contact" },
-    { key: "pendingDocuments", label: "Pending documents / blockers", placeholder: "KYC, bank statements, title, valuation…" }
+    { key: "pendingDocuments", label: "Pending documents / blockers", placeholder: "KYC, bank statements, title, valuation…" },
+    { key: "collateralDescription", label: "Collateral asset / security description", placeholder: "Property, survey reference and charge" },
+    { key: "loanTenureMonths", label: "Loan tenure (months)", placeholder: "Months", type: "number" },
+    { key: "repaymentFrequency", label: "Repayment frequency / structure", placeholder: "Monthly EMI / quarterly / bullet" },
+    { key: "nextRepaymentDate", label: "Next repayment date", placeholder: "Date", type: "date" }
   ],
   "JV / JDA / JD": [
     { key: "landowner", label: "Landowner / owner group", placeholder: "Names or entity" },
@@ -174,7 +184,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "agreementStage", label: "Agreement stage", placeholder: "Term sheet / diligence / draft / signed" },
     { key: "targetSigningDate", label: "Target agreement signing", placeholder: "Date", type: "date" },
     { key: "targetHandoverDate", label: "Target handover / possession", placeholder: "Date", type: "date" },
-    { key: "keyObligations", label: "Key obligations / blockers", placeholder: "Approvals, allocation, construction milestones" }
+    { key: "keyObligations", label: "Key obligations / blockers", placeholder: "Approvals, allocation, construction milestones" },
+    { key: "otherPartners", label: "Other partners / co-developers", placeholder: "Names and roles" },
+    { key: "requiredApprovals", label: "Required approvals and authority status", placeholder: "Planning / RERA / local authority / utilities" },
+    { key: "financialCommitments", label: "Financial commitments and funding milestones", placeholder: "Who funds what and when" }
   ],
   "SR Rate Settlement": [
     { key: "settlementParties", label: "Settlement parties", placeholder: "Names / entities" },
@@ -185,7 +198,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "settlementAmount", label: "Settlement amount / value (₹)", placeholder: "Amount", type: "number" },
     { key: "settlementStage", label: "Settlement stage", placeholder: "Proposal / negotiation / approved / paid" },
     { key: "targetSettlementDate", label: "Target settlement date", placeholder: "Date", type: "date" },
-    { key: "supportingReference", label: "MOU / reference / supporting documents", placeholder: "Reference details" }
+    { key: "supportingReference", label: "MOU / reference / supporting documents", placeholder: "Reference details" },
+    { key: "approvalAuthority", label: "Approval authority / decision owner", placeholder: "Approver or committee" },
+    { key: "actualSettlementDate", label: "Actual settlement / completion date", placeholder: "Date", type: "date" }
   ],
   "Agricultural Land": [
     { key: "landClassification", label: "Land classification", placeholder: "Agricultural / converted / restricted" },
@@ -193,7 +208,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "waterAndAccess", label: "Water, access and utilities", placeholder: "Borewell / road / power" },
     { key: "dueDiligenceStatus", label: "Due diligence status", placeholder: "Title / survey / mutation / conversion" },
     { key: "targetDueDiligenceDate", label: "Target due-diligence completion", placeholder: "Date", type: "date" },
-    { key: "targetClosingDate", label: "Target acquisition / registration", placeholder: "Date", type: "date" }
+    { key: "targetClosingDate", label: "Target acquisition / registration", placeholder: "Date", type: "date" },
+    { key: "encumbranceStatus", label: "Encumbrance / charge status", placeholder: "Checked / pending / issue identified" },
+    { key: "ownershipVerificationStatus", label: "Ownership and mutation verification", placeholder: "Verified / pending / discrepancy" }
   ],
   "Commercial Land": [
     { key: "zoning", label: "Zoning / permitted use", placeholder: "Commercial / industrial / mixed use" },
@@ -201,7 +218,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "titleStatus", label: "Title / encumbrance status", placeholder: "Clear / pending / issue identified" },
     { key: "dueDiligenceStage", label: "Due diligence stage", placeholder: "Title / zoning / access / approvals" },
     { key: "targetClosingDate", label: "Target closing / registration date", placeholder: "Date", type: "date" },
-    { key: "commercialNotes", label: "Utilities / lease / access notes", placeholder: "Operational detail" }
+    { key: "commercialNotes", label: "Utilities / lease / access notes", placeholder: "Operational detail" },
+    { key: "occupancyStatus", label: "Occupancy status", placeholder: "Vacant / owner occupied / tenanted" },
+    { key: "leaseExpiryDate", label: "Lease expiry / renewal date", placeholder: "Date", type: "date" },
+    { key: "accessAndUtilities", label: "Access and utilities", placeholder: "Road access / power / water / drainage" }
   ],
   "Startup": [
     { key: "stage", label: "Startup stage", placeholder: "Pre-seed, seed, Series A…" },
@@ -211,7 +231,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "capitalSought", label: "Capital sought (₹)", placeholder: "Amount", type: "number" },
     { key: "preMoneyValuation", label: "Pre-money valuation (₹)", placeholder: "Amount", type: "number" },
     { key: "equityOffered", label: "Equity offered (%)", placeholder: "Percentage", type: "number" },
-    { key: "targetCloseDate", label: "Target close date", placeholder: "Date", type: "date" }
+    { key: "targetCloseDate", label: "Target close date", placeholder: "Date", type: "date" },
+    { key: "useOfFunds", label: "Use of funds / deployment plan", placeholder: "Hiring / product / working capital / expansion" },
+    { key: "investorCommitmentSummary", label: "Investor interest / commitments summary", placeholder: "Keep indicative interest separate from confirmed commitments" }
   ],
   "Equity": [
     { key: "instrument", label: "Instrument / asset class", placeholder: "Listed equity, private shares, SAFE…" },
@@ -221,7 +243,11 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "entryPrice", label: "Entry price per share (₹)", placeholder: "Price", type: "number" },
     { key: "currentValuation", label: "Current valuation (₹)", placeholder: "Amount", type: "number" },
     { key: "custodian", label: "Custodian / broker", placeholder: "Institution or account reference" },
-    { key: "targetExitDate", label: "Target exit / review date", placeholder: "Date", type: "date" }
+    { key: "targetExitDate", label: "Target exit / review date", placeholder: "Date", type: "date" },
+    { key: "costBasis", label: "Total cost basis (₹)", placeholder: "Amount", type: "number" },
+    { key: "valuationSource", label: "Valuation source / method", placeholder: "Exchange / statement / latest round / independent valuation" },
+    { key: "valuationAsOfDate", label: "Valuation as-of date", placeholder: "Date", type: "date" },
+    { key: "liquidityStatus", label: "Liquidity / exit status", placeholder: "Listed / restricted / lock-in / illiquid / realised" }
   ],
   "Unsecured Company Loan": [
     { key: "borrowerCompany", label: "Borrowing company", placeholder: "Legal company name" },
@@ -232,7 +258,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "repaymentFrequency", label: "Repayment frequency", placeholder: "Monthly / quarterly / bullet" },
     { key: "guarantees", label: "Guarantees / covenants", placeholder: "Guarantees, DSCR, covenants…" },
     { key: "targetDisbursementDate", label: "Target disbursement date", placeholder: "Date", type: "date" },
-    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" }
+    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" },
+    { key: "outstandingBalance", label: "Current outstanding balance (₹)", placeholder: "Amount", type: "number" },
+    { key: "nextRepaymentDate", label: "Next repayment date", placeholder: "Date", type: "date" },
+    { key: "repaymentScheduleReference", label: "Repayment schedule / covenant reference", placeholder: "Schedule or document reference" }
   ],
   "Personal Loan": [
     { key: "borrower", label: "Borrower", placeholder: "Full legal name" },
@@ -245,7 +274,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "guarantor", label: "Guarantor / co-obligant", placeholder: "Optional" },
     { key: "targetSanctionDate", label: "Target sanction date", placeholder: "Date", type: "date" },
     { key: "targetDisbursementDate", label: "Target disbursement date", placeholder: "Date", type: "date" },
-    { key: "firstEmiDate", label: "First EMI date", placeholder: "Date", type: "date" }
+    { key: "firstEmiDate", label: "First EMI date", placeholder: "Date", type: "date" },
+    { key: "outstandingBalance", label: "Current outstanding balance (₹)", placeholder: "Amount", type: "number" },
+    { key: "maturityDate", label: "Facility maturity date", placeholder: "Date", type: "date" },
+    { key: "repaymentStatus", label: "Repayment status", placeholder: "Current / overdue / restructured / closed" }
   ],
   "Housing Loan": [
     { key: "lender", label: "Lender", placeholder: "Bank / housing finance company" },
@@ -260,7 +292,10 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "targetSanctionDate", label: "Target sanction date", placeholder: "Date", type: "date" },
     { key: "targetDisbursementDate", label: "Target disbursement date", placeholder: "Date", type: "date" },
     { key: "firstEmiDate", label: "First EMI date", placeholder: "Date", type: "date" },
-    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" }
+    { key: "maturityDate", label: "Maturity date", placeholder: "Date", type: "date" },
+    { key: "collateralDescription", label: "Mortgage / collateral property description", placeholder: "Property address and survey / title reference" },
+    { key: "repaymentFrequency", label: "Repayment frequency", placeholder: "Monthly / other" },
+    { key: "nextRepaymentDate", label: "Next EMI / repayment date", placeholder: "Date", type: "date" }
   ],
   "House Purchase": [
     { key: "buyer", label: "Buyer / purchaser", placeholder: "Buyer name" },
@@ -270,7 +305,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "stampDutyAndFees", label: "Stamp duty / registration estimate (₹)", placeholder: "Amount", type: "number" },
     { key: "dueDiligenceStage", label: "Due-diligence stage", placeholder: "Title, EC, tax, khata, approvals…" },
     { key: "targetRegistrationDate", label: "Target registration date", placeholder: "Date", type: "date" },
-    { key: "possessionDate", label: "Possession date", placeholder: "Date", type: "date" }
+    { key: "possessionDate", label: "Possession date", placeholder: "Date", type: "date" },
+    { key: "paymentMilestones", label: "Payment milestones and balances", placeholder: "Advance / agreement / registration / possession" },
+    { key: "possessionStatus", label: "Possession / handover status", placeholder: "Pending / scheduled / handed over" }
   ],
   "Litigation": [
     { key: "caseNumber", label: "Case number / CNR", placeholder: "Court case reference" },
@@ -280,7 +317,9 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "caseType", label: "Case type / current stage", placeholder: "Civil, criminal, appeal, interim…" },
     { key: "claimExposure", label: "Claim / exposure (₹)", placeholder: "Amount in dispute", type: "number" },
     { key: "nextHearingDate", label: "Next hearing date", placeholder: "Date", type: "date" },
-    { key: "limitationDate", label: "Limitation / next legal deadline", placeholder: "Date", type: "date" }
+    { key: "limitationDate", label: "Limitation / next legal deadline", placeholder: "Date", type: "date" },
+    { key: "filingDate", label: "Case filing / institution date", placeholder: "Date", type: "date" },
+    { key: "latestOrderReference", label: "Latest order / filing reference", placeholder: "Order date, number or document reference" }
   ],
   "Fund & Portfolio Management": [
     { key: "fundName", label: "Fund / portfolio name", placeholder: "Legal fund or portfolio name" },
@@ -296,7 +335,12 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "benchmark", label: "Benchmark", placeholder: "Reference index or hurdle" },
     { key: "administrator", label: "Fund administrator / custodian", placeholder: "Service provider" },
     { key: "reportingPeriod", label: "Reporting period", placeholder: "Quarter / fiscal year" },
-    { key: "nextReportingDate", label: "Next reporting deadline", placeholder: "Date", type: "date" }
+    { key: "nextReportingDate", label: "Next reporting deadline", placeholder: "Date", type: "date" },
+    { key: "paidInCapital", label: "Paid-in capital (₹)", placeholder: "Capital called and received", type: "number" },
+    { key: "capitalCalls", label: "Capital called to date (₹)", placeholder: "Amount", type: "number" },
+    { key: "distributions", label: "Distributions to date (₹)", placeholder: "Amount", type: "number" },
+    { key: "navAsOfDate", label: "NAV as-of date", placeholder: "Date", type: "date" },
+    { key: "navSource", label: "NAV source / review status", placeholder: "Administrator statement / reviewed / provisional" }
   ],
   "Investor Relations": [
     { key: "investorType", label: "Investor type", placeholder: "LP, family office, VC, institution…" },
@@ -309,7 +353,15 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "sourceOfFunds", label: "Source of funds", placeholder: "Documented source-of-funds summary" },
     { key: "riskRating", label: "Investor risk rating", placeholder: "Low / medium / high" },
     { key: "lastReportDate", label: "Last investor report date", placeholder: "Date", type: "date" },
-    { key: "nextContactDate", label: "Next investor follow-up date", placeholder: "Date", type: "date" }
+    { key: "nextContactDate", label: "Next investor follow-up date", placeholder: "Date", type: "date" },
+    { key: "investmentMandate", label: "Investment mandate / instrument preference", placeholder: "Debt / equity / secured lending / co-invest" },
+    { key: "preferredSectors", label: "Preferred sectors", placeholder: "Sector preferences" },
+    { key: "targetGeography", label: "Target investment geography", placeholder: "Countries / regions" },
+    { key: "minimumTicket", label: "Minimum ticket size (₹)", placeholder: "Amount", type: "number" },
+    { key: "maximumTicket", label: "Maximum ticket size (₹)", placeholder: "Amount", type: "number" },
+    { key: "pastInvestmentSummary", label: "Past investments / track record summary", placeholder: "Source-backed summary" },
+    { key: "publicSourceUrl", label: "Public source / profile URL", placeholder: "https://..." },
+    { key: "sourceLastVerifiedDate", label: "Source last verified date", placeholder: "Date", type: "date" }
   ],
   "Compliance & KYC": [
     { key: "counterpartyLegalName", label: "Counterparty legal name", placeholder: "Name matching official records" },
@@ -321,7 +373,11 @@ const moduleFields: Record<string, ModuleField[]> = {
     { key: "pepStatus", label: "PEP screening", placeholder: "Not run / negative / potential match" },
     { key: "riskRating", label: "Counterparty risk rating", placeholder: "Low / medium / high / critical" },
     { key: "reviewDueDate", label: "Next KYC review date", placeholder: "Date", type: "date" },
-    { key: "evidenceStatus", label: "Evidence checklist", placeholder: "ID, registration, BO, source of funds…" }
+    { key: "evidenceStatus", label: "Evidence checklist", placeholder: "ID, registration, BO, source of funds…" },
+    { key: "screeningSource", label: "Sanctions / PEP screening source", placeholder: "Provider / official list / source reference" },
+    { key: "lastScreenedDate", label: "Last screening date", placeholder: "Date", type: "date" },
+    { key: "reviewerRationale", label: "Reviewer rationale / match disposition", placeholder: "Reasoned review; distinguish false positive from confirmed match" },
+    { key: "remediationAction", label: "Remediation / outstanding requirement", placeholder: "Document, correction or review action" }
   ]
 };
 type ModuleContactField = { key: string; label: string };
@@ -609,6 +665,22 @@ type AppProps = { company?: WorkspaceCompany; userId?: string; personalUserId?: 
 
 export default function App({ company, userId, personalUserId, onSignOut, onSwitchCompany }: AppProps = {}) {
   const [active, setActive] = useState<Section>("Overview");
+  useEffect(() => {
+    const applySavedTheme = () => {
+      const savedTheme = readThemePreferences();
+      if (savedTheme) applyThemePreferences(savedTheme);
+    };
+    applySavedTheme();
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", applySavedTheme);
+    window.addEventListener("storage", applySavedTheme);
+    return () => {
+      media.removeEventListener("change", applySavedTheme);
+      window.removeEventListener("storage", applySavedTheme);
+    };
+  }, []);
+  const [discoveryWorkspaceKey, setDiscoveryWorkspaceKey] = useState<string | undefined>(undefined);
+  const [discoveryMode, setDiscoveryMode] = useState<"LENDER" | "CUSTOMER">("LENDER");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [search, setSearch] = useState("");
   const [contactRoleFilters, setContactRoleFilters] = useState<string[]>([]);
@@ -1776,14 +1848,28 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
     }
     setProperties(previous => previous.map(record => {
       if (source && source.id !== target.id && record.id === source.id) {
-        const remaining = parseFollowUps(record.moduleData).filter(item => item.id !== editingFollowUp.entry.id);
-        return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) } };
+        const previousEntry = editingFollowUp.entry;
+        const remaining = parseFollowUps(record.moduleData).filter(item => item.id !== previousEntry.id);
+        // If the legacy date was only mirroring the structured item being moved, clear that mirror too.
+        const legacyDateWasMirror = record.nextFollowUpDate === previousEntry.date;
+        return {
+          ...record,
+          ...(legacyDateWasMirror ? { nextFollowUpDate: "" } : {}),
+          moduleData: { ...record.moduleData, __followUps: serializeFollowUps(remaining) }
+        };
       }
       if (record.id !== target.id) return record;
       const current = parseFollowUps(record.moduleData);
-      const exists = current.some(item => item.id === entry.id);
+      const previousEntry = current.find(item => item.id === entry.id);
+      const exists = Boolean(previousEntry);
       const next = exists ? current.map(item => item.id === entry.id ? entry : item) : [entry, ...current];
-      return { ...record, moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) } };
+      // Keep the legacy nextFollowUpDate mirror aligned only when it still represented this exact item.
+      const legacyDateWasMirror = Boolean(previousEntry && record.nextFollowUpDate === previousEntry.date);
+      return {
+        ...record,
+        ...(legacyDateWasMirror ? { nextFollowUpDate: entry.date } : {}),
+        moduleData: { ...record.moduleData, __followUps: serializeFollowUps(next) }
+      };
     }));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: editingFollowUp ? "updated" as const : "created" as const,
@@ -1799,9 +1885,16 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
       setNotice("Read-only company access cannot change follow-ups.");
       return;
     }
-    const next = parseFollowUps(record.moduleData).map(item => item.id === entry.id ? entry : item);
+    const current = parseFollowUps(record.moduleData);
+    const previousEntry = current.find(item => item.id === entry.id);
+    const next = current.map(item => item.id === entry.id ? entry : item);
+    const legacyDateWasMirror = Boolean(previousEntry && record.nextFollowUpDate === previousEntry.date);
     setProperties(previous => previous.map(item => item.id === record.id
-      ? { ...item, moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) } }
+      ? {
+          ...item,
+          ...(legacyDateWasMirror ? { nextFollowUpDate: entry.date } : {}),
+          moduleData: { ...item.moduleData, __followUps: serializeFollowUps(next) }
+        }
       : item));
     setAuditEvents(previous => [{
       id: uid(), at: new Date().toISOString(), action: "updated" as const, entity: "Follow-up",
@@ -2557,6 +2650,19 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
               documents={documents}
               onOpenWorkspace={name => go(name)}
             />
+            <NormalizedRelationshipGraphPanel
+              companyId={company?.id}
+              companyRole={company?.role}
+              contacts={contacts}
+              properties={properties}
+            />
+            <CompanyCommitmentWorkspace
+              companyId={company?.id}
+              companyRole={company?.role}
+              contacts={contacts}
+              properties={properties}
+              tasks={tasks}
+            />
             <div className="ax-intelligence-kpis">
               <article><span>RECORDED VALUE / EXPOSURE</span><strong>{formatIndianCompactAmount(portfolioValue)}</strong><small>Sum of entered record values across all workspaces; not a net asset valuation</small></article>
               <article><span>OPEN ACTIONS</span><strong>{tasks.filter(item=>!item.done).length}</strong><small>Tasks not yet completed</small></article>
@@ -2608,7 +2714,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             </div>
           </section>}
 
-          {active === "Discovery Sources" && <DiscoverySourceManager companyId={company?.id} companyRole={company?.role}/>}
+          {active === "Discovery Sources" && <DiscoverySourceManager companyId={company?.id} companyRole={company?.role} selectedWorkspaceKey={discoveryWorkspaceKey} selectedMode={discoveryMode}/>}
           {active === "All Properties" || modules.some(m=>m.name===active) ? <ModuleWorkbench
             moduleName={active === "All Properties" ? "All Properties" : active}
             description={active === "All Properties" ? "Search, inspect, compare and action every property, deal, loan, investment and legal workstream from one live register." : modules.find(item=>item.name===active)?.description || "Manage every detail, stakeholder, date, value and next action for this workstream."}
@@ -2616,6 +2722,13 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             fields={active==="All Properties" ? [] : moduleFields[active] || []}
             contacts={contacts}
             groups={savedWhatsAppGroups}
+            tasks={tasks}
+            documents={documents}
+            financials={financials}
+            onOpenContact={id=>{const person=contacts.find(item=>item.id===id);if(person){go("Contacts");openContactForm(person);}}}
+            onOpenTask={id=>{const item=tasks.find(task=>task.id===id);if(item){go("Schedule & Tasks");openTaskForm(item);}}}
+            onOpenFinancial={id=>{const item=financials.find(financial=>financial.id===id);if(item){go("Financials");openFinancialForm(item);}}}
+            onOpenDocument={id=>{const item=documents.find(document=>document.id===id);if(item){go("Documents");void downloadDocument(item);}}}
             onAdd={()=>openPropertyForm()}
             onEdit={record=>openPropertyForm(record)}
             onDelete={deleteProperty}
@@ -2623,6 +2736,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             onAddFollowUp={(record,contact)=>openFollowUpForm(record as PropertyRecord,contact as ContactRecord)}
             onSchedule={(record,contact)=>openTaskForm(null,{title:`Follow up · ${record.title}`,date:record.nextFollowUpDate||record.targetDeadline||today,time:"10:00",type:"Follow-up",property:record.title,propertyId:record.id,contactId:contact?.id||record.primaryContactId,contactName:contact?.name})}
             onWhatsApp={(contactId,propertyId)=>openWhatsAppFor(contactId,propertyId)}
+            onOpenDiscovery={(workspaceKey,mode)=>{setDiscoveryWorkspaceKey(workspaceKey);setDiscoveryMode(mode);go("Discovery Sources");}}
           /> : null}
           {active === "Contacts" && <section className="data-panel"><div className="section-heading ax-contact-heading"><div><h2>Contacts</h2><p>{contacts.length} saved contacts · import, export and sync across devices</p></div><div className="ax-contact-actions"><input ref={contactImportInputRef} type="file" accept=".vcf,.csv,text/vcard,text/csv" className="ax-contact-file-input" onChange={event=>{const file=event.target.files?.[0];if(file)void importPortableContacts(file);}}/><button className="secondary-button" type="button" disabled={contactImportBusy} onClick={()=>contactImportInputRef.current?.click()}>{contactImportBusy?"Importing…":"Import contacts"}</button><button className="secondary-button" type="button" disabled={!contacts.length} onClick={exportPortableContacts}>Export .vcf</button><button className="primary-button" onClick={()=>openContactForm()}><Plus size={16}/> Add contact</button></div></div>
             <div className="ax-contact-transfer-note"><strong>Use on phone or PC</strong><span>Import a .vcf address-book export from your phone, or a .csv contacts file from your PC. Export .vcf to move AXIVESTRA contacts to either device. With the same AXIVESTRA account, company cloud sync carries app changes both ways; personal device pairing syncs when a PC companion is connected.</span></div>
@@ -2777,7 +2891,7 @@ export default function App({ company, userId, personalUserId, onSignOut, onSwit
             <div className="governance-callout"><ClipboardCheck size={19}/><div><strong>Decision governance</strong><p>Use for investment decisions, loan disbursals, payments, settlements, legal filings and high-impact changes. This personal-workspace version tracks decisions; production multi-user segregation of duties requires organization roles and server-enforced reviewer separation.</p></div></div>
             {approvalRequests.length ? <div className="record-list">{[...approvalRequests].sort((a,b)=>b.requestedAt.localeCompare(a.requestedAt)).map(record=><article className="record-card" key={record.id}><div className="record-symbol approval-symbol"><ClipboardCheck size={20}/></div><div className="record-main"><h3>{record.title}</h3><p>{record.area}{record.entity ? <><span>•</span>{record.entity}</> : null}</p><small>Requested by {record.requestedBy || "Unspecified"}{record.approver ? ` · Reviewer: ${record.approver}` : ""} · {new Date(record.requestedAt).toLocaleDateString("en-IN")}</small><small>Priority: {record.priority}</small>{record.rationale&&<small>Rationale: {record.rationale}</small>}{record.decisionNotes&&<small>Decision: {record.decisionNotes}</small>}</div><div className="record-side"><span className={`status-pill approval-${record.status}`}>{record.status}</span>{record.status==="pending"&&<><button className="decision-button approve" onClick={()=>decideApproval(record,"approved")}>Approve</button><button className="decision-button reject" onClick={()=>decideApproval(record,"rejected")}>Reject</button></>}<button className="delete-button" onClick={()=>deleteApproval(record.id)} aria-label="Delete approval request"><Trash2 size={15}/></button></div></article>)}</div> : <Empty icon={<ClipboardCheck size={22}/>} title="No approval requests yet" text="Create a request to document review for a capital, credit, property, settlement or legal action." action="Request approval" onClick={()=>setShowApprovalForm(true)}/>}
           </section>}
-          {active === "Settings" && <section className="data-panel"><div className="section-heading"><div><h2>Settings</h2><p>Workspace data and local backup</p></div></div><div className="settings-card"><h3>Local data backup</h3><p>{company ? "Business records sync through your AXIVESTRA account. Document files sync with your linked Windows PC while both devices are connected." : personalUserId ? "Personal records sync privately through your AXIVESTRA account across any signed-in phone or PC. Document file bytes remain in the local vault and are not included in personal cloud record sync." : "Your workspace records are saved locally on this device. Document file bytes are stored separately in the local vault and can be backed up from Documents."}</p><button type="button" className="secondary-button" onClick={exportWorkspaceBackup}>Export workspace JSON</button><button type="button" className="secondary-button" onClick={importWorkspaceBackup}>Import workspace JSON</button></div>{!company && !personalUserId && onSwitchCompany && <div className="settings-card"><h3>Account and cloud sync</h3><p>Local mode saves your records on this device without a login. Sign in only when you want private account sync or shared company workspaces. Your local records remain on this device.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Sign in / switch to cloud mode</button></div></div>}{company && ["owner", "admin"].includes(company.role) && <div className="settings-card"><h3>Company member access</h3><p>Invite a new teammate by email, or use an existing Supabase Auth user UUID to grant or change access. Owner access cannot be granted, changed or removed through this screen.</p><form className="member-access-form" onSubmit={inviteCompanyMember}><label>Invite email address<input type="email" autoComplete="email" value={memberInviteEmail} onChange={event=>setMemberInviteEmail(event.target.value)} required placeholder="colleague@company.com"/></label><label>Invitation role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="primary-button" disabled={memberBusy}>{memberBusy ? "Sending…" : "Invite by email"}</button></form><details className="member-existing-access"><summary>Existing account? Add or update by UUID</summary><form className="member-access-form" onSubmit={addCompanyMember}><label>Existing user UUID<input value={memberUserId} onChange={event=>setMemberUserId(event.target.value)} required placeholder="00000000-0000-4000-8000-000000000000"/></label><label>Existing member role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="secondary-button" disabled={memberBusy}>{memberBusy ? "Saving…" : "Add / update existing account"}</button></form></details>{memberStatus && <p role="status" className="sync-status">{memberStatus}</p>}<div className="company-member-list">{memberRows.map(member=><div className="company-member-row" key={member.user_id}><div><strong>{member.user_id}</strong><small>{member.role.replace("_"," ")} · added {new Date(member.created_at).toLocaleDateString("en-IN")}</small></div><button className="delete-button" disabled={memberBusy || member.role === "owner"} onClick={()=>void removeCompanyMember(member.user_id,member.role)}>{member.role === "owner" ? "Owner" : "Remove"}</button></div>)}</div><p className="ax-form-note">Email invitations need the <code>invite-company-member</code> Supabase Edge Function deployed and Auth email delivery configured. Existing registered accounts should be added by UUID.</p></div>}{personalUserId && <div className="settings-card"><h3>Personal cloud sync · phone and PC</h3><p>This is your private workspace. Sign in with the same account on any phone or PC to access the same properties, contacts, tasks, financial records, risks, approvals and follow-ups. No company or paired Windows PC is required. Sync runs automatically while online.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic personal cloud sync is active."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Your records are isolated by your signed-in account. Original document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Explore Company Mode</button></div></div>}{company && <div className="settings-card"><h3>Company cloud sync · phone and PC</h3><p>Signed in to <strong>{company.name}</strong>. This phone or PC can be your starting device. Business records sync both ways through this company account; you do not need a Windows PC to use or synchronize from the phone. When adding another device, sign in with the same account and open the same company.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic sync is active · tap Sync now to refresh this device."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Cloud records are protected by company membership policies. Document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p></div>}<div className="settings-card"><h3>Sync WhatsApp + data</h3>{Boolean(window.estateflowWhatsApp?.getBridgeInfo) ? <div className="device-sync-pairing"><p>{company ? "Optional PC link: scan from Android only to share this Windows WhatsApp session and local document vault. Company records already sync through your account." : "Open AXIVESTRA on your Android phone and scan this code once to pair local records with this Windows PC."}</p>{deviceSyncQr ? <img src={deviceSyncQr} alt="AXIVESTRA phone sync QR code" style={{ width: "100%", maxWidth: 260, display: "block", margin: "12px auto" }}/> : <p className="sync-status">Preparing your link code…</p>}<p className="sync-status">{syncStatus || "Ready to link on the same Wi-Fi."}</p>{!company && <div className="settings-actions"><button type="button" className="primary-button" disabled={syncBusy} onClick={()=>void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button></div>}</div> : Capacitor.getPlatform() === "android" ? <div><p>{company ? "Company records sync directly from this phone through your AXIVESTRA account. Pair a Windows PC only if you also need its linked WhatsApp session or local document vault." : syncHost ? "This phone is linked to your Windows AXIVESTRA." : "Scan the PC code once to sync local records and share its documents and linked WhatsApp number."}</p><div className="settings-actions"><button className="primary-button" disabled={syncBusy} onClick={() => void scanAndPairWithPc()}>{syncBusy ? "Connecting…" : syncHost ? "Change linked PC" : "Scan PC code"}</button>{syncHost && <button className="secondary-button" disabled={syncBusy} onClick={() => void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button>}{syncHost && <button className="secondary-button" onClick={unlinkPc}>Unlink</button>}</div>{syncStatus && <p className="sync-status">{syncStatus}</p>}</div> : <p>Open AXIVESTRA on Windows to display the link code.</p>}</div><div className="settings-card"><h3>Local audit history</h3><p>Tracks creation, edits and deletions for properties, contacts, tasks, financial transactions, risks and approvals on this device. The log records record labels and IDs, not the private field contents. This is a local activity history, not a tamper-proof or multi-user compliance audit.</p><div className="settings-actions"><button className="secondary-button" onClick={()=>{const blob=new Blob([JSON.stringify(auditEvents,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`axivestra-audit-${today}.json`;a.click();URL.revokeObjectURL(url);}}>Export audit log</button></div>{auditEvents.length ? <div className="audit-event-list">{auditEvents.slice(0,50).map(event=><article className="audit-event-row" key={event.id}><span className={`audit-event-action audit-${event.action}`}>{event.action}</span><div><strong>{event.entity}: {event.label}</strong><small>{event.recordId} · {new Date(event.at).toLocaleString("en-IN")}</small></div></article>)}</div> : <p>No changes have been recorded yet. New record changes will appear here.</p>}</div></section>}
+          {active === "Settings" && <section className="data-panel"><div className="section-heading"><div><h2>Settings</h2><p>Workspace data and local backup</p></div></div><div className="ax-theme-studio-wrap"><ThemeStudio /></div><div className="settings-card"><h3>Local data backup</h3><p>{company ? "Business records sync through your AXIVESTRA account. Document files sync with your linked Windows PC while both devices are connected." : personalUserId ? "Personal records sync privately through your AXIVESTRA account across any signed-in phone or PC. Document file bytes remain in the local vault and are not included in personal cloud record sync." : "Your workspace records are saved locally on this device. Document file bytes are stored separately in the local vault and can be backed up from Documents."}</p><button type="button" className="secondary-button" onClick={exportWorkspaceBackup}>Export workspace JSON</button><button type="button" className="secondary-button" onClick={importWorkspaceBackup}>Import workspace JSON</button></div>{!company && !personalUserId && onSwitchCompany && <div className="settings-card"><h3>Account and cloud sync</h3><p>Local mode saves your records on this device without a login. Sign in only when you want private account sync or shared company workspaces. Your local records remain on this device.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Sign in / switch to cloud mode</button></div></div>}{company && ["owner", "admin"].includes(company.role) && <div className="settings-card"><h3>Company member access</h3><p>Invite a new teammate by email, or use an existing Supabase Auth user UUID to grant or change access. Owner access cannot be granted, changed or removed through this screen.</p><form className="member-access-form" onSubmit={inviteCompanyMember}><label>Invite email address<input type="email" autoComplete="email" value={memberInviteEmail} onChange={event=>setMemberInviteEmail(event.target.value)} required placeholder="colleague@company.com"/></label><label>Invitation role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="primary-button" disabled={memberBusy}>{memberBusy ? "Sending…" : "Invite by email"}</button></form><details className="member-existing-access"><summary>Existing account? Add or update by UUID</summary><form className="member-access-form" onSubmit={addCompanyMember}><label>Existing user UUID<input value={memberUserId} onChange={event=>setMemberUserId(event.target.value)} required placeholder="00000000-0000-4000-8000-000000000000"/></label><label>Existing member role<select value={memberRole} onChange={event=>setMemberRole(event.target.value as CompanyRole)}><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="read_only">Read-only</option></select></label><button className="secondary-button" disabled={memberBusy}>{memberBusy ? "Saving…" : "Add / update existing account"}</button></form></details>{memberStatus && <p role="status" className="sync-status">{memberStatus}</p>}<div className="company-member-list">{memberRows.map(member=><div className="company-member-row" key={member.user_id}><div><strong>{member.user_id}</strong><small>{member.role.replace("_"," ")} · added {new Date(member.created_at).toLocaleDateString("en-IN")}</small></div><button className="delete-button" disabled={memberBusy || member.role === "owner"} onClick={()=>void removeCompanyMember(member.user_id,member.role)}>{member.role === "owner" ? "Owner" : "Remove"}</button></div>)}</div><p className="ax-form-note">Email invitations need the <code>invite-company-member</code> Supabase Edge Function deployed and Auth email delivery configured. Existing registered accounts should be added by UUID.</p></div>}{personalUserId && <div className="settings-card"><h3>Personal cloud sync · phone and PC</h3><p>This is your private workspace. Sign in with the same account on any phone or PC to access the same properties, contacts, tasks, financial records, risks, approvals and follow-ups. No company or paired Windows PC is required. Sync runs automatically while online.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic personal cloud sync is active."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Your records are isolated by your signed-in account. Original document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p><div className="settings-actions"><button type="button" className="secondary-button" onClick={onSwitchCompany}>Explore Company Mode</button></div></div>}{company && <div className="settings-card"><h3>Company cloud sync · phone and PC</h3><p>Signed in to <strong>{company.name}</strong>. This phone or PC can be your starting device. Business records sync both ways through this company account; you do not need a Windows PC to use or synchronize from the phone. When adding another device, sign in with the same account and open the same company.</p><div className="settings-actions"><button type="button" className="primary-button" disabled={cloudSyncBusy || !cloudSyncRunRef.current} onClick={()=>void cloudSyncRunRef.current?.(true)}>{cloudSyncBusy ? "Syncing…" : "Sync now"}</button><span className="sync-status" role="status" aria-live="polite">{cloudSyncStatus || "Automatic sync is active · tap Sync now to refresh this device."}</span></div>{cloudLastSyncedAt && <small className="ax-cloud-sync-last">Last successful sync: {new Date(cloudLastSyncedAt).toLocaleString("en-IN")}</small>}<p className="sync-status">Cloud records are protected by company membership policies. Document files and the linked Windows WhatsApp session remain device-local / PC-linked features.</p></div>}<div className="settings-card"><h3>Sync WhatsApp + data</h3>{Boolean(window.estateflowWhatsApp?.getBridgeInfo) ? <div className="device-sync-pairing"><p>{company ? "Optional PC link: scan from Android only to share this Windows WhatsApp session and local document vault. Company records already sync through your account." : "Open AXIVESTRA on your Android phone and scan this code once to pair local records with this Windows PC."}</p>{deviceSyncQr ? <img src={deviceSyncQr} alt="AXIVESTRA phone sync QR code" style={{ width: "100%", maxWidth: 260, display: "block", margin: "12px auto" }}/> : <p className="sync-status">Preparing your link code…</p>}<p className="sync-status">{syncStatus || "Ready to link on the same Wi-Fi."}</p>{!company && <div className="settings-actions"><button type="button" className="primary-button" disabled={syncBusy} onClick={()=>void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button></div>}</div> : Capacitor.getPlatform() === "android" ? <div><p>{company ? "Company records sync directly from this phone through your AXIVESTRA account. Pair a Windows PC only if you also need its linked WhatsApp session or local document vault." : syncHost ? "This phone is linked to your Windows AXIVESTRA." : "Scan the PC code once to sync local records and share its documents and linked WhatsApp number."}</p><div className="settings-actions"><button className="primary-button" disabled={syncBusy} onClick={() => void scanAndPairWithPc()}>{syncBusy ? "Connecting…" : syncHost ? "Change linked PC" : "Scan PC code"}</button>{syncHost && <button className="secondary-button" disabled={syncBusy} onClick={() => void syncWithPc()}>{syncBusy ? "Syncing…" : "Sync now"}</button>}{syncHost && <button className="secondary-button" onClick={unlinkPc}>Unlink</button>}</div>{syncStatus && <p className="sync-status">{syncStatus}</p>}</div> : <p>Open AXIVESTRA on Windows to display the link code.</p>}</div><div className="settings-card"><h3>Local audit history</h3><p>Tracks creation, edits and deletions for properties, contacts, tasks, financial transactions, risks and approvals on this device. The log records record labels and IDs, not the private field contents. This is a local activity history, not a tamper-proof or multi-user compliance audit.</p><div className="settings-actions"><button className="secondary-button" onClick={()=>{const blob=new Blob([JSON.stringify(auditEvents,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`axivestra-audit-${today}.json`;a.click();URL.revokeObjectURL(url);}}>Export audit log</button></div>{auditEvents.length ? <div className="audit-event-list">{auditEvents.slice(0,50).map(event=><article className="audit-event-row" key={event.id}><span className={`audit-event-action audit-${event.action}`}>{event.action}</span><div><strong>{event.entity}: {event.label}</strong><small>{event.recordId} · {new Date(event.at).toLocaleString("en-IN")}</small></div></article>)}</div> : <p>No changes have been recorded yet. New record changes will appear here.</p>}</div></section>}
           <footer className="footer"><span>AXIVESTRA © 2026</span><span>{company ? `Company cloud mode · ${company.role.replace("_"," ")} access` : personalUserId ? "Personal cloud mode · private account" : "Local-first mode · optional trusted-network sync"}</span></footer>
         </div>
       </section>

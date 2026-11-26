@@ -3,8 +3,54 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { extractStructuredFacts, EXTRACTOR_VERSION } from "./extractor.mjs";
+import { encryptContactValue, keyFromBase64, maskContactValue } from "./contact-validation.mjs";
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+export function protectExtractedContactFacts(facts, keys) {
+  const rows = Array.isArray(facts) ? facts : [];
+  const hasContacts = rows.some(fact => ["email", "phone"].includes(fact?.value_type));
+  if (!hasContacts) return rows;
+  if (!keys?.encryptionKey || !keys?.fingerprintKey) {
+    throw new Error("E05 cannot persist extracted email/phone facts without the E05 contact encryption and fingerprint keys.");
+  }
+  return rows.map(fact => {
+    if (!["email", "phone"].includes(fact?.value_type)) return fact;
+    const raw = typeof fact.raw_value === "string" ? fact.raw_value.normalize("NFKC").trim() : "";
+    if (!raw || raw.length > 320) throw new Error("E05 contact fact is empty or exceeds the protected-contact limit.");
+    const encrypted = encryptContactValue(raw, keys.encryptionKey, keys.fingerprintKey);
+    const masked = maskContactValue(fact.value_type, raw);
+    const sourceSpan = fact.source_span && typeof fact.source_span === "object" && !Array.isArray(fact.source_span)
+      ? { ...fact.source_span } : {};
+    delete sourceSpan.quoteHash;
+    sourceSpan.quote = masked;
+    sourceSpan.quoteRedacted = true;
+    return {
+      ...fact,
+      raw_value: masked,
+      normalized_value: null,
+      source_span: sourceSpan,
+      raw_value_ciphertext: encrypted.value_ciphertext,
+      raw_value_nonce: encrypted.value_nonce,
+      raw_value_auth_tag: encrypted.value_auth_tag,
+      raw_value_fingerprint: encrypted.value_fingerprint,
+      raw_value_encryption_version: encrypted.encryption_version
+    };
+  });
+}
+
+function optionalContactKeys() {
+  const encryptionValue = process.env.DISCOVERY_CONTACT_ENCRYPTION_KEY?.trim();
+  const fingerprintValue = process.env.DISCOVERY_CONTACT_FINGERPRINT_KEY?.trim();
+  if (!encryptionValue && !fingerprintValue) return null;
+  if (!encryptionValue || !fingerprintValue) {
+    throw new Error("Both E05 contact encryption and fingerprint keys must be configured together.");
+  }
+  return {
+    encryptionKey: keyFromBase64(encryptionValue, "DISCOVERY_CONTACT_ENCRYPTION_KEY"),
+    fingerprintKey: keyFromBase64(fingerprintValue, "DISCOVERY_CONTACT_FINGERPRINT_KEY")
+  };
+}
 
 export function makeExtractionWorkerSlots(workerId, requestedConcurrency = 2) {
   const base = typeof workerId === "string" && workerId.trim()
@@ -49,7 +95,7 @@ export function evidenceObjectPath(reference) {
   return path;
 }
 
-async function executeJob(admin, job, workerId, signal) {
+async function executeJob(admin, job, workerId, signal, contactKeys) {
   throwIfAborted(signal);
   const [{ data: evidence, error: evidenceError }, { data: source, error: sourceError }] = await Promise.all([
     admin.from("discovery_evidence_items").select("*")
@@ -82,10 +128,12 @@ async function executeJob(admin, job, workerId, signal) {
     bytes,
     contentType: evidence.content_type,
     source,
-    contentHash: evidence.content_hash
+    contentHash: evidence.content_hash,
+    htmlParserBackend: process.env.AXIVESTRA_HTML_PARSER_BACKEND === "scrapling" ? "scrapling" : "htmlparser2"
   });
   throwIfAborted(signal);
 
+  const storedFacts = protectExtractedContactFacts(result.facts || [], contactKeys);
   const { data: runId, error: commitError } = await admin.rpc("complete_discovery_extraction", {
     p_job_id: job.id,
     p_worker_id: workerId,
@@ -99,13 +147,13 @@ async function executeJob(admin, job, workerId, signal) {
       source_allowed_fields_snapshot: source.allowed_fields || []
     },
     p_entities: result.entities || [],
-    p_facts: result.facts || []
+    p_facts: storedFacts
   });
   if (commitError) throw new Error("Atomic extraction result commit failed: " + commitError.message);
   return { runId: typeof runId === "string" ? runId : runId?.id, facts: result.facts.length, entities: result.entities.length, warnings: result.warnings };
 }
 
-export async function runExtractionWorkerOnce(admin, workerId) {
+export async function runExtractionWorkerOnce(admin, workerId, contactKeys = optionalContactKeys()) {
   const { data: claimed, error: claimError } = await admin.rpc("claim_discovery_extraction_job", {
     p_worker_id: workerId,
     p_lease_seconds: 90
@@ -132,7 +180,7 @@ export async function runExtractionWorkerOnce(admin, workerId) {
   }, 20_000);
 
   try {
-    const result = await executeJob(admin, job, workerId, controller.signal);
+    const result = await executeJob(admin, job, workerId, controller.signal, contactKeys);
     if (controller.signal.aborted) throw new Error("Extraction worker lease was lost before completion.");
     console.info("AXIVESTRA extraction completed:", JSON.stringify({
       jobId: job.id, runId: result.runId, entities: result.entities, facts: result.facts,
@@ -166,7 +214,8 @@ export async function runExtractionWorker() {
   let stopping = false;
   process.once("SIGINT", () => { stopping = true; });
   process.once("SIGTERM", () => { stopping = true; });
-  console.info("AXIVESTRA deterministic extraction worker started with " + concurrency + " bounded slot(s). It performs no network access and no LLM calls.");
+  const htmlParserBackend = process.env.AXIVESTRA_HTML_PARSER_BACKEND === "scrapling" ? "scrapling" : "htmlparser2";
+  console.info("AXIVESTRA deterministic extraction worker started with " + concurrency + " bounded slot(s); HTML parser=" + htmlParserBackend + ". It performs no network access and no LLM calls.");
   while (!stopping) {
     const outcomes = await Promise.all(workerSlots.map(async slotId => {
       try {
