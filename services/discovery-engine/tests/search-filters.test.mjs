@@ -102,3 +102,20 @@ test("selected module filters and region are included in the actual SearXNG quer
   assert.ok(queries.some(query => query.includes("Collateral type: Commercial property")));
   assert.ok(queries.some(query => query.includes("Minimum loan amount: 5000000 INR")));
 });
+
+
+test("each LENDER and CUSTOMER mode has its own filter field set and currency-aware amount terms", () => {
+  const lenderFields = getWorkspaceSearchFilterFields("housing_loan", "LENDER");
+  const customerFields = getWorkspaceSearchFilterFields("housing_loan", "CUSTOMER");
+  assert.notDeepEqual(lenderFields.map(field => field.key), customerFields.map(field => field.key));
+  const filters = normalizeDiscoverySearchFilters("housing_loan", "CUSTOMER", {
+    ...createDefaultDiscoverySearchFilters(),
+    coverageScope: "international",
+    country: "United Arab Emirates",
+    currency: "AED",
+    fields: { loan_min: "100000", loan_max: "500000" }
+  });
+  assert.equal(filters.location, "United Arab Emirates");
+  assert.match(filters.searchTerms, /Minimum loan requirement: 100000 AED/);
+  assert.match(filters.searchTerms, /Maximum loan requirement: 500000 AED/);
+});
