@@ -63,12 +63,14 @@ export function buildSearxngQueries(criteria, filters = {}) {
   if (targetClasses.some(value => sensitiveInput.test(value) || phoneInput.test(value))) {
     throw new Error("Workspace search target classes must not contain personal contact details.");
   }
-  const suffix = Object.values(cleanFilters).filter(Boolean).join(" ").slice(0, 480);
+  const suffix = Object.values(cleanFilters).filter(Boolean).join(" ");
   const queries = [];
   for (const target of targetClasses.slice(0, 4)) {
     const term = cleanText(target.replaceAll("_", " "), 120);
     if (!term) continue;
-    const query = [term, suffix].filter(Boolean).join(" ");
+    const suffixBudget = Math.max(0, MAX_QUERY_CHARS - term.length - (suffix ? 1 : 0));
+    const boundedSuffix = suffix.slice(0, suffixBudget).trimEnd();
+    const query = [term, boundedSuffix].filter(Boolean).join(" ");
     if (query && query.length <= MAX_QUERY_CHARS && !queries.includes(query)) queries.push(query);
   }
   if (!queries.length) throw new Error("The workspace did not produce a usable public search query.");
