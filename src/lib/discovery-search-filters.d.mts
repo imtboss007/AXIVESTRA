@@ -19,7 +19,7 @@ export const INDIA_STATES_AND_UTS: readonly string[];
 export const DISCOVERY_SEARCH_FILTER_WORKSPACES: readonly string[];
 export function getWorkspaceSearchFilterFields(workspaceKey: string, mode: "LENDER" | "CUSTOMER"): DiscoverySearchFilterField[];
 export function createDefaultDiscoverySearchFilters(): DiscoverySearchFilterDraft;
-export function normalizeDiscoverySearchFilters(workspaceKey: string, mode: "LENDER" | "CUSTOMER", input?: Partial<DiscoverySearchFilterDraft>): {
+export function normalizeDiscoverySearchFilters(workspaceKey: string, mode: "LENDER" | "CUSTOMER", input?: unknown): {
   coverageScope: DiscoveryCoverageScope;
   state: string;
   country: string;
