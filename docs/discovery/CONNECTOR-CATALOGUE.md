@@ -51,3 +51,19 @@ A scheduled refresh is only "live" when the provider call actually succeeds. Per
 - Scrapling is currently an optional parser for already captured evidence, not a general internet search engine.
 - The source registry requires explicit company owner/admin review before fetch eligibility.
 - No external search provider or crawler should be activated merely because a frontend navigation item exists.
+
+
+## Unified API layer decision (2026-11-28)
+
+The architecture decision is recorded in [UNIFIED-PROVIDER-API-LAYER.md](./UNIFIED-PROVIDER-API-LAYER.md).
+
+- Reuse the existing Supabase `discovery-control` Edge Function as the authenticated first-party API boundary.
+- Reuse `discovery-connector-registry.mjs` for all provider adapters; do not create a parallel gateway or let the browser call providers directly.
+- Reuse existing Crawlee and Playwright worker dependencies and the optional Scrapling parser. Scrapling remains a parser for captured evidence, not a discovery search engine.
+- Keep SearXNG as the existing optional E03 metasearch service; it is inactive until server-side configuration.
+- Scrapy is a candidate separate Python worker only if measured throughput justifies it. Meltano is a candidate for bulk ELT, not request-time prospect discovery.
+- Apache APISIX is an optional later edge gateway if external API publication, multi-service routing or measured gateway scale requires it. It is not added as a duplicate runtime dependency now.
+- LENDER and CUSTOMER use separate workspace profiles and result modes over the shared governed API/connector engine.
+- Provider health, quota, last-success and freshness status must be visible; stale or failed results must never be labelled live.
+
+This is an architecture decision only. No new provider was activated, no paid credentials were added, and no deployment or production migration occurred.
