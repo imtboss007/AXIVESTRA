@@ -645,7 +645,7 @@ export default function DiscoverySourceManager({
           <small>Choose one module. Only its own filters and matching {activeDiscoveryMode} profile will be shown.</small>
         </div>
         <label>Module
-          <select value={selectedSearchWorkspace} onChange={event => setSelectedSearchWorkspace(event.target.value)}>
+          <select value={selectedSearchWorkspace} onChange={event => { setSelectedSearchWorkspace(event.target.value); setProfileDraft(current => ({ ...current, workspaceKey: event.target.value })); }}>
             {WORKSPACES.map(([key, label]) => <option value={key} key={key}>{label}</option>)}
           </select>
         </label>
