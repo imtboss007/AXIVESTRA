@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactExtractedFacts } from "../_shared/discovery-contact-redaction.mjs";
 import { buildSearxngQueries, searchSearxng } from "../_shared/discovery-search-connectors.mjs";
+import { normalizeDiscoverySearchFilters } from "../_shared/discovery-search-filters.mjs";
 import { buildE11CandidateFromAcceptedObservations, scoreDiscoveryMatch } from "../_shared/discovery-matching.mjs";
 import {
   normalizeSourceRegistration,
@@ -160,13 +161,7 @@ Deno.serve(async request => {
 
       const filterInput = payload.filters && typeof payload.filters === "object" && !Array.isArray(payload.filters)
         ? payload.filters as Record<string, unknown> : {};
-      const filters = {
-        location: typeof filterInput.location === "string" ? filterInput.location.slice(0, 120) : "",
-        sector: typeof filterInput.sector === "string" ? filterInput.sector.slice(0, 100) : "",
-        product: typeof filterInput.product === "string" ? filterInput.product.slice(0, 100) : "",
-        stage: typeof filterInput.stage === "string" ? filterInput.stage.slice(0, 80) : "",
-        instrument: typeof filterInput.instrument === "string" ? filterInput.instrument.slice(0, 80) : ""
-      };
+      const filters = normalizeDiscoverySearchFilters(profile.workspace_key, profile.discovery_mode, filterInput);
       const queries = buildSearxngQueries(profile.criteria || {}, filters);
       await writeAudit(admin, {
         company_id: companyId,
@@ -179,7 +174,8 @@ Deno.serve(async request => {
           discoveryMode: profile.discovery_mode,
           queryCount: queries.length,
           attachedApprovedSourceCount: eligibleSources.length,
-          filterKeys: ["location", "sector", "product", "stage", "instrument"].filter(key => Boolean((filters as Record<string, string>)[key]))
+          coverageScope: filters.coverageScope,
+          filterKeys: [...Object.keys(filters.fields), ...(filters.location ? ["location"] : []), ...(filters.searchTerms ? ["workspace_filters"] : [])]
         }
       });
       const resultsByUrl = new Map<string, Record<string, unknown>>();
@@ -218,6 +214,12 @@ Deno.serve(async request => {
         profile: { id: profile.id, workspace_key: profile.workspace_key, discovery_mode: profile.discovery_mode },
         queries,
         results,
+        appliedFilters: {
+          coverageScope: filters.coverageScope,
+          state: filters.state,
+          country: filters.country,
+          fieldKeys: Object.keys(filters.fields)
+        },
         message: "Search results are unverified candidates, not evidence or verified contacts. Only URLs inside an already approved, attached source path may be added to the E04 queue. Other domains need separate source registration and owner/admin approval."
       });
     }
