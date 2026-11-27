@@ -27,3 +27,13 @@ test("search query builder includes location and module filter terms in the quer
   assert.match(connector, /searchTerms: cleanText\(filters\.searchTerms, 500\)/);
   assert.match(connector, /const suffix = Object\.values\(cleanFilters\)\.filter\(Boolean\)/);
 });
+
+
+test("module selector limits visible profile cards and their filters to the selected workspace in the active mode", () => {
+  assert.match(ui, /const activeDiscoveryMode = selectedMode \|\| "LENDER"/);
+  assert.match(ui, /profile\.discovery_mode === activeDiscoveryMode &&\s*profile\.workspace_key === selectedSearchWorkspace/);
+  assert.match(ui, /Select a module to search/);
+  assert.match(ui, /setSelectedSearchWorkspace\(event\.target\.value\)/);
+  assert.match(ui, /setProfileDraft\(current => \(\{ \.\.\.current, workspaceKey: event\.target\.value \}\)\)/);
+  assert.match(ui, /getWorkspaceSearchFilterFields\(profile\.workspace_key, profile\.discovery_mode\)/);
+});
