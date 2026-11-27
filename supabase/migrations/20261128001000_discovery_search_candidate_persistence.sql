@@ -32,7 +32,7 @@ create table if not exists public.discovery_search_candidates (
   foreign key (company_id, profile_id)
     references public.discovery_profiles(company_id, id) on delete cascade,
   foreign key (company_id, approved_source_id)
-    references public.discovery_source_registry(company_id, id) on delete set null,
+    references public.discovery_source_registry(company_id, id) on delete set null (approved_source_id),
   check (fetch_eligible = false or approved_source_id is not null)
 );
 
