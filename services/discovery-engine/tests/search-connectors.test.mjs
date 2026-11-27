@@ -89,3 +89,18 @@ test("SearXNG connector fails closed when not configured or endpoint attempts HT
   await assert.rejects(() => searchSearxng({ baseUrl: "", query: "bank" }), /not been configured/);
   await assert.rejects(() => searchSearxng({ baseUrl: "http://search.example.net", query: "bank" }), /HTTPS/);
 });
+
+
+test("long but valid module filter sets retain a bounded search query instead of dropping the target", () => {
+  const queries = buildSearxngQueries({
+    targetClasses: ["housing_finance_company"],
+    disabledByPolicy: false
+  }, {
+    location: "Karnataka, India",
+    searchTerms: "Published product criteria: " + "residential property housing loan ".repeat(30)
+  });
+  assert.equal(queries.length, 1);
+  assert.ok(queries[0].startsWith("housing finance company"));
+  assert.ok(queries[0].includes("Karnataka, India"));
+  assert.ok(queries[0].length <= 500);
+});
