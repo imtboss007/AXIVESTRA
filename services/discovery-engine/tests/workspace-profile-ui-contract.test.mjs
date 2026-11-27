@@ -49,10 +49,12 @@ test("profile catalogue encodes separate lender and customer target classes with
   assert.match(profiles, /Equity investors are not debt lenders/);
 });
 
-test("new profiles allow an exact free-text purpose before any source is approved", () => {
+test("new profiles use a selected-module default purpose with an optional advanced override", () => {
+  assert.match(manager, /Public " \+ discoveryMode\.toLowerCase\(\) \+ " discovery for "/);
+  assert.match(manager, /Purpose override/);
   assert.match(manager, /list="axivestra-discovery-purposes"/);
-  assert.match(manager, /Enter the exact discovery purpose/);
-  assert.doesNotMatch(manager, /purposeOptions\.length/);
+  assert.match(manager, /Create and enable search profile/);
+  assert.doesNotMatch(manager, /Exact permitted purpose/);
 });
 
 test("profile activation is independent from target-source attachment, while E04 remains source-gated", () => {
