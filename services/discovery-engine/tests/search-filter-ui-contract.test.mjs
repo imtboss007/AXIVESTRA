@@ -12,12 +12,17 @@ test("LENDER and CUSTOMER discovery UI renders geographic scope and workspace-sp
   assert.match(ui, /All India/);
   assert.match(ui, /International/);
   assert.match(ui, /INDIA_STATES_AND_UTS\.map/);
-  assert.match(ui, /primaryFilterFields\.map/);\n  assert.match(ui, /additionalFilterFields\.map/);
-  assert.match(ui, /Search with filters/);\n  assert.match(ui, /discovery-more-filters/);\n  assert.match(ui, /Clear filters/);
+  assert.match(ui, /primaryFilterFields\.map/);
+  assert.match(ui, /additionalFilterFields\.map/);
+  assert.match(ui, /Search with filters/);
+  assert.match(ui, /discovery-more-filters/);
+  assert.match(ui, /Clear filters/);
 });
 
 test("E03 search request sends selected filters to the authenticated backend", () => {
-  assert.match(ui, /invoke\("search\.preview", \{ profileId: profile\.id, filters \}\)/);\n  assert.match(ui, /invoke\("search\.status"\)/);\n  assert.match(ui, /invoke\("search\.candidates\.list"\)/);
+  assert.match(ui, /invoke\("search\.preview", \{ profileId: profile\.id, filters \}\)/);
+  assert.match(ui, /invoke\("search\.status"\)/);
+  assert.match(ui, /invoke\("search\.candidates\.list"\)/);
   assert.match(handler, /normalizeDiscoverySearchFilters\(profile\.workspace_key, profile\.discovery_mode, filterInput\)/);
   assert.match(handler, /coverageScope: filters\.coverageScope/);
   assert.match(handler, /fieldKeys: Object\.keys\(filters\.fields\)/);
