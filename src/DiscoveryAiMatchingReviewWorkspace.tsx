@@ -40,6 +40,19 @@ const decisionLabels = [
 ] as const;
 const humanize = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, x => x.toUpperCase());
 const dateTime = (value: string) => new Date(value).toLocaleString();
+function describeSupabaseError(cause: unknown, fallback: string) {
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (cause && typeof cause === "object") {
+    const value = cause as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
+    const message = typeof value.message === "string" && value.message.trim() ? value.message.trim() : fallback;
+    const code = typeof value.code === "string" && value.code.trim() ? " [" + value.code.trim() + "]" : "";
+    const details = typeof value.details === "string" && value.details.trim() ? " " + value.details.trim() : "";
+    const hint = typeof value.hint === "string" && value.hint.trim() ? " Hint: " + value.hint.trim() : "";
+    return message + code + details + hint;
+  }
+  return fallback;
+}
+
 
 export default function DiscoveryAiMatchingReviewWorkspace({
   companyId,
@@ -75,7 +88,7 @@ export default function DiscoveryAiMatchingReviewWorkspace({
       setSuggestions((suggestionResult.data || []) as Suggestion[]);
       setEvents((eventResult.data || []) as ReviewEvent[]);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load E22 review records.");
+      setError(describeSupabaseError(cause, "Could not load E22 review records."));
     } finally {
       setLoading(false);
     }
@@ -105,7 +118,7 @@ export default function DiscoveryAiMatchingReviewWorkspace({
       setNotice("Human review recorded. The E11 match result and canonical records were not changed.");
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The E22 review was not recorded.");
+      setError(describeSupabaseError(cause, "The E22 review was not recorded."));
     } finally {
       setBusy("");
     }
