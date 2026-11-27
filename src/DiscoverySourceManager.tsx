@@ -413,10 +413,15 @@ export default function DiscoverySourceManager({
   const visibleProfiles = profiles.filter(profile => profile.discovery_mode === (selectedMode || "LENDER"));
 
   const updateSearchFilter = (profileId: string, key: "coverageScope" | "state" | "country" | "currency" | "keywords", value: string) => {
-    setSearchFilterDrafts(current => ({
-      ...current,
-      [profileId]: { ...(current[profileId] || createDefaultDiscoverySearchFilters()), [key]: value }
-    }));
+    setSearchFilterDrafts(current => {
+      const draft = { ...(current[profileId] || createDefaultDiscoverySearchFilters()) };
+      if (key === "coverageScope") draft.coverageScope = value as DiscoverySearchFilterDraft["coverageScope"];
+      else if (key === "state") draft.state = value;
+      else if (key === "country") draft.country = value;
+      else if (key === "currency") draft.currency = value;
+      else draft.keywords = value;
+      return { ...current, [profileId]: draft };
+    });
   };
 
   const updateWorkspaceFilter = (profileId: string, key: string, value: string) => {
