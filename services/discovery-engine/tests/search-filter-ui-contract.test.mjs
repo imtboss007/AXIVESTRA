@@ -23,6 +23,7 @@ test("E03 search request sends selected filters to the authenticated backend", (
   assert.match(ui, /invoke\("search\.preview", \{ profileId: profile\.id, filters \}\)/);
   assert.match(ui, /invoke\("search\.status"\)/);
   assert.match(ui, /invoke\("search\.candidates\.list"\)/);
+  assert.match(ui, /Promise\.allSettled/);
   assert.match(handler, /normalizeDiscoverySearchFilters\(profile\.workspace_key, profile\.discovery_mode, filterInput\)/);
   assert.match(handler, /coverageScope: filters\.coverageScope/);
   assert.match(handler, /fieldKeys: Object\.keys\(filters\.fields\)/);
