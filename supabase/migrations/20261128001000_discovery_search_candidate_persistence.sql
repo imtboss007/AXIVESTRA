@@ -31,8 +31,7 @@ create table if not exists public.discovery_search_candidates (
   unique (company_id, profile_id, canonical_url),
   foreign key (company_id, profile_id)
     references public.discovery_profiles(company_id, id) on delete cascade,
-  foreign key (company_id, approved_source_id)
-    references public.discovery_source_registry(company_id, id) on delete set null (approved_source_id),
+  -- approved_source_id is a historical reference; E04 rechecks the live source registry.
   check (fetch_eligible = false or approved_source_id is not null)
 );
 
