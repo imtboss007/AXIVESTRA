@@ -412,7 +412,7 @@ export default function DiscoverySourceManager({
 
   const visibleProfiles = profiles.filter(profile => profile.discovery_mode === (selectedMode || "LENDER"));
 
-  const updateSearchFilter = (profileId: string, key: keyof DiscoverySearchFilterDraft, value: string) => {
+  const updateSearchFilter = (profileId: string, key: "coverageScope" | "state" | "country" | "currency" | "keywords", value: string) => {
     setSearchFilterDrafts(current => ({
       ...current,
       [profileId]: { ...(current[profileId] || createDefaultDiscoverySearchFilters()), [key]: value }
