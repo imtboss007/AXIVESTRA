@@ -96,8 +96,18 @@ test("E03 search results are persisted idempotently per company/profile and relo
   assert.match(candidateMigration, /unverified_candidate/);
 });
 
-test("E03 search status reports missing provider configuration instead of silently returning no data", () => {
-  assert.ok(handler.includes('action === "search.status"'));
-  assert.match(handler, /configured: enabled && Boolean\(endpoint\)/);
-  assert.match(handler, /Public search is not connected/);
+test("E03 search status requires an enabled HTTPS gateway, secure Vault token and healthy endpoint", () => {
+  const statusStart = handler.indexOf('if (action === "search.status")');
+  const statusEnd = handler.indexOf('if (action === "sources.list")', statusStart);
+  const statusAction = handler.slice(statusStart, statusEnd);
+  assert.ok(statusStart >= 0 && statusEnd > statusStart);
+  assert.match(statusAction, /DISCOVERY_SEARXNG_ENABLED/);
+  assert.match(statusAction, /DISCOVERY_SEARXNG_URL/);
+  assert.match(statusAction, /get_axivestra_search_gateway_token/);
+  assert.match(statusAction, /endpoint\.startsWith\("https:\/\/"\)/);
+  assert.match(statusAction, /new URL\("\/healthz", endpoint\)/);
+  assert.match(statusAction, /configured: configured && healthy/);
+  assert.match(statusAction, /secure Vault token is not configured/);
+  assert.match(statusAction, /live search gateway is not responding yet/);
+  assert.doesNotMatch(statusAction, /configured: enabled && Boolean\(endpoint\)/);
 });
