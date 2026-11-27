@@ -18,7 +18,7 @@ export default function DiscoveryPublicApiCatalogue({ workspaceKey, mode }: Prop
 
   return (
     <section className="data-panel discovery-panel discovery-public-api-panel">
-      <details>
+      <details open>
         <summary>
           <span className="discovery-public-api-summary">
             <span>
