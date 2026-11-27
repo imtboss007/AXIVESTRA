@@ -13,10 +13,7 @@ search:
 server:
   secret_key: "change-me-at-deploy"
   port: 8080
-  bind_address: "0.0.0.0"
-  limiter: true
-  public_instance: true
+  bind_address: "127.0.0.1"
+  limiter: false
+  public_instance: false
   image_proxy: false
-
-valkey:
-  url: "valkey://localhost:6379/0"
