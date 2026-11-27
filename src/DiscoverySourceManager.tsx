@@ -162,6 +162,7 @@ export default function DiscoverySourceManager({
   const [selectedSources, setSelectedSources] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<Record<string, SearchCandidate[]>>({});
   const [searchFilterDrafts, setSearchFilterDrafts] = useState<Record<string, DiscoverySearchFilterDraft>>({});
+  const [selectedSearchWorkspace, setSelectedSearchWorkspace] = useState(selectedWorkspaceKey || "property_loans");
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("Open an authenticated AXIVESTRA company workspace first.");
@@ -410,7 +411,18 @@ export default function DiscoverySourceManager({
     .map(link => sources.find(source => source.id === link.source_id))
     .filter((source): source is Source => Boolean(source));
 
-  const visibleProfiles = profiles.filter(profile => profile.discovery_mode === (selectedMode || "LENDER"));
+  useEffect(() => {
+    if (selectedWorkspaceKey && WORKSPACES.some(([key]) => key === selectedWorkspaceKey)) {
+      setSelectedSearchWorkspace(selectedWorkspaceKey);
+    }
+  }, [selectedWorkspaceKey]);
+
+  const activeDiscoveryMode = selectedMode || "LENDER";
+  const visibleProfiles = profiles.filter(profile =>
+    profile.discovery_mode === activeDiscoveryMode &&
+    profile.workspace_key === selectedSearchWorkspace
+  );
+  const selectedWorkspaceLabel = WORKSPACES.find(([key]) => key === selectedSearchWorkspace)?.[1] || selectedSearchWorkspace;
 
   const updateSearchFilter = (profileId: string, key: "coverageScope" | "state" | "country" | "currency" | "keywords", value: string) => {
     setSearchFilterDrafts(current => {
@@ -626,7 +638,19 @@ export default function DiscoverySourceManager({
       </section>
       {profileAlreadyExists && <p className="discovery-readonly">A {profileDraft.discoveryMode} profile already exists for this workspace. Select another workspace/mode; existing profiles are listed below.</p>}
       {!canManage && <p className="discovery-readonly">Only company owners and admins can configure profiles and source links.</p>}
-      {visibleProfiles.length === 0 ? <p className="discovery-empty-inline">No {selectedMode || "LENDER"} profiles created yet for this company. Create the profile for each module you want to search.</p> :
+      <section className="discovery-module-search-selector" aria-label={activeDiscoveryMode + " module selection"}>
+        <div>
+          <span className="section-kicker">{activeDiscoveryMode} DISCOVERY</span>
+          <strong>Select a module to search</strong>
+          <small>Choose one module. Only its own filters and matching {activeDiscoveryMode} profile will be shown.</small>
+        </div>
+        <label>Module
+          <select value={selectedSearchWorkspace} onChange={event => setSelectedSearchWorkspace(event.target.value)}>
+            {WORKSPACES.map(([key, label]) => <option value={key} key={key}>{label}</option>)}
+          </select>
+        </label>
+      </section>
+      {visibleProfiles.length === 0 ? <p className="discovery-empty-inline">No {activeDiscoveryMode} profile exists for {selectedWorkspaceLabel}. Create this module profile above to enable its filters and search.</p> :
         <div className="discovery-profile-list">{visibleProfiles.map(profile => {
           const attached = sourcesForProfile(profile);
           const choices = profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" ? [] : availableSources(profile);
