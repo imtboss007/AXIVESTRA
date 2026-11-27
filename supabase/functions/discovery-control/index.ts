@@ -103,6 +103,19 @@ Deno.serve(async request => {
   const canManage = ["owner", "admin"].includes(membership.role);
 
   try {
+    if (action === "search.status") {
+      const enabled = Deno.env.get("DISCOVERY_SEARXNG_ENABLED") === "true";
+      const endpoint = Deno.env.get("DISCOVERY_SEARXNG_URL") || "";
+      return jsonResponse(200, {
+        ok: true,
+        configured: enabled && Boolean(endpoint),
+        provider: "SearXNG",
+        reason: enabled && endpoint
+          ? ""
+          : "Public search is not connected on this AXIVESTRA server. Configure DISCOVERY_SEARXNG_ENABLED=true and DISCOVERY_SEARXNG_URL before live search can return records."
+      });
+    }
+
     if (action === "sources.list") {
       const { data, error } = await admin.from("discovery_source_registry")
         .select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(500);
@@ -209,6 +222,32 @@ Deno.serve(async request => {
         if (resultsByUrl.size >= 30) break;
       }
       const results = [...resultsByUrl.values()].slice(0, 30);
+      const retrievedAt = new Date().toISOString();
+      const candidateRows = results.map((candidate: Record<string, unknown>) => ({
+        company_id: companyId,
+        profile_id: profile.id,
+        workspace_key: profile.workspace_key,
+        discovery_mode: profile.discovery_mode,
+        title: String(candidate.title || "").slice(0, 300),
+        canonical_url: String(candidate.url || ""),
+        domain: String(candidate.domain || "").slice(0, 253),
+        snippet: String(candidate.snippet || "").slice(0, 1200),
+        status: "unverified_candidate",
+        approved_source_id: candidate.approvedSourceId || null,
+        approved_source_name: candidate.approvedSourceName || null,
+        fetch_eligible: candidate.fetchEligible === true,
+        provider_key: "searxng",
+        retrieved_at: retrievedAt,
+        last_seen_at: retrievedAt,
+        updated_at: retrievedAt
+      })).filter((candidate: Record<string, unknown>) =>
+        candidate.title && candidate.canonical_url && candidate.domain
+      );
+      if (candidateRows.length) {
+        const { error: persistError } = await admin.from("discovery_search_candidates")
+          .upsert(candidateRows, { onConflict: "company_id,profile_id,canonical_url" });
+        if (persistError) throw persistError;
+      }
       return jsonResponse(200, {
         ok: true,
         profile: { id: profile.id, workspace_key: profile.workspace_key, discovery_mode: profile.discovery_mode },
@@ -222,6 +261,34 @@ Deno.serve(async request => {
         },
         message: "Search results are unverified candidates, not evidence or verified contacts. Only URLs inside an already approved, attached source path may be added to the E04 queue. Other domains need separate source registration and owner/admin approval."
       });
+    }
+
+    if (action === "search.candidates.list") {
+      const { data, error } = await admin.from("discovery_search_candidates")
+        .select("profile_id,title,canonical_url,domain,snippet,status,fetch_eligible,approved_source_name,retrieved_at,first_seen_at,last_seen_at")
+        .eq("company_id", companyId)
+        .order("last_seen_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const resultsByProfile: Record<string, Record<string, unknown>[]> = {};
+      for (const row of (data || []) as Record<string, unknown>[]) {
+        const profileId = String(row.profile_id || "");
+        if (!profileId) continue;
+        if (!resultsByProfile[profileId]) resultsByProfile[profileId] = [];
+        resultsByProfile[profileId].push({
+          title: row.title,
+          url: row.canonical_url,
+          domain: row.domain,
+          snippet: row.snippet,
+          status: row.status,
+          fetchEligible: row.fetch_eligible === true,
+          approvedSourceName: row.approved_source_name || null,
+          retrievedAt: row.retrieved_at,
+          firstSeenAt: row.first_seen_at,
+          lastSeenAt: row.last_seen_at
+        });
+      }
+      return jsonResponse(200, { ok: true, resultsByProfile, candidateCount: (data || []).length });
     }
 
     if (action === "workers.status") {
