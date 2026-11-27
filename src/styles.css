@@ -7433,3 +7433,40 @@ h2,h3{color:#e5f2fc}
 @media (max-width: 680px) {
   .discovery-search-filter-grid { grid-template-columns: 1fr; }
 }
+
+
+/* One selected module controls the active LENDER or CUSTOMER filter panel. */
+.discovery-module-search-selector {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(220px,340px);
+  align-items: end;
+  gap: 14px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid rgba(125,160,193,.22);
+  border-radius: 12px;
+  background: rgba(2,13,25,.25);
+}
+.discovery-module-search-selector > div { display: grid; gap: 4px; }
+.discovery-module-search-selector strong { color: #e0eaf3; font-size: 13px; }
+.discovery-module-search-selector small { color: #91a8bd; font-size: 10px; }
+.discovery-module-search-selector label {
+  display: grid;
+  gap: 5px;
+  color: #9eb3c8;
+  font-size: 10px;
+  font-weight: 650;
+}
+.discovery-module-search-selector select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(125,160,193,.25);
+  border-radius: 8px;
+  color: #e0eaf3;
+  background: rgba(2,13,25,.65);
+  font: 600 12px "DM Sans",sans-serif;
+}
+@media (max-width: 680px) {
+  .discovery-module-search-selector { grid-template-columns: 1fr; }
+}
