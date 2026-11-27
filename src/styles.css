@@ -7364,3 +7364,14 @@ h2,h3{color:#e5f2fc}
   .discovery-lead-panel,.discovery-lead-stats>div,.discovery-match-card,.discovery-lead-card,.discovery-lead-message,.discovery-match-meter span{animation:none!important}
   .discovery-lead-stats>div,.discovery-match-card,.discovery-lead-card,.discovery-mode-switch button,.discovery-lead-panel .primary-button,.discovery-lead-panel .secondary-button{transition:none!important}
 }
+
+/* Separate LENDER / CUSTOMER public-directory search results */
+.discovery-search-results{display:grid;gap:10px;margin-top:14px;padding:14px;border:1px solid var(--line,#dce4e8);border-radius:14px;background:var(--surface-soft,rgba(127,145,160,.06))}
+.discovery-search-results-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.discovery-search-results-head small{color:var(--muted,#7b8992)}
+.discovery-search-candidate{display:grid;gap:5px;padding:12px;border:1px solid var(--line,#dce4e8);border-radius:11px;background:var(--surface,#fff);overflow-wrap:anywhere}
+.discovery-search-candidate strong{font-size:14px}
+.discovery-search-candidate small,.discovery-search-candidate span{font-size:11px;color:var(--muted,#7b8992)}
+.discovery-search-candidate p{margin:2px 0;font-size:12px;line-height:1.5}
+.discovery-search-candidate a{font-size:12px;overflow-wrap:anywhere}
+@media(max-width:520px){.discovery-search-results{padding:10px}.discovery-search-candidate{padding:10px}}
