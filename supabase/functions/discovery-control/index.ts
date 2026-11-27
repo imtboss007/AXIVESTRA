@@ -109,13 +109,28 @@ Deno.serve(async request => {
       const { data: gatewayToken, error: gatewayTokenError } = await admin.rpc("get_axivestra_search_gateway_token");
       const configured = enabled && endpoint.startsWith("https://") &&
         !gatewayTokenError && typeof gatewayToken === "string" && gatewayToken.length >= 32;
+      let healthy = false;
+      if (configured) {
+        try {
+          const response = await fetch(new URL("/healthz", endpoint), {
+            method: "GET",
+            signal: AbortSignal.timeout(4000),
+            redirect: "error"
+          });
+          healthy = response.ok;
+        } catch {
+          healthy = false;
+        }
+      }
       return jsonResponse(200, {
         ok: true,
-        configured,
+        configured: configured && healthy,
         provider: "SearXNG",
-        reason: configured ? "" : !enabled
-          ? "Public search is disabled by server configuration."
-          : "The live search gateway or its secure Vault token is not configured on this AXIVESTRA server."
+        reason: !configured
+          ? !enabled
+            ? "Public search is disabled by server configuration."
+            : "The live search gateway or its secure Vault token is not configured on this AXIVESTRA server."
+          : healthy ? "" : "The live search gateway is not responding yet."
       });
     }
 
