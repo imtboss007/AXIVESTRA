@@ -11,6 +11,8 @@ import DiscoveryOrchestrationWorkspace from "./DiscoveryOrchestrationWorkspace";
 import DiscoveryMatchScoringWorkspace from "./DiscoveryMatchScoringWorkspace";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import { getDefaultWorkspaceCriteria, validateWorkspaceCriteria } from "./lib/discovery-profiles.mjs";
+import { createDefaultDiscoverySearchFilters, getWorkspaceSearchFilterFields, INDIA_STATES_AND_UTS } from "./lib/discovery-search-filters.mjs";
+import type { DiscoverySearchFilterDraft } from "./lib/discovery-search-filters.mjs";
 import { OFFICIAL_SOURCE_STARTERS, toSourceDraft } from "./lib/discovery-source-catalogue.mjs";
 import DiscoveryPublicApiCatalogue from "./DiscoveryPublicApiCatalogue";
 
@@ -159,6 +161,7 @@ export default function DiscoverySourceManager({
   }>>({});
   const [selectedSources, setSelectedSources] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<Record<string, SearchCandidate[]>>({});
+  const [searchFilterDrafts, setSearchFilterDrafts] = useState<Record<string, DiscoverySearchFilterDraft>>({});
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("Open an authenticated AXIVESTRA company workspace first.");
@@ -409,14 +412,32 @@ export default function DiscoverySourceManager({
 
   const visibleProfiles = profiles.filter(profile => profile.discovery_mode === (selectedMode || "LENDER"));
 
+  const updateSearchFilter = (profileId: string, key: keyof DiscoverySearchFilterDraft, value: string) => {
+    setSearchFilterDrafts(current => ({
+      ...current,
+      [profileId]: { ...(current[profileId] || createDefaultDiscoverySearchFilters()), [key]: value }
+    }));
+  };
+
+  const updateWorkspaceFilter = (profileId: string, key: string, value: string) => {
+    setSearchFilterDrafts(current => {
+      const currentDraft = current[profileId] || createDefaultDiscoverySearchFilters();
+      return { ...current, [profileId]: { ...currentDraft, fields: { ...currentDraft.fields, [key]: value } } };
+    });
+  };
+
   const runPublicSearch = async (profile: Profile) => {
     setBusyKey("search-" + profile.id);
     setError("");
     setNotice("");
     try {
-      const result = await invoke("search.preview", { profileId: profile.id });
+      const filters = searchFilterDrafts[profile.id] || createDefaultDiscoverySearchFilters();
+      const result = await invoke("search.preview", { profileId: profile.id, filters });
       setSearchResults(current => ({ ...current, [profile.id]: result.results || [] }));
-      setNotice("Live search completed. Results are unverified candidates; only exact matches to approved attached source paths are fetch-eligible.");
+      const scopeLabel = filters.coverageScope === "state" ? filters.state + ", India"
+        : filters.coverageScope === "india" ? "All India"
+        : filters.country || "International (all countries)";
+      setNotice("Search completed for " + scopeLabel + ". Results are unverified candidates; only exact matches to approved attached source paths are fetch-eligible.");
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -605,6 +626,8 @@ export default function DiscoverySourceManager({
           const attached = sourcesForProfile(profile);
           const choices = profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" ? [] : availableSources(profile);
           const selected = selectedSources[profile.id] || "";
+          const filterDraft = searchFilterDrafts[profile.id] || createDefaultDiscoverySearchFilters();
+          const filterFields = getWorkspaceSearchFilterFields(profile.workspace_key, profile.discovery_mode);
           return <article className="discovery-profile-card" key={profile.id}>
             <div className="discovery-profile-head">
               <div><span className="section-kicker">{profile.discovery_mode}</span><strong>{WORKSPACES.find(([key]) => key === profile.workspace_key)?.[1] || profile.workspace_key}</strong><small>{profile.purpose} · {profile.jurisdiction}</small></div>
@@ -640,11 +663,48 @@ export default function DiscoverySourceManager({
                 {profile.enabled ? "Disable profile" : "Enable profile"}
               </button>
             </div>}
+            <section className="discovery-search-filter-panel" aria-label={profile.workspace_key.replaceAll("_", " ") + " " + profile.discovery_mode + " search filters"}>
+              <div className="discovery-search-filter-heading">
+                <div><span className="section-kicker">E03 · TARGET FILTERS</span><strong>Search filters</strong><small>Specific to this module and {profile.discovery_mode.toLowerCase()} search.</small></div>
+              </div>
+              <div className="discovery-search-filter-grid">
+                <label>Search coverage
+                  <select value={filterDraft.coverageScope} onChange={event => updateSearchFilter(profile.id, "coverageScope", event.target.value)}>
+                    <option value="state">One State / Union Territory</option>
+                    <option value="india">All India</option>
+                    <option value="international">International</option>
+                  </select>
+                </label>
+                {filterDraft.coverageScope === "state" && <label>State / Union Territory
+                  <select value={filterDraft.state} onChange={event => updateSearchFilter(profile.id, "state", event.target.value)}>
+                    {INDIA_STATES_AND_UTS.map(state => <option value={state} key={state}>{state}</option>)}
+                  </select>
+                </label>}
+                {filterDraft.coverageScope === "international" && <label>Country (optional)
+                  <input value={filterDraft.country} maxLength={100} onChange={event => updateSearchFilter(profile.id, "country", event.target.value)} placeholder="Leave blank to search internationally"/>
+                </label>}
+                <label>Amount currency
+                  <select value={filterDraft.currency} onChange={event => updateSearchFilter(profile.id, "currency", event.target.value)}>
+                    {["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"].map(currency => <option value={currency} key={currency}>{currency}</option>)}
+                  </select>
+                </label>
+                {filterFields.map(field => <label key={field.key}>{field.label}
+                  {field.type === "select" ? <select value={filterDraft.fields[field.key] || ""} onChange={event => updateWorkspaceFilter(profile.id, field.key, event.target.value)}>
+                    <option value="">Any</option>
+                    {(field.options || []).map(option => <option value={option} key={option}>{option}</option>)}
+                  </select> : <input type={field.type} min={field.type === "number" ? 0 : undefined} step={field.type === "number" ? "any" : undefined} value={filterDraft.fields[field.key] || ""} placeholder={field.placeholder || "Any"} onChange={event => updateWorkspaceFilter(profile.id, field.key, event.target.value)}/>}
+                </label>)}
+                <label>Additional keywords (optional)
+                  <input value={filterDraft.keywords || ""} maxLength={160} onChange={event => updateSearchFilter(profile.id, "keywords", event.target.value)} placeholder="Add more search terms"/>
+                </label>
+              </div>
+              <small className="discovery-guardrail">Filters are sent to the search service. State searches are restricted to the selected Indian State/UT; All India searches across India; International searches globally or within the country entered.</small>
+            </section>
             <div className="discovery-profile-controls">
               <button type="button" className="primary-button" onClick={() => void runPublicSearch(profile)} disabled={!profile.enabled || busyKey === "search-" + profile.id}>
-                {busyKey === "search-" + profile.id ? <LoaderCircle size={15}/> : <Globe size={15}/>} Search public directories
+                {busyKey === "search-" + profile.id ? <LoaderCircle size={15}/> : <Globe size={15}/>} Search with selected filters
               </button>
-              <span className="discovery-guardrail">Runs a fresh bounded search against the configured server-side provider.</span>
+              <span className="discovery-guardrail">Search uses this {profile.discovery_mode} / {profile.workspace_key.replaceAll("_", " ")} filter set.</span>
             </div>
             {searchResults[profile.id] && <div className="discovery-search-results">
               <div className="discovery-search-results-head"><b>Latest search · {searchResults[profile.id].length} candidates</b><small>Unverified · refreshed on demand</small></div>
