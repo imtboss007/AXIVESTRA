@@ -184,17 +184,23 @@ export default function DiscoverySourceManager({
     setLoading(true);
     setError("");
     try {
-      const [sourceResponse, profileResponse, searchStatus, candidateResponse] = await Promise.all([
+      const [sourceResponse, profileResponse] = await Promise.all([
         invoke("sources.list"),
-        invoke("profiles.list"),
-        invoke("search.status"),
-        invoke("search.candidates.list")
+        invoke("profiles.list")
       ]);
       setSources(sourceResponse.sources || []);
       setProfiles(profileResponse.profiles || []);
       setLinks(profileResponse.sourceLinks || []);
-      setSearchServiceConfigured(searchStatus.configured === true);
-      setSearchResults(candidateResponse.resultsByProfile || {});
+      const [searchStatusResult, candidateResult] = await Promise.allSettled([
+        invoke("search.status"),
+        invoke("search.candidates.list")
+      ]);
+      setSearchServiceConfigured(
+        searchStatusResult.status === "fulfilled" && searchStatusResult.value.configured === true
+      );
+      if (candidateResult.status === "fulfilled") {
+        setSearchResults(candidateResult.value.resultsByProfile || {});
+      }
     } catch (reason) {
       setError(errorText(reason));
     } finally {
