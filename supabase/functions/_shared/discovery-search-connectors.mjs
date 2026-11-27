@@ -52,7 +52,8 @@ export function buildSearxngQueries(criteria, filters = {}) {
     sector: cleanText(filters.sector, 100),
     product: cleanText(filters.product, 100),
     stage: cleanText(filters.stage, 80),
-    instrument: cleanText(filters.instrument, 80)
+    instrument: cleanText(filters.instrument, 80),
+    searchTerms: cleanText(filters.searchTerms, 500)
   };
   const sensitiveInput = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
   const phoneInput = /(?:\+?\d[\d .()\-]{7,}\d)/;
@@ -62,7 +63,7 @@ export function buildSearxngQueries(criteria, filters = {}) {
   if (targetClasses.some(value => sensitiveInput.test(value) || phoneInput.test(value))) {
     throw new Error("Workspace search target classes must not contain personal contact details.");
   }
-  const suffix = Object.values(cleanFilters).filter(Boolean).join(" ");
+  const suffix = Object.values(cleanFilters).filter(Boolean).join(" ").slice(0, 480);
   const queries = [];
   for (const target of targetClasses.slice(0, 4)) {
     const term = cleanText(target.replaceAll("_", " "), 120);
