@@ -34,16 +34,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlsplit(self.path)
         if parsed.path in ("/", "/healthz"):
+            # A homepage GET is subject to SearXNG bot detection and may be
+            # rejected when this internal probe has no real client IP headers.
+            # Check the local listener instead; authenticated /search requests
+            # still exercise the full upstream search path.
             try:
-                req = Request(UPSTREAM + "/", headers={"Accept": "text/html"})
-                with urlopen(req, timeout=3) as response:
-                    if response.status == 200:
-                        self.respond(200, "ok")
-                        return
-            except (HTTPError, URLError, TimeoutError, OSError):
-                pass
-            self.respond(503, "search engine starting")
-            return
+                with socket.create_connection(("127.0.0.1", 8080), timeout=2):
+                    self.respond(200, "ok")
+                    return
+            except OSError:
+                self.respond(503, "search engine starting")
+                return
 
         if parsed.path != "/search":
             self.respond(404, "not found")
