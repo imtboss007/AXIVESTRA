@@ -497,10 +497,6 @@ export default function DiscoverySourceManager({
       setError("Enter what you are looking for before searching.");
       return;
     }
-    if (searchServiceConfigured !== true) {
-      setError("Live search is not connected on this AXIVESTRA server yet. No dummy results will be shown. The provider must be activated before live results can appear.");
-      return;
-    }
     setBusyKey("quick-search");
     setError("");
     setNotice("");
@@ -547,6 +543,13 @@ export default function DiscoverySourceManager({
         profile = (enabled.profile as Profile | undefined) || { ...profile, enabled: true };
       }
       if (!profile?.id) throw new Error("AXIVESTRA could not prepare the search workspace. Refresh the page and try again.");
+      setQuickSearchProfileId(profile.id);
+
+      if (searchServiceConfigured !== true) {
+        await refresh();
+        setNotice(workspaceLabel + " · " + discoveryMode + " profile is ready. Live search is not connected on this AXIVESTRA server yet, so no search was executed and no dummy results were shown.");
+        return;
+      }
 
       const filters: DiscoverySearchFilterDraft = {
         ...quickSearchFilters,
