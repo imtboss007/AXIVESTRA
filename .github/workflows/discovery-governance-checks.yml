@@ -19,6 +19,7 @@ on:
     branches:
       - main
       - feat/discovery-source-governance
+      - feat/discovery-e10-enrichment
       - feat/discovery-e04-complete
       - feat/discovery-e05-complete
       - feat/discovery-e06-entity-intelligence
