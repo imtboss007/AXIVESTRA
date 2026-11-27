@@ -47,6 +47,7 @@ type Profile = {
   criteria: Record<string, unknown>;
 };
 type SourceLink = { profile_id: string; source_id: string };
+type SearchCandidate = { title: string; url: string; domain: string; snippet: string; status: string; fetchEligible: boolean; approvedSourceName?: string | null };
 type ApiResponse = {
   ok?: boolean;
   error?: string;
@@ -57,6 +58,7 @@ type ApiResponse = {
   source?: Source;
   profile?: Profile;
   remainingSources?: number;
+  results?: SearchCandidate[];
 };
 
 const WORKSPACES = [
@@ -156,6 +158,7 @@ export default function DiscoverySourceManager({
     attribution: string;
   }>>({});
   const [selectedSources, setSelectedSources] = useState<Record<string, string>>({});
+  const [searchResults, setSearchResults] = useState<Record<string, SearchCandidate[]>>({});
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("Open an authenticated AXIVESTRA company workspace first.");
@@ -404,6 +407,23 @@ export default function DiscoverySourceManager({
     .map(link => sources.find(source => source.id === link.source_id))
     .filter((source): source is Source => Boolean(source));
 
+  const visibleProfiles = profiles.filter(profile => profile.discovery_mode === (selectedMode || "LENDER"));
+
+  const runPublicSearch = async (profile: Profile) => {
+    setBusyKey("search-" + profile.id);
+    setError("");
+    setNotice("");
+    try {
+      const result = await invoke("search.preview", { profileId: profile.id });
+      setSearchResults(current => ({ ...current, [profile.id]: result.results || [] }));
+      setNotice("Live search completed. Results are unverified candidates; only exact matches to approved attached source paths are fetch-eligible.");
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusyKey("");
+    }
+  };
+
   const availableSources = (profile: Profile) => sources.filter(source =>
     source.status === "approved" &&
     (source.allowed_purposes || []).includes(profile.purpose) &&
@@ -580,8 +600,8 @@ export default function DiscoverySourceManager({
       </section>
       {profileAlreadyExists && <p className="discovery-readonly">A {profileDraft.discoveryMode} profile already exists for this workspace. Select another workspace/mode; existing profiles are listed below.</p>}
       {!canManage && <p className="discovery-readonly">Only company owners and admins can configure profiles and source links.</p>}
-      {profiles.length === 0 ? <p className="discovery-empty-inline">No profiles created yet. Define a workspace purpose and criteria first; you can enable E03 search before registering target sources.</p> :
-        <div className="discovery-profile-list">{profiles.map(profile => {
+      {visibleProfiles.length === 0 ? <p className="discovery-empty-inline">No {selectedMode || "LENDER"} profiles created yet for this company. Create the profile for each module you want to search.</p> :
+        <div className="discovery-profile-list">{visibleProfiles.map(profile => {
           const attached = sourcesForProfile(profile);
           const choices = profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" ? [] : availableSources(profile);
           const selected = selectedSources[profile.id] || "";
@@ -619,6 +639,22 @@ export default function DiscoverySourceManager({
               <button type="button" className={profile.enabled ? "secondary-button" : "primary-button"} onClick={() => void toggleProfile(profile, !profile.enabled)} disabled={busyKey === "profile-" + profile.id}>
                 {profile.enabled ? "Disable profile" : "Enable profile"}
               </button>
+            </div>}
+            <div className="discovery-profile-controls">
+              <button type="button" className="primary-button" onClick={() => void runPublicSearch(profile)} disabled={!profile.enabled || busyKey === "search-" + profile.id}>
+                {busyKey === "search-" + profile.id ? <LoaderCircle size={15}/> : <Globe size={15}/>} Search public directories
+              </button>
+              <span className="discovery-guardrail">Runs a fresh bounded search against the configured server-side provider.</span>
+            </div>
+            {searchResults[profile.id] && <div className="discovery-search-results">
+              <div className="discovery-search-results-head"><b>Latest search · {searchResults[profile.id].length} candidates</b><small>Unverified · refreshed on demand</small></div>
+              {searchResults[profile.id].length ? searchResults[profile.id].map(candidate => <article className="discovery-search-candidate" key={candidate.url}>
+                <strong>{candidate.title}</strong>
+                <small>{candidate.domain} · {candidate.status.replaceAll("_", " ")}</small>
+                {candidate.snippet && <p>{candidate.snippet}</p>}
+                <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.url}</a>
+                <span>{candidate.fetchEligible ? "Matches approved attached source path" : "Not fetch-eligible · register and approve source first"}</span>
+              </article>) : <p className="discovery-empty-inline">No candidates returned. Check provider configuration and profile criteria.</p>}
             </div>}
             {!attached.some(source => source.status === "approved") && <small className="discovery-guardrail">Search-only profile: no target source is attached. E03 search results are unverified; E04 fetch and extraction are unavailable until a domain/path is registered, reviewed, approved and attached.</small>}
             {profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" && <small className="discovery-guardrail">External person-discovery is disabled for Personal Loan customers. Use user-entered, referred, inbound or explicitly consented borrower intake.</small>}
