@@ -600,6 +600,85 @@ export default function DiscoverySourceManager({
       <p><strong>{searchServiceConfigured === true ? "Live search connected." : searchServiceConfigured === false ? "Live search is not connected yet." : "Checking search connection…"}</strong> {searchServiceConfigured === true ? "Search results are public-source candidates and are not treated as verified records." : searchServiceConfigured === false ? "The server search provider must be activated before live results can be returned." : "AXIVESTRA is checking the server connection."}</p>
       <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh discovery status"><RefreshCw size={16}/></button>
     </div>
+    <section className="data-panel discovery-quick-search">
+      <div className="discovery-quick-search-heading">
+        <div>
+          <span className="section-kicker">{activeDiscoveryMode} DISCOVERY</span>
+          <h2>{activeDiscoveryMode === "LENDER" ? "Find a lender" : "Find a customer"}</h2>
+          <p>One search box. No profile setup needed.</p>
+        </div>
+        <label>Search in
+          <select value={selectedSearchWorkspace} onChange={event => {
+            setSelectedSearchWorkspace(event.target.value);
+            setProfileDraft(current => ({ ...current, workspaceKey: event.target.value, purpose: "" }));
+            setQuickSearchFilters(createDefaultDiscoverySearchFilters());
+            setQuickSearchProfileId("");
+          }}>
+            {WORKSPACES.map(([key, label]) => <option value={key} key={key}>{label}</option>)}
+          </select>
+        </label>
+      </div>
+      <form className="discovery-quick-search-form" onSubmit={runQuickSearch}>
+        <label htmlFor="axivestra-quick-search-query">What are you looking for?</label>
+        <div className="discovery-quick-search-input-row">
+          <input id="axivestra-quick-search-query" value={quickSearchText} maxLength={160} required
+            onChange={event => setQuickSearchText(event.target.value)}
+            placeholder={activeDiscoveryMode === "LENDER" ? "e.g. Property loan lenders in Karnataka" : "e.g. Businesses seeking loans against property"}/>
+          <button type="submit" className="primary-button" disabled={busyKey === "quick-search" || searchServiceConfigured === null}>
+            {busyKey === "quick-search" ? <LoaderCircle size={16}/> : <Globe size={16}/>}
+            {busyKey === "quick-search" ? "Searching…" : activeDiscoveryMode === "LENDER" ? "Search Lenders" : "Search Customers"}
+          </button>
+        </div>
+      </form>
+      <details className="discovery-quick-search-filters">
+        <summary>Filters (optional)</summary>
+        <div className="discovery-quick-search-filter-grid">
+          <label>Coverage
+            <select value={quickSearchFilters.coverageScope} onChange={event => setQuickSearchFilters(current => ({ ...current, coverageScope: event.target.value as DiscoverySearchFilterDraft["coverageScope"] }))}>
+              <option value="state">One State / UT</option>
+              <option value="india">All India</option>
+              <option value="international">International</option>
+            </select>
+          </label>
+          {quickSearchFilters.coverageScope === "state" && <label>State / UT
+            <select value={quickSearchFilters.state} onChange={event => setQuickSearchFilters(current => ({ ...current, state: event.target.value }))}>
+              {INDIA_STATES_AND_UTS.map(state => <option value={state} key={state}>{state}</option>)}
+            </select>
+          </label>}
+          {quickSearchFilters.coverageScope === "international" && <label>Country (optional)
+            <input value={quickSearchFilters.country} maxLength={100} onChange={event => setQuickSearchFilters(current => ({ ...current, country: event.target.value }))} placeholder="Blank = global"/>
+          </label>}
+          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).map(field => <label key={field.key}>{field.label}
+            {field.type === "select" ? <select value={quickSearchFilters.fields[field.key] || ""} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}>
+              <option value="">Any</option>
+              {(field.options || []).map(option => <option value={option} key={option}>{option}</option>)}
+            </select> : <input type={field.type} min={field.type === "number" ? 0 : undefined} step={field.type === "number" ? "any" : undefined} value={quickSearchFilters.fields[field.key] || ""} placeholder={field.placeholder || "Any"} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}/>}
+          </label>)}
+          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).some(field => /(amount|ticket|loan|investment|capital|value|exposure|commitment|budget|price)/i.test(field.label)) && <label>Currency
+            <select value={quickSearchFilters.currency} onChange={event => setQuickSearchFilters(current => ({ ...current, currency: event.target.value }))}>
+              {["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"].map(currency => <option value={currency} key={currency}>{currency}</option>)}
+            </select>
+          </label>}
+        </div>
+        <div className="discovery-quick-search-filter-actions">
+          <span>Leave every filter blank to search broadly.</span>
+          <button type="button" className="text-button" onClick={() => setQuickSearchFilters(createDefaultDiscoverySearchFilters())}>Clear filters</button>
+        </div>
+      </details>
+      {searchServiceConfigured === false && <p className="discovery-quick-search-status" role="status">The search screen is ready, but live results are not available until the server search provider is connected. AXIVESTRA will not show made-up or sample records.</p>}
+      {searchServiceConfigured === true && <p className="discovery-quick-search-status">Live public-source search is available. Results are unverified candidates until reviewed.</p>}
+      {quickSearchProfileId && searchResults[quickSearchProfileId] && <div className="discovery-search-results">
+        <div className="discovery-search-results-head"><b>Search results · {searchResults[quickSearchProfileId].length}</b><small>Live public-source candidates · unverified</small></div>
+        {searchResults[quickSearchProfileId].length ? searchResults[quickSearchProfileId].map(candidate => <article className="discovery-search-candidate" key={candidate.url}>
+          <strong>{candidate.title}</strong>
+          <small>{candidate.domain} · {candidate.status.replaceAll("_", " ")}</small>
+          {candidate.snippet && <p>{candidate.snippet}</p>}
+          <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.url}</a>
+          <span>{candidate.fetchEligible ? "Matches an approved source path" : "Unverified · source approval required before fetching"}</span>
+        </article>) : <p className="discovery-empty-inline">No matching public results were returned. Try a broader search or different filters.</p>}
+      </div>}
+    </section>
+
 
     <details className="discovery-advanced-sources">
       <summary>Source catalogue and governance (advanced)</summary>
@@ -695,84 +774,6 @@ export default function DiscoverySourceManager({
     </div></details>
     </details>
 
-    <section className="data-panel discovery-quick-search">
-      <div className="discovery-quick-search-heading">
-        <div>
-          <span className="section-kicker">{activeDiscoveryMode} DISCOVERY</span>
-          <h2>{activeDiscoveryMode === "LENDER" ? "Find a lender" : "Find a customer"}</h2>
-          <p>One search box. No profile setup needed.</p>
-        </div>
-        <label>Search in
-          <select value={selectedSearchWorkspace} onChange={event => {
-            setSelectedSearchWorkspace(event.target.value);
-            setProfileDraft(current => ({ ...current, workspaceKey: event.target.value, purpose: "" }));
-            setQuickSearchFilters(createDefaultDiscoverySearchFilters());
-            setQuickSearchProfileId("");
-          }}>
-            {WORKSPACES.map(([key, label]) => <option value={key} key={key}>{label}</option>)}
-          </select>
-        </label>
-      </div>
-      <form className="discovery-quick-search-form" onSubmit={runQuickSearch}>
-        <label htmlFor="axivestra-quick-search-query">What are you looking for?</label>
-        <div className="discovery-quick-search-input-row">
-          <input id="axivestra-quick-search-query" value={quickSearchText} maxLength={160} required
-            onChange={event => setQuickSearchText(event.target.value)}
-            placeholder={activeDiscoveryMode === "LENDER" ? "e.g. Property loan lenders in Karnataka" : "e.g. Businesses seeking loans against property"}/>
-          <button type="submit" className="primary-button" disabled={busyKey === "quick-search" || searchServiceConfigured === null}>
-            {busyKey === "quick-search" ? <LoaderCircle size={16}/> : <Globe size={16}/>}
-            {busyKey === "quick-search" ? "Searching…" : activeDiscoveryMode === "LENDER" ? "Search Lenders" : "Search Customers"}
-          </button>
-        </div>
-      </form>
-      <details className="discovery-quick-search-filters">
-        <summary>Filters (optional)</summary>
-        <div className="discovery-quick-search-filter-grid">
-          <label>Coverage
-            <select value={quickSearchFilters.coverageScope} onChange={event => setQuickSearchFilters(current => ({ ...current, coverageScope: event.target.value as DiscoverySearchFilterDraft["coverageScope"] }))}>
-              <option value="state">One State / UT</option>
-              <option value="india">All India</option>
-              <option value="international">International</option>
-            </select>
-          </label>
-          {quickSearchFilters.coverageScope === "state" && <label>State / UT
-            <select value={quickSearchFilters.state} onChange={event => setQuickSearchFilters(current => ({ ...current, state: event.target.value }))}>
-              {INDIA_STATES_AND_UTS.map(state => <option value={state} key={state}>{state}</option>)}
-            </select>
-          </label>}
-          {quickSearchFilters.coverageScope === "international" && <label>Country (optional)
-            <input value={quickSearchFilters.country} maxLength={100} onChange={event => setQuickSearchFilters(current => ({ ...current, country: event.target.value }))} placeholder="Blank = global"/>
-          </label>}
-          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).map(field => <label key={field.key}>{field.label}
-            {field.type === "select" ? <select value={quickSearchFilters.fields[field.key] || ""} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}>
-              <option value="">Any</option>
-              {(field.options || []).map(option => <option value={option} key={option}>{option}</option>)}
-            </select> : <input type={field.type} min={field.type === "number" ? 0 : undefined} step={field.type === "number" ? "any" : undefined} value={quickSearchFilters.fields[field.key] || ""} placeholder={field.placeholder || "Any"} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}/>}
-          </label>)}
-          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).some(field => /(amount|ticket|loan|investment|capital|value|exposure|commitment|budget|price)/i.test(field.label)) && <label>Currency
-            <select value={quickSearchFilters.currency} onChange={event => setQuickSearchFilters(current => ({ ...current, currency: event.target.value }))}>
-              {["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"].map(currency => <option value={currency} key={currency}>{currency}</option>)}
-            </select>
-          </label>}
-        </div>
-        <div className="discovery-quick-search-filter-actions">
-          <span>Leave every filter blank to search broadly.</span>
-          <button type="button" className="text-button" onClick={() => setQuickSearchFilters(createDefaultDiscoverySearchFilters())}>Clear filters</button>
-        </div>
-      </details>
-      {searchServiceConfigured === false && <p className="discovery-quick-search-status" role="status">The search screen is ready, but live results are not available until the server search provider is connected. AXIVESTRA will not show made-up or sample records.</p>}
-      {searchServiceConfigured === true && <p className="discovery-quick-search-status">Live public-source search is available. Results are unverified candidates until reviewed.</p>}
-      {quickSearchProfileId && searchResults[quickSearchProfileId] && <div className="discovery-search-results">
-        <div className="discovery-search-results-head"><b>Search results · {searchResults[quickSearchProfileId].length}</b><small>Live public-source candidates · unverified</small></div>
-        {searchResults[quickSearchProfileId].length ? searchResults[quickSearchProfileId].map(candidate => <article className="discovery-search-candidate" key={candidate.url}>
-          <strong>{candidate.title}</strong>
-          <small>{candidate.domain} · {candidate.status.replaceAll("_", " ")}</small>
-          {candidate.snippet && <p>{candidate.snippet}</p>}
-          <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.url}</a>
-          <span>{candidate.fetchEligible ? "Matches an approved source path" : "Unverified · source approval required before fetching"}</span>
-        </article>) : <p className="discovery-empty-inline">No matching public results were returned. Try a broader search or different filters.</p>}
-      </div>}
-    </section>
 
     <details className="discovery-advanced-profile-setup">
       <summary>Advanced profile setup and controls (optional)</summary>
