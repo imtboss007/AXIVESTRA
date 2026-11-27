@@ -43,3 +43,15 @@ test("module selector limits visible profile cards and their filters to the sele
   assert.match(ui, /setProfileDraft\(current => \(\{ \.\.\.current, workspaceKey: event\.target\.value, purpose: "" \}\)\)/);
   assert.match(ui, /getWorkspaceSearchFilterFields\(profile\.workspace_key, profile\.discovery_mode\)/);
 });
+
+
+test("quick discovery search works without manual profile creation and keeps filters optional", () => {
+  assert.match(ui, /const runQuickSearch = async/);
+  assert.match(ui, /invoke\("profiles\.upsert"/);
+  assert.match(ui, /getDefaultWorkspaceCriteria\(workspaceKey, discoveryMode\)/);
+  assert.match(ui, /invoke\("search\.preview", \{ profileId: profile\.id, filters \}\)/);
+  assert.match(ui, /Filters \\(optional\\)/);
+  assert.match(ui, /quickSearchText/);
+  assert.match(ui, /discovery-quick-search/);
+  assert.match(ui, /No dummy results will be shown/);
+});

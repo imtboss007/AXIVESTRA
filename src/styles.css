@@ -7535,3 +7535,26 @@ h2,h3{color:#e5f2fc}
   .discovery-search-filter-actions { align-items: flex-start; }
   .discovery-search-filter-actions .text-button { min-height: 34px; }
 }
+
+
+/* Simple front door for LENDER and CUSTOMER discovery. */
+.discovery-quick-search { display:grid; gap:16px; padding:20px; border-color:rgba(125,160,193,.28); background:linear-gradient(145deg,rgba(4,19,34,.96),rgba(7,28,43,.92)); }
+.discovery-quick-search-heading { display:grid; grid-template-columns:minmax(0,1fr) minmax(210px,300px); align-items:end; gap:16px; }
+.discovery-quick-search-heading h2 { margin:4px 0; color:#e6eef5; font-size:19px; }
+.discovery-quick-search-heading p { margin:0; color:#94aabd; font-size:11px; }
+.discovery-quick-search-heading label,.discovery-quick-search-form>label { display:grid; gap:6px; color:#b8c9d7; font-size:11px; font-weight:650; }
+.discovery-quick-search input,.discovery-quick-search select { width:100%; min-width:0; min-height:40px; padding:10px 11px; border:1px solid rgba(125,160,193,.3); border-radius:9px; color:#e2edf5; background:rgba(2,13,25,.78); font:500 12px "DM Sans",sans-serif; }
+.discovery-quick-search input::placeholder { color:#71889b; }
+.discovery-quick-search input:focus,.discovery-quick-search select:focus { outline:2px solid rgba(125,180,210,.55); outline-offset:1px; }
+.discovery-quick-search-input-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-top:7px; }
+.discovery-quick-search-input-row input { min-height:46px; font-size:13px; }
+.discovery-quick-search-input-row .primary-button { min-width:150px; justify-content:center; }
+.discovery-quick-search-filters { padding:11px 13px; border:1px solid rgba(125,160,193,.22); border-radius:10px; background:rgba(2,13,25,.38); }
+.discovery-quick-search-filters summary,.discovery-advanced-profile-setup>summary,.discovery-advanced-sources>summary { cursor:pointer; color:#c4d3df; font-size:11px; font-weight:700; }
+.discovery-quick-search-filter-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:12px; }
+.discovery-quick-search-filter-grid label { display:grid; gap:5px; color:#a8bbc9; font-size:10px; font-weight:650; }
+.discovery-quick-search-filter-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; color:#8199ac; font-size:10px; }
+.discovery-quick-search-status { margin:0; color:#94aabd; font-size:10px; line-height:1.55; }
+.discovery-advanced-profile-setup { padding:13px 16px; border:1px solid rgba(125,160,193,.22); border-radius:12px; background:rgba(2,13,25,.22); }
+.discovery-advanced-profile-setup>section { margin-top:12px; }
+@media (max-width:680px) { .discovery-quick-search-heading,.discovery-quick-search-input-row,.discovery-quick-search-filter-grid { grid-template-columns:1fr; } .discovery-quick-search-input-row .primary-button { width:100%; } }

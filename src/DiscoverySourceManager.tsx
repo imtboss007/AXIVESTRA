@@ -166,6 +166,9 @@ export default function DiscoverySourceManager({
   const [searchServiceConfigured, setSearchServiceConfigured] = useState<boolean | null>(null);
   const [searchFilterDrafts, setSearchFilterDrafts] = useState<Record<string, DiscoverySearchFilterDraft>>({});
   const [selectedSearchWorkspace, setSelectedSearchWorkspace] = useState(WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? selectedWorkspaceKey! : "property_loans");
+  const [quickSearchText, setQuickSearchText] = useState("");
+  const [quickSearchFilters, setQuickSearchFilters] = useState<DiscoverySearchFilterDraft>(() => createDefaultDiscoverySearchFilters());
+  const [quickSearchProfileId, setQuickSearchProfileId] = useState("");
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("Open an authenticated AXIVESTRA company workspace first.");
@@ -470,7 +473,7 @@ export default function DiscoverySourceManager({
     setNotice("");
     try {
       if (searchServiceConfigured !== true) {
-        throw new Error("Live public search is not connected. Configure the server-side SearXNG URL and enable the discovery search connector first.");
+        throw new Error("Live search is not connected on this AXIVESTRA server yet. The search screen is ready; the server search provider must be activated before real results can appear.");
       }
       const filters = searchFilterDrafts[profile.id] || createDefaultDiscoverySearchFilters();
       const result = await invoke("search.preview", { profileId: profile.id, filters });
@@ -480,6 +483,80 @@ export default function DiscoverySourceManager({
         : filters.coverageScope === "india" ? "All India"
         : filters.country || "International (all countries)";
       setNotice("Search completed for " + scopeLabel + ". Results are unverified candidates; only exact matches to approved attached source paths are fetch-eligible.");
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusyKey("");
+    }
+  };
+
+  const runQuickSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = quickSearchText.trim();
+    if (query.length < 2) {
+      setError("Enter what you are looking for before searching.");
+      return;
+    }
+    if (searchServiceConfigured !== true) {
+      setError("Live search is not connected on this AXIVESTRA server yet. No dummy results will be shown. The provider must be activated before live results can appear.");
+      return;
+    }
+    setBusyKey("quick-search");
+    setError("");
+    setNotice("");
+    try {
+      const workspaceKey = selectedSearchWorkspace;
+      const discoveryMode = activeDiscoveryMode;
+      const workspaceLabel = WORKSPACES.find(([key]) => key === workspaceKey)?.[1] || workspaceKey;
+      const defaultCriteria = getDefaultWorkspaceCriteria(workspaceKey, discoveryMode);
+      if (defaultCriteria.disabledByPolicy) {
+        throw new Error("This search is restricted by AXIVESTRA policy. Use the approved intake or referral workflow instead.");
+      }
+
+      let profile = profiles.find(item =>
+        item.workspace_key === workspaceKey && item.discovery_mode === discoveryMode
+      );
+      if (!profile) {
+        const created = await invoke("profiles.upsert", {
+          workspaceKey,
+          discoveryMode,
+          purpose: "Public " + discoveryMode.toLowerCase() + " discovery for " + workspaceLabel,
+          jurisdiction: "IN",
+          enabled: true,
+          criteria: defaultCriteria
+        });
+        profile = created.profile as Profile | undefined;
+        if (!profile?.id) {
+          const refreshed = await invoke("profiles.list");
+          profile = (refreshed.profiles || []).find((item: Profile) =>
+            item.workspace_key === workspaceKey && item.discovery_mode === discoveryMode
+          );
+        }
+      } else if (!profile.enabled) {
+        const criteria = profile.criteria?.schemaVersion === 1
+          ? validateWorkspaceCriteria(profile.criteria, workspaceKey, discoveryMode)
+          : defaultCriteria;
+        const enabled = await invoke("profiles.upsert", {
+          workspaceKey,
+          discoveryMode,
+          purpose: profile.purpose,
+          jurisdiction: profile.jurisdiction || "IN",
+          enabled: true,
+          criteria
+        });
+        profile = (enabled.profile as Profile | undefined) || { ...profile, enabled: true };
+      }
+      if (!profile?.id) throw new Error("AXIVESTRA could not prepare the search workspace. Refresh the page and try again.");
+
+      const filters: DiscoverySearchFilterDraft = {
+        ...quickSearchFilters,
+        keywords: [query, quickSearchFilters.keywords].filter(Boolean).join(" ").slice(0, 160)
+      };
+      const result = await invoke("search.preview", { profileId: profile.id, filters });
+      setQuickSearchProfileId(profile.id);
+      setSearchResults(current => ({ ...current, [profile!.id]: result.results || [] }));
+      setNotice("Search completed. Results are live public-source candidates and remain unverified until separately reviewed.");
+      await refresh();
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -507,9 +584,9 @@ export default function DiscoverySourceManager({
   return <section className="discovery-manager">
     <div className="discovery-hero">
       <div>
-        <span className="section-kicker">AXIVESTRA · EXTERNAL INTELLIGENCE</span>
-        <h2>{selectedMode === "CUSTOMER" ? "CUSTOMER Discovery" : "LENDER Discovery"}</h2>
-        <p>{selectedMode === "CUSTOMER" ? "Discover and qualify organisations, companies and prospective customers across your selected business workspace." : "Discover and qualify banks, NBFCs, funds, private lenders and other financing sources across your selected business workspace."} Configure permitted sources, review evidence and track candidate freshness separately.</p>
+        <span className="section-kicker">AXIVESTRA · LIVE DISCOVERY</span>
+        <h2>{selectedMode === "CUSTOMER" ? "Find Customers" : "Find Lenders"}</h2>
+        <p>Type what you need and search. AXIVESTRA prepares the matching workspace automatically. Add filters only when you want to narrow the results.</p>
       </div>
       <div className="discovery-hero-counts">
         <div><strong>{sources.length}</strong><span>Registered sources</span></div>
@@ -520,11 +597,13 @@ export default function DiscoverySourceManager({
 
     <div className="discovery-notice">
       <ShieldCheck size={17}/>
-      <p><strong>Governed access only.</strong> New sources start pending. No website is crawled by this screen. Actual fetch workers and provider-specific adapters are a separate implementation stage.</p>
-      <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh discovery registry"><RefreshCw size={16}/></button>
+      <p><strong>{searchServiceConfigured === true ? "Live search connected." : searchServiceConfigured === false ? "Live search is not connected yet." : "Checking search connection…"}</strong> {searchServiceConfigured === true ? "Search results are public-source candidates and are not treated as verified records." : searchServiceConfigured === false ? "The server search provider must be activated before live results can be returned." : "AXIVESTRA is checking the server connection."}</p>
+      <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh discovery status"><RefreshCw size={16}/></button>
     </div>
 
-    <DiscoveryPublicApiCatalogue workspaceKey={selectedWorkspaceKey} mode={selectedMode} />
+    <details className="discovery-advanced-sources">
+      <summary>Source catalogue and governance (advanced)</summary>
+      <DiscoveryPublicApiCatalogue workspaceKey={selectedWorkspaceKey} mode={selectedMode} />
 
     {error && <div className="discovery-feedback discovery-feedback--error" role="alert"><CircleAlert size={17}/><span>{error}</span><button type="button" onClick={() => setError("")} aria-label="Dismiss error"><XCircle size={15}/></button></div>}
     {notice && <div className="discovery-feedback discovery-feedback--success" role="status"><CheckCircle2 size={17}/><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss notice">×</button></div>}
@@ -614,22 +693,99 @@ export default function DiscoverySourceManager({
           })}</div>}
       </section>
     </div></details>
+    </details>
 
-    <section className="data-panel discovery-panel discovery-profiles-panel">
-      <div className="section-heading"><div><span className="section-kicker">E02 · WORKSPACE CONFIGURATION</span><h2>LENDER and CUSTOMER profiles</h2><p>Configure separate target profiles for each of AXIVESTRA's 16 workspaces. Create and enable a profile to search; E04 fetching still requires each target source to be separately reviewed, approved and attached.</p></div><ShieldCheck size={20}/></div>
-      <section className="discovery-module-search-selector" aria-label={activeDiscoveryMode + " module selection"}>
+    <section className="data-panel discovery-quick-search">
+      <div className="discovery-quick-search-heading">
         <div>
           <span className="section-kicker">{activeDiscoveryMode} DISCOVERY</span>
-          <strong>Select a module to search</strong>
-          <small>Choose one module. Only its own filters and matching {activeDiscoveryMode} profile will be shown.</small>
+          <h2>{activeDiscoveryMode === "LENDER" ? "Find a lender" : "Find a customer"}</h2>
+          <p>One search box. No profile setup needed.</p>
         </div>
-        <label>Module
-          <select value={selectedSearchWorkspace} onChange={event => { setSelectedSearchWorkspace(event.target.value); setProfileDraft(current => ({ ...current, workspaceKey: event.target.value, purpose: "" })); }}>
+        <label>Search in
+          <select value={selectedSearchWorkspace} onChange={event => {
+            setSelectedSearchWorkspace(event.target.value);
+            setProfileDraft(current => ({ ...current, workspaceKey: event.target.value, purpose: "" }));
+            setQuickSearchFilters(createDefaultDiscoverySearchFilters());
+            setQuickSearchProfileId("");
+          }}>
             {WORKSPACES.map(([key, label]) => <option value={key} key={key}>{label}</option>)}
           </select>
         </label>
+      </div>
+      <form className="discovery-quick-search-form" onSubmit={runQuickSearch}>
+        <label htmlFor="axivestra-quick-search-query">What are you looking for?</label>
+        <div className="discovery-quick-search-input-row">
+          <input id="axivestra-quick-search-query" value={quickSearchText} maxLength={160} required
+            onChange={event => setQuickSearchText(event.target.value)}
+            placeholder={activeDiscoveryMode === "LENDER" ? "e.g. Property loan lenders in Karnataka" : "e.g. Businesses seeking loans against property"}/>
+          <button type="submit" className="primary-button" disabled={busyKey === "quick-search" || searchServiceConfigured === null}>
+            {busyKey === "quick-search" ? <LoaderCircle size={16}/> : <Globe size={16}/>}
+            {busyKey === "quick-search" ? "Searching…" : activeDiscoveryMode === "LENDER" ? "Search Lenders" : "Search Customers"}
+          </button>
+        </div>
+      </form>
+      <details className="discovery-quick-search-filters">
+        <summary>Filters (optional)</summary>
+        <div className="discovery-quick-search-filter-grid">
+          <label>Coverage
+            <select value={quickSearchFilters.coverageScope} onChange={event => setQuickSearchFilters(current => ({ ...current, coverageScope: event.target.value as DiscoverySearchFilterDraft["coverageScope"] }))}>
+              <option value="state">One State / UT</option>
+              <option value="india">All India</option>
+              <option value="international">International</option>
+            </select>
+          </label>
+          {quickSearchFilters.coverageScope === "state" && <label>State / UT
+            <select value={quickSearchFilters.state} onChange={event => setQuickSearchFilters(current => ({ ...current, state: event.target.value }))}>
+              {INDIA_STATES_AND_UTS.map(state => <option value={state} key={state}>{state}</option>)}
+            </select>
+          </label>}
+          {quickSearchFilters.coverageScope === "international" && <label>Country (optional)
+            <input value={quickSearchFilters.country} maxLength={100} onChange={event => setQuickSearchFilters(current => ({ ...current, country: event.target.value }))} placeholder="Blank = global"/>
+          </label>}
+          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).map(field => <label key={field.key}>{field.label}
+            {field.type === "select" ? <select value={quickSearchFilters.fields[field.key] || ""} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}>
+              <option value="">Any</option>
+              {(field.options || []).map(option => <option value={option} key={option}>{option}</option>)}
+            </select> : <input type={field.type} min={field.type === "number" ? 0 : undefined} step={field.type === "number" ? "any" : undefined} value={quickSearchFilters.fields[field.key] || ""} placeholder={field.placeholder || "Any"} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}/>}
+          </label>)}
+          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).some(field => /(amount|ticket|loan|investment|capital|value|exposure|commitment|budget|price)/i.test(field.label)) && <label>Currency
+            <select value={quickSearchFilters.currency} onChange={event => setQuickSearchFilters(current => ({ ...current, currency: event.target.value }))}>
+              {["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"].map(currency => <option value={currency} key={currency}>{currency}</option>)}
+            </select>
+          </label>}
+        </div>
+        <div className="discovery-quick-search-filter-actions">
+          <span>Leave every filter blank to search broadly.</span>
+          <button type="button" className="text-button" onClick={() => setQuickSearchFilters(createDefaultDiscoverySearchFilters())}>Clear filters</button>
+        </div>
+      </details>
+      {searchServiceConfigured === false && <p className="discovery-quick-search-status" role="status">The search screen is ready, but live results are not available until the server search provider is connected. AXIVESTRA will not show made-up or sample records.</p>}
+      {searchServiceConfigured === true && <p className="discovery-quick-search-status">Live public-source search is available. Results are unverified candidates until reviewed.</p>}
+      {quickSearchProfileId && searchResults[quickSearchProfileId] && <div className="discovery-search-results">
+        <div className="discovery-search-results-head"><b>Search results · {searchResults[quickSearchProfileId].length}</b><small>Live public-source candidates · unverified</small></div>
+        {searchResults[quickSearchProfileId].length ? searchResults[quickSearchProfileId].map(candidate => <article className="discovery-search-candidate" key={candidate.url}>
+          <strong>{candidate.title}</strong>
+          <small>{candidate.domain} · {candidate.status.replaceAll("_", " ")}</small>
+          {candidate.snippet && <p>{candidate.snippet}</p>}
+          <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.url}</a>
+          <span>{candidate.fetchEligible ? "Matches an approved source path" : "Unverified · source approval required before fetching"}</span>
+        </article>) : <p className="discovery-empty-inline">No matching public results were returned. Try a broader search or different filters.</p>}
+      </div>}
+    </section>
+
+    <details className="discovery-advanced-profile-setup">
+      <summary>Advanced profile setup and controls (optional)</summary>
+      <section className="data-panel discovery-panel discovery-profiles-panel">
+      <div className="section-heading"><div><span className="section-kicker">E02 · WORKSPACE CONFIGURATION</span><h2>LENDER and CUSTOMER profiles</h2><p>Configure separate target profiles for each of AXIVESTRA's 16 workspaces. Create and enable a profile to search; E04 fetching still requires each target source to be separately reviewed, approved and attached.</p></div><ShieldCheck size={20}/></div>
+      <section className="discovery-module-search-selector" aria-label={activeDiscoveryMode + " module settings"}>
+        <div>
+          <span className="section-kicker">ADVANCED {activeDiscoveryMode} SETTINGS</span>
+          <strong>Selected module: {selectedWorkspaceLabel}</strong>
+          <small>The main search panel already handles this workspace automatically.</small>
+        </div>
       </section>
-      {searchServiceConfigured === false && <div className="discovery-feedback discovery-feedback--error" role="status"><CircleAlert size={17}/><span>Live search is not connected. Filters can be prepared, but no live records can be retrieved until the server search provider is configured.</span></div>}
+      {searchServiceConfigured === false && <div className="discovery-feedback discovery-feedback--error" role="status"><CircleAlert size={17}/><span>Live search provider is not connected. Advanced filters can be prepared, but live results require the server provider.</span></div>}
       <form className="discovery-profile-create" onSubmit={saveProfile}>
         <div className="discovery-profile-create-context">
           <strong>{activeDiscoveryMode} · {selectedWorkspaceLabel}</strong>
@@ -802,7 +958,8 @@ export default function DiscoverySourceManager({
             {profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" && <small className="discovery-guardrail">External person-discovery is disabled for Personal Loan customers. Use user-entered, referred, inbound or explicitly consented borrower intake.</small>}
           </article>;
         })}</div>}
-    </section>
+      </section>
+    </details>
     <DiscoveryJobQueue companyId={companyId} companyRole={companyRole} sources={sources} profiles={profiles} links={links} initialWorkspaceKey={selectedWorkspaceKey} initialMode={selectedMode}/>
     <DiscoveryExtractionResults companyId={companyId} companyRole={companyRole} sources={sources}/>
     <DiscoveryEvidenceWorkspace companyId={companyId} companyRole={companyRole}/>
