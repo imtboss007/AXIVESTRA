@@ -7470,3 +7470,68 @@ h2,h3{color:#e5f2fc}
 @media (max-width: 680px) {
   .discovery-module-search-selector { grid-template-columns: 1fr; }
 }
+
+
+/* Keep LENDER/CUSTOMER discovery front-first; governance controls stay available but collapsed. */
+.discovery-source-governance,
+.discovery-profile-coverage-details,
+.discovery-profile-advanced-create,
+.discovery-more-filters {
+  margin: 10px 0;
+  border: 1px solid rgba(125,160,193,.2);
+  border-radius: 10px;
+  background: rgba(2,13,25,.18);
+}
+.discovery-source-governance > summary,
+.discovery-profile-coverage-details > summary,
+.discovery-profile-advanced-create > summary,
+.discovery-more-filters > summary {
+  cursor: pointer;
+  padding: 11px 13px;
+  color: #b9cad9;
+  font-size: 11px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+.discovery-source-governance[open],
+.discovery-profile-coverage-details[open],
+.discovery-profile-advanced-create[open],
+.discovery-more-filters[open] {
+  padding-bottom: 10px;
+}
+.discovery-source-governance > .discovery-columns { margin: 0; }
+.discovery-profile-create-context {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(125,160,193,.18);
+  border-radius: 9px;
+  background: rgba(2,13,25,.2);
+}
+.discovery-profile-create-context strong { color: #e0eaf3; font-size: 13px; }
+.discovery-profile-create-context small { color: #91a8bd; font-size: 10px; }
+.discovery-profile-advanced-create > label {
+  display: grid;
+  gap: 5px;
+  margin: 10px 12px;
+  color: #9eb3c8;
+  font-size: 10px;
+}
+.discovery-profile-advanced-create input,
+.discovery-profile-advanced-create textarea {
+  width: 100%;
+  min-width: 0;
+}
+.discovery-search-filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.discovery-more-filters .discovery-search-filter-grid { padding: 0 10px; }
+.discovery-search-filter-actions .discovery-guardrail { flex: 1 1 220px; }
+@media (max-width: 680px) {
+  .discovery-search-filter-actions { align-items: flex-start; }
+  .discovery-search-filter-actions .text-button { min-height: 34px; }
+}
