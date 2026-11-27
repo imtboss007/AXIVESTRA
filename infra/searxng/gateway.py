@@ -35,10 +35,14 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlsplit(self.path)
         if parsed.path in ("/", "/healthz"):
             try:
-                with socket.create_connection(("127.0.0.1", 8080), timeout=1):
-                    self.respond(200, "ok")
-            except OSError:
-                self.respond(503, "search engine starting")
+                req = Request(UPSTREAM + "/", headers={"Accept": "text/html"})
+                with urlopen(req, timeout=3) as response:
+                    if response.status == 200:
+                        self.respond(200, "ok")
+                        return
+            except (HTTPError, URLError, TimeoutError, OSError):
+                pass
+            self.respond(503, "search engine starting")
             return
 
         if parsed.path != "/search":
@@ -77,7 +81,12 @@ class Handler(BaseHTTPRequestHandler):
         })
         try:
             request_times.append(now)
-            req = Request(UPSTREAM + "/search?" + forward, headers={"Accept": "application/json"})
+            forwarded_for = self.headers.get("X-Forwarded-For", "").split(",")[0].strip() or self.client_address[0]
+            req = Request(UPSTREAM + "/search?" + forward, headers={
+                "Accept": "application/json",
+                "X-Forwarded-For": forwarded_for,
+                "X-Real-IP": forwarded_for
+            })
             with urlopen(req, timeout=12) as response:
                 payload = response.read(2_000_000)
                 if len(payload) >= 2_000_000:
