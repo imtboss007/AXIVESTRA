@@ -148,7 +148,7 @@ export default function DiscoverySourceManager({
     purpose: string;
     jurisdiction: string;
   }>({
-    workspaceKey: selectedWorkspaceKey || "property_loans",
+    workspaceKey: WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? selectedWorkspaceKey! : "property_loans",
     discoveryMode: selectedMode || "LENDER",
     purpose: "",
     jurisdiction: "IN"
@@ -165,7 +165,7 @@ export default function DiscoverySourceManager({
   const [searchResults, setSearchResults] = useState<Record<string, SearchCandidate[]>>({});
   const [searchServiceConfigured, setSearchServiceConfigured] = useState<boolean | null>(null);
   const [searchFilterDrafts, setSearchFilterDrafts] = useState<Record<string, DiscoverySearchFilterDraft>>({});
-  const [selectedSearchWorkspace, setSelectedSearchWorkspace] = useState(selectedWorkspaceKey || "property_loans");
+  const [selectedSearchWorkspace, setSelectedSearchWorkspace] = useState(WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? selectedWorkspaceKey! : "property_loans");
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("Open an authenticated AXIVESTRA company workspace first.");
@@ -205,10 +205,9 @@ export default function DiscoverySourceManager({
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
-    if (!selectedWorkspaceKey) return;
     setProfileDraft(current => ({
       ...current,
-      workspaceKey: selectedWorkspaceKey,
+      ...(WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? { workspaceKey: selectedWorkspaceKey! } : {}),
       discoveryMode: selectedMode || current.discoveryMode,
       purpose: ""
     }));
