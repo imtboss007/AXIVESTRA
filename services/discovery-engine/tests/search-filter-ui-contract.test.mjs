@@ -50,7 +50,7 @@ test("quick discovery search works without manual profile creation and keeps fil
   assert.match(ui, /invoke\("profiles\.upsert"/);
   assert.match(ui, /getDefaultWorkspaceCriteria\(workspaceKey, discoveryMode\)/);
   assert.match(ui, /invoke\("search\.preview", \{ profileId: profile\.id, filters \}\)/);
-  assert.match(ui, /Filters \\(optional\\)/);
+  assert.match(ui, /Filters \(optional\)/);
   assert.match(ui, /quickSearchText/);
   assert.match(ui, /discovery-quick-search/);
   assert.match(ui, /No dummy results will be shown/);
