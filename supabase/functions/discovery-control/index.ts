@@ -104,15 +104,18 @@ Deno.serve(async request => {
 
   try {
     if (action === "search.status") {
-      const enabled = Deno.env.get("DISCOVERY_SEARXNG_ENABLED") === "true";
-      const endpoint = Deno.env.get("DISCOVERY_SEARXNG_URL") || "";
+      const enabled = Deno.env.get("DISCOVERY_SEARXNG_ENABLED") !== "false";
+      const endpoint = Deno.env.get("DISCOVERY_SEARXNG_URL") || "https://axivestra-public-search.onrender.com";
+      const { data: gatewayToken, error: gatewayTokenError } = await admin.rpc("get_axivestra_search_gateway_token");
+      const configured = enabled && endpoint.startsWith("https://") &&
+        !gatewayTokenError && typeof gatewayToken === "string" && gatewayToken.length >= 32;
       return jsonResponse(200, {
         ok: true,
-        configured: enabled && Boolean(endpoint),
+        configured,
         provider: "SearXNG",
-        reason: enabled && endpoint
-          ? ""
-          : "Public search is not connected on this AXIVESTRA server. Configure DISCOVERY_SEARXNG_ENABLED=true and DISCOVERY_SEARXNG_URL before live search can return records."
+        reason: configured ? "" : !enabled
+          ? "Public search is disabled by server configuration."
+          : "The live search gateway or its secure Vault token is not configured on this AXIVESTRA server."
       });
     }
 
@@ -135,12 +138,15 @@ Deno.serve(async request => {
 
     if (action === "search.preview") {
       if (!isUuid(payload.profileId)) return jsonResponse(400, { error: "A valid workspace discovery profile is required." });
-      if (Deno.env.get("DISCOVERY_SEARXNG_ENABLED") !== "true") {
-        return jsonResponse(503, { error: "The optional self-hosted search connector is disabled. Configure and enable the SearXNG service before searching." });
+      if (Deno.env.get("DISCOVERY_SEARXNG_ENABLED") === "false") {
+        return jsonResponse(503, { error: "Live public search is disabled by AXIVESTRA server configuration." });
       }
-      const searchBaseUrl = Deno.env.get("DISCOVERY_SEARXNG_URL") || "";
-      const searchBearerToken = Deno.env.get("DISCOVERY_SEARXNG_BEARER_TOKEN") || "";
-      if (!searchBaseUrl) return jsonResponse(503, { error: "The self-hosted SearXNG endpoint is not configured on this AXIVESTRA server." });
+      const searchBaseUrl = Deno.env.get("DISCOVERY_SEARXNG_URL") || "https://axivestra-public-search.onrender.com";
+      const { data: vaultGatewayToken, error: vaultTokenError } = await admin.rpc("get_axivestra_search_gateway_token");
+      if (vaultTokenError || typeof vaultGatewayToken !== "string" || vaultGatewayToken.length < 32) {
+        return jsonResponse(503, { error: "The secure live-search gateway token is not configured in Supabase Vault." });
+      }
+      const searchBearerToken = Deno.env.get("DISCOVERY_SEARXNG_BEARER_TOKEN") || vaultGatewayToken;
 
       const { data: profile, error: profileError } = await admin.from("discovery_profiles")
         .select("*").eq("company_id", companyId).eq("id", payload.profileId).maybeSingle();
