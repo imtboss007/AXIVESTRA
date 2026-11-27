@@ -18,9 +18,11 @@ test("company-workspace gate offers an explicit way to switch workspace", () => 
   assert.match(manager, /Switch to company workspace/);
 });
 
-test("each discovery destination filters profiles to its own mode and exposes live search", () => {
-  assert.match(manager, /profiles\.filter\(profile => profile\.discovery_mode === \(selectedMode \|\| "LENDER"\)\)/);
-  assert.match(manager, /invoke\("search\.preview", \{ profileId: profile\.id \}\)/);
-  assert.match(manager, /Search public directories/);
-  assert.match(manager, /Unverified · refreshed on demand/);
+test("each discovery destination filters profiles to its selected module and mode", () => {
+  assert.match(manager, /const activeDiscoveryMode = selectedMode \|\| "LENDER"/);
+  assert.match(manager, /profile\.discovery_mode === activeDiscoveryMode &&\s*profile\.workspace_key === selectedSearchWorkspace/);
+  assert.match(manager, /invoke\("search\.preview", \{ profileId: profile\.id, filters \}\)/);
+  assert.match(manager, /Search with filters/);
+  assert.match(manager, /Saved candidates/);
+  assert.match(manager, /searchServiceConfigured !== true/);
 });
