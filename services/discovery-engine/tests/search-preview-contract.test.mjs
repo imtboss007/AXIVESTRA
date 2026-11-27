@@ -6,6 +6,7 @@ const handler = await readFile(new URL("../../../supabase/functions/discovery-co
 const queueUi = await readFile(new URL("../../../src/DiscoveryJobQueue.tsx", import.meta.url), "utf8");
 const connector = await readFile(new URL("../../../supabase/functions/_shared/discovery-search-connectors.mjs", import.meta.url), "utf8");
 const auditMigration = await readFile(new URL("../../../supabase/migrations/20261124002000_discovery_search_preview_audit.sql", import.meta.url), "utf8");
+const candidateMigration = await readFile(new URL("../../../supabase/migrations/20261128001000_discovery_search_candidate_persistence.sql", import.meta.url), "utf8");
 
 test("E03 search preview is disabled unless the server-side SearXNG feature flag and endpoint are configured", () => {
   const actionStart = handler.indexOf('if (action === "search.preview")');
@@ -78,4 +79,25 @@ test("E03 search connector has bounded result count, HTTPS-only output, and bloc
   assert.match(connector, /linkedin\.com/);
   assert.match(connector, /facebook\.com/);
   assert.match(connector, /unverified_candidate/);
+});
+
+ 
+test("E03 search results are persisted idempotently per company/profile and reloaded on return", () => {
+  const searchStart = handler.indexOf('if (action === "search.preview")');
+  const searchEnd = handler.indexOf('if (action === "search.candidates.list")', searchStart);
+  const searchAction = handler.slice(searchStart, searchEnd);
+  assert.match(searchAction, /discovery_search_candidates/);
+  assert.match(searchAction, /\.upsert\(candidateRows, \{ onConflict: "company_id,profile_id,canonical_url" \}\)/);
+  assert.match(handler, /action === "search\\.candidates\\.list"/);
+  assert.match(handler, /resultsByProfile/);
+  assert.match(candidateMigration, /unique \(company_id, profile_id, canonical_url\)/);
+  assert.match(candidateMigration, /enable row level security/);
+  assert.match(candidateMigration, /discovery_search_candidates_company_read/);
+  assert.match(candidateMigration, /unverified_candidate/);
+});
+
+test("E03 search status reports missing provider configuration instead of silently returning no data", () => {
+  assert.match(handler, /action === "search\\.status"/);
+  assert.match(handler, /configured: enabled && Boolean\(endpoint\)/);
+  assert.match(handler, /Public search is not connected/);
 });
