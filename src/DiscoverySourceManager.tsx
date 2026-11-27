@@ -416,7 +416,7 @@ export default function DiscoverySourceManager({
         <ShieldCheck size={28}/>
         <h2>Connect a company workspace to use {selectedMode === "CUSTOMER" ? "CUSTOMER" : "LENDER"} discovery</h2>
         <p>This discovery module is ready for company-scoped search, source approvals and shared evidence. The current session is Personal or Local, so the service cannot load company profiles or live source results. Your local records remain untouched.</p>
-        {onSwitchWorkspace && <button type="button" className="primary-button" onClick={onSwitchWorkspace}>Switch to company workspace</button>}
+        {onSwitchWorkspace && <button type="button" className="primary-button" onClick={() => onSwitchWorkspace()}>Switch to company workspace</button>}
       </div>
     </section>;
   }
