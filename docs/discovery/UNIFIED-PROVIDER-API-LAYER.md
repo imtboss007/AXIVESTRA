@@ -151,3 +151,19 @@ Use official APIs or licensed exports only when AXIVESTRA has the required subsc
 - Duplicate records retain source-level provenance and do not erase conflicting values.
 - Unapproved sources cannot search or fetch; all jobs are company-scoped, bounded and auditable.
 - Paid data is available only through an authorised API/export agreement.
+
+
+## E03 search filter behaviour
+
+The E03 search screen now uses a shared geography contract and a workspace/mode-specific filter catalogue:
+
+- Geography scope: `state`, `india`, or `international`.
+- `state`: one of India's 28 States or 8 Union Territories; the generated location query is `{State/UT}, India`.
+- `india`: search location is `India`.
+- `international`: optional country name; a blank country means global/international coverage.
+- Amount-range inputs carry a selected currency code (INR, USD, EUR, GBP, AED, SGD, CAD or AUD).
+- The filter catalogue defines a separate LENDER and CUSTOMER set for every one of the 16 AXIVESTRA workspace keys (32 combinations). Property Loans and Housing Loan include different product, collateral, borrower, tenure, LTV, property-value and purchase-stage filters.
+- The UI submits the selected filter set to `discovery-control`; the backend validates geography and each field against that exact workspace/mode definition before building E03 search query terms.
+- Search filters are included in the audit as geographic scope and field keys. Raw search text and filter values are not stored in the audit event.
+
+The location is applied as a search-engine query constraint; it is not a geospatial guarantee or a verified boundary. Results remain unverified candidates until source evidence is captured and reviewed. India State/UT reference list: [Ministry of External Affairs — India at a Glance](https://www.mea.gov.in/india-at-glance.htm); the Ministry of Home Affairs annual report describes the eight Union Territories: [Annual Report 2024–25](https://www.mha.gov.in/sites/default/files/AREnglish_24032026.pdf).
