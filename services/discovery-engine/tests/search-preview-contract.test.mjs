@@ -88,7 +88,7 @@ test("E03 search results are persisted idempotently per company/profile and relo
   const searchAction = handler.slice(searchStart, searchEnd);
   assert.match(searchAction, /discovery_search_candidates/);
   assert.match(searchAction, /\.upsert\(candidateRows, \{ onConflict: "company_id,profile_id,canonical_url" \}\)/);
-  assert.match(handler, /action === "search\\.candidates\\.list"/);
+  assert.ok(handler.includes('action === "search.candidates.list"'));
   assert.match(handler, /resultsByProfile/);
   assert.match(candidateMigration, /unique \(company_id, profile_id, canonical_url\)/);
   assert.match(candidateMigration, /enable row level security/);
@@ -97,7 +97,7 @@ test("E03 search results are persisted idempotently per company/profile and relo
 });
 
 test("E03 search status reports missing provider configuration instead of silently returning no data", () => {
-  assert.match(handler, /action === "search\\.status"/);
+  assert.ok(handler.includes('action === "search.status"'));
   assert.match(handler, /configured: enabled && Boolean\(endpoint\)/);
   assert.match(handler, /Public search is not connected/);
 });
