@@ -118,12 +118,14 @@ export default function DiscoverySourceManager({
   companyId,
   companyRole,
   selectedWorkspaceKey,
-  selectedMode
+  selectedMode,
+  onSwitchWorkspace
 }: {
   companyId?: string;
   companyRole?: string;
   selectedWorkspaceKey?: string;
   selectedMode?: "LENDER" | "CUSTOMER";
+  onSwitchWorkspace?: () => void;
 }) {
   const canManage = companyRole === "owner" || companyRole === "admin";
   const [sources, setSources] = useState<Source[]>([]);
@@ -412,8 +414,9 @@ export default function DiscoverySourceManager({
     return <section className="discovery-manager">
       <div className="discovery-empty-state">
         <ShieldCheck size={28}/>
-        <h2>Company workspace required</h2>
-        <p>Discovery source governance is company-scoped. Switch to an authenticated company workspace to register and review sources. Personal and local-only records are not shared with this service.</p>
+        <h2>Connect a company workspace to use {selectedMode === "CUSTOMER" ? "CUSTOMER" : "LENDER"} discovery</h2>
+        <p>This discovery module is ready for company-scoped search, source approvals and shared evidence. The current session is Personal or Local, so the service cannot load company profiles or live source results. Your local records remain untouched.</p>
+        {onSwitchWorkspace && <button type="button" className="primary-button" onClick={onSwitchWorkspace}>Switch to company workspace</button>}
       </div>
     </section>;
   }
@@ -422,8 +425,8 @@ export default function DiscoverySourceManager({
     <div className="discovery-hero">
       <div>
         <span className="section-kicker">AXIVESTRA · EXTERNAL INTELLIGENCE</span>
-        <h2>Multi-source discovery governance</h2>
-        <p>Register permitted websites, official registries, APIs and datasets once, then assign approved sources to the relevant LENDER and CUSTOMER workspace profiles.</p>
+        <h2>{selectedMode === "CUSTOMER" ? "CUSTOMER Discovery" : "LENDER Discovery"}</h2>
+        <p>{selectedMode === "CUSTOMER" ? "Discover and qualify organisations, companies and prospective customers across your selected business workspace." : "Discover and qualify banks, NBFCs, funds, private lenders and other financing sources across your selected business workspace."} Configure permitted sources, review evidence and track candidate freshness separately.</p>
       </div>
       <div className="discovery-hero-counts">
         <div><strong>{sources.length}</strong><span>Registered sources</span></div>
