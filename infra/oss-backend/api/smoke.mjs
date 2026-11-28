@@ -64,10 +64,11 @@ async function getToken(username, password) {
   let tokenClaims = {};
   try { tokenClaims = JSON.parse(Buffer.from(tokenParts[1], "base64url").toString("utf8")); } catch {}
   process.stdout.write("Keycloak token claims for " + username + ": " + JSON.stringify({
+    keys: Object.keys(tokenClaims).sort(),
     iss: tokenClaims.iss,
-    aud: tokenClaims.aud,
+    aud: tokenClaims.aud ?? null,
     role: tokenClaims.role,
-    sub: tokenClaims.sub,
+    sub: tokenClaims.sub ?? null,
     scope: tokenClaims.scope
   }) + "\\n");
   return data.access_token;
