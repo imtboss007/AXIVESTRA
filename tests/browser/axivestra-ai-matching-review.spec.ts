@@ -28,9 +28,8 @@ async function openCompanyDiscovery(page: Page) {
   if ((page.viewportSize()?.width || 1280) <= 700) {
     const openMenu = page.getByRole("button", { name: "Open menu" });
     await expect(openMenu).toBeVisible();
-    if (!await sourceGovernance.isVisible().catch(() => false)) {
-      await openMenu.click();
-    }
+    await openMenu.click();
+    await expect(page.locator(".sidebar")).toHaveClass(/sidebar-open/);
   }
   await expect(sourceGovernance).toBeVisible();
   await sourceGovernance.click();
