@@ -48,8 +48,7 @@ async function getToken(username, password) {
     grant_type: "password",
     client_id: "axivestra-test",
     username,
-    password,
-    scope: "openid profile email"
+    password
   });
   const response = await fetch(keycloak + "/realms/axivestra/protocol/openid-connect/token", {
     method: "POST",
