@@ -36,6 +36,7 @@ on:
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
       - "supabase/functions/discovery-orchestration-worker/**"
+      - "supabase/config.toml"
       - "services/discovery-engine/**"
       - "services/discovery-worker/**"
       - "supabase/migrations/*discovery*"
