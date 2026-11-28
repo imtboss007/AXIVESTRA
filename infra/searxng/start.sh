@@ -1,6 +1,12 @@
 #!/bin/sh
 set -eu
 : "${AXIVESTRA_SEARCH_TOKEN:?AXIVESTRA_SEARCH_TOKEN is required}"
+# SearXNG must never start with the repository's example/static secret. Render
+# may inject a stable SEARXNG_SECRET; otherwise generate an ephemeral strong key.
+if [ -z "${SEARXNG_SECRET:-}" ]; then
+  SEARXNG_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+fi
+export SEARXNG_SECRET
 # Override the upstream image default (::), so SearXNG is reachable only inside this container.
 export GRANIAN_HOST="127.0.0.1"
 export GRANIAN_PORT="8080"
