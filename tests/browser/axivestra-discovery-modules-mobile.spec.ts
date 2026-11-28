@@ -27,9 +27,8 @@ async function openDiscovery(page: Page, navigationLabel: "Lender Discovery" | "
     .getByRole("button", { name: new RegExp("^" + navigationLabel) });
   const openMenu = page.getByRole("button", { name: "Open menu" });
   await expect(openMenu).toBeVisible();
-  if (!await navigation.isVisible().catch(() => false)) {
-    await openMenu.click();
-  }
+  await openMenu.click();
+  await expect(page.locator(".sidebar")).toHaveClass(/sidebar-open/);
   await expect(navigation).toBeVisible();
   await navigation.click();
 
