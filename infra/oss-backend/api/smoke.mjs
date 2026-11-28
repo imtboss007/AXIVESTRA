@@ -125,7 +125,24 @@ async function s3Request(method, path, body) {
   return response;
 }
 
+async function waitForS3() {
+  const deadline = Date.now() + 60_000;
+  let last = "not reached";
+  while (Date.now() < deadline) {
+    try {
+      const response = await s3Request("GET", "/");
+      if (response.ok) return;
+      last = "HTTP " + response.status + " " + (await response.text()).slice(0, 300);
+    } catch (error) {
+      last = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise(resolve => setTimeout(resolve, 2_000));
+  }
+  throw new Error("SeaweedFS S3 endpoint did not become ready: " + last);
+}
+
 async function assertStorageRoundTrip() {
+  await waitForS3();
   const bucket = "axivestra-oss-smoke";
   const objectPath = "/" + bucket + "/prototype-check.txt";
   const create = await s3Request("PUT", "/" + bucket);
