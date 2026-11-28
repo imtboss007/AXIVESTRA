@@ -1,0 +1,61 @@
+name: AXIVESTRA open-source backend prototype
+
+on:
+  push:
+    branches:
+      - prototype/axivestra-open-source-backend
+    paths:
+      - "infra/oss-backend/**"
+      - "docs/AXIVESTRA-OPEN-SOURCE-BACKEND-REPLACEMENT.md"
+      - ".github/workflows/axivestra-open-source-backend-prototype.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axivestra-open-source-backend-prototype-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  disposable-backend-integration:
+    name: Isolated Keycloak + Postgres + PostgREST + Hono + SeaweedFS proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate local Compose configuration
+        working-directory: infra/oss-backend
+        run: docker compose config -q
+
+      - name: Install API dependencies
+        working-directory: infra/oss-backend/api
+        run: npm install --no-audit --no-fund
+
+      - name: Run API unit tests
+        working-directory: infra/oss-backend/api
+        run: npm test
+
+      - name: Start disposable open-source backend stack
+        working-directory: infra/oss-backend
+        run: docker compose up --build -d
+
+      - name: Verify Keycloak, PostgREST, Hono, tenant RLS and S3 storage
+        working-directory: infra/oss-backend
+        run: docker compose exec -T api node smoke.mjs
+
+      - name: Show service logs on failure
+        if: failure()
+        working-directory: infra/oss-backend
+        run: docker compose logs --no-color --tail=160
+
+      - name: Destroy all disposable services and volumes
+        if: always()
+        working-directory: infra/oss-backend
+        run: docker compose down --volumes --remove-orphans
