@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: axivestra-open-source-backend-prototype-\${{ github.ref }}
+  group: axivestra-open-source-backend-prototype-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
