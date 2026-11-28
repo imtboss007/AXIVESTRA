@@ -22,10 +22,15 @@ async function openCompanyDiscovery(page: Page) {
   await expect(company).toBeVisible();
   await company.click();
 
+  await expect(page.locator(".topbar")).toBeVisible();
   const sourceGovernance = page.locator(".nav-list")
     .getByRole("button", { name: /^Source Governance/ });
-  if (!await sourceGovernance.isVisible().catch(() => false)) {
-    await page.getByRole("button", { name: "Open menu" }).click();
+  if ((page.viewportSize()?.width || 1280) <= 700) {
+    const openMenu = page.getByRole("button", { name: "Open menu" });
+    await expect(openMenu).toBeVisible();
+    if (!await sourceGovernance.isVisible().catch(() => false)) {
+      await openMenu.click();
+    }
   }
   await expect(sourceGovernance).toBeVisible();
   await sourceGovernance.click();
