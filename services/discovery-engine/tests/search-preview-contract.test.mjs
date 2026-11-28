@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const handler = await readFile(new URL("../../../supabase/functions/discovery-control/index.ts", import.meta.url), "utf8");
 const queueUi = await readFile(new URL("../../../src/DiscoveryJobQueue.tsx", import.meta.url), "utf8");
 const connector = await readFile(new URL("../../../supabase/functions/_shared/discovery-search-connectors.mjs", import.meta.url), "utf8");
+const gateway = await readFile(new URL("../../../infra/searxng/gateway.py", import.meta.url), "utf8");
 const auditMigration = await readFile(new URL("../../../supabase/migrations/20261124002000_discovery_search_preview_audit.sql", import.meta.url), "utf8");
 const candidateMigration = await readFile(new URL("../../../supabase/migrations/20261128001000_discovery_search_candidate_persistence.sql", import.meta.url), "utf8");
 
@@ -105,9 +106,22 @@ test("E03 search status requires an enabled HTTPS gateway, secure Vault token an
   assert.match(statusAction, /DISCOVERY_SEARXNG_URL/);
   assert.match(statusAction, /get_axivestra_search_gateway_token/);
   assert.match(statusAction, /endpoint\.startsWith\("https:\/\/"\)/);
-  assert.match(statusAction, /new URL\("\/healthz", endpoint\)/);
+  assert.match(statusAction, /new URL\("\/readyz", endpoint\)/);
+  assert.match(statusAction, /Authorization: "Bearer " \+ gatewayToken/);
   assert.match(statusAction, /configured: configured && healthy/);
   assert.match(statusAction, /secure Vault token is not configured/);
   assert.match(statusAction, /live search gateway is not responding yet/);
   assert.doesNotMatch(statusAction, /configured: enabled && Boolean\(endpoint\)/);
+});
+
+
+test("SearXNG readiness requires a matching gateway token and an available internal engine", () => {
+  const readyStart = gateway.indexOf('if parsed.path == "/readyz":');
+  const readyEnd = gateway.indexOf('if parsed.path != "/search":', readyStart);
+  const readyAction = gateway.slice(readyStart, readyEnd);
+  assert.ok(readyStart >= 0 && readyEnd > readyStart);
+  assert.match(readyAction, /if not TOKEN/);
+  assert.match(readyAction, /hmac\.compare_digest/);
+  assert.match(readyAction, /upstream_is_ready/);
+  assert.match(gateway, /def upstream_is_ready\(\)/);
 });
