@@ -15,6 +15,20 @@ WINDOW_SECONDS = 60
 MAX_REQUESTS_PER_WINDOW = 300
 request_times = deque()
 
+
+def upstream_is_ready():
+    """Check that the internal SearXNG HTTP listener is accepting connections."""
+    target = urlsplit(UPSTREAM)
+    if target.scheme not in ("http", "https") or not target.hostname:
+        return False
+    port = target.port or (443 if target.scheme == "https" else 80)
+    try:
+        with socket.create_connection((target.hostname, port), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "AXIVESTRA-Search-Gateway"
 
@@ -34,17 +48,27 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlsplit(self.path)
         if parsed.path in ("/", "/healthz"):
-            # A homepage GET is subject to SearXNG bot detection and may be
-            # rejected when this internal probe has no real client IP headers.
-            # Check the local listener instead; authenticated /search requests
-            # still exercise the full upstream search path.
-            try:
-                with socket.create_connection(("127.0.0.1", 8080), timeout=2):
-                    self.respond(200, "ok")
-                    return
-            except OSError:
+            # Public liveness check used by the hosting platform. It intentionally
+            # does not expose the gateway token or a search result.
+            ready = upstream_is_ready()
+            self.respond(200 if ready else 503, "ok" if ready else "search engine starting")
+            return
+
+        if parsed.path == "/readyz":
+            # Supabase calls this endpoint with the token read from Vault. This
+            # detects a missing or mismatched Render secret before a user search.
+            if not TOKEN:
+                self.respond(503, "search gateway token is not configured")
+                return
+            supplied = self.headers.get("Authorization", "")
+            if not hmac.compare_digest(supplied, "Bearer " + TOKEN):
+                self.respond(401, "unauthorized")
+                return
+            if not upstream_is_ready():
                 self.respond(503, "search engine starting")
                 return
+            self.respond(200, "ready")
+            return
 
         if parsed.path != "/search":
             self.respond(404, "not found")

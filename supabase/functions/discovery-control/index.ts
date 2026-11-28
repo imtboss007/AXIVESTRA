@@ -110,13 +110,16 @@ Deno.serve(async request => {
       const configured = enabled && endpoint.startsWith("https://") &&
         !gatewayTokenError && typeof gatewayToken === "string" && gatewayToken.length >= 32;
       let healthy = false;
+      let gatewayStatus = 0;
       if (configured) {
         try {
-          const response = await fetch(new URL("/healthz", endpoint), {
+          const response = await fetch(new URL("/readyz", endpoint), {
             method: "GET",
-            signal: AbortSignal.timeout(4000),
+            headers: { Authorization: "Bearer " + gatewayToken },
+            signal: AbortSignal.timeout(5000),
             redirect: "error"
           });
+          gatewayStatus = response.status;
           healthy = response.ok;
         } catch {
           healthy = false;
@@ -130,7 +133,12 @@ Deno.serve(async request => {
           ? !enabled
             ? "Public search is disabled by server configuration."
             : "The live search gateway or its secure Vault token is not configured on this AXIVESTRA server."
-          : healthy ? "" : "The live search gateway is not responding yet."
+          : healthy ? ""
+          : gatewayStatus === 401
+            ? "The Supabase Vault token does not match the search gateway token. Update the Render secret to the same value as the Vault token."
+            : gatewayStatus === 503
+              ? "The search gateway is waking up or the internal search engine is still starting. Refresh the connection check in a moment."
+              : "The authenticated search gateway is not responding. Check the Render service logs."
       });
     }
 

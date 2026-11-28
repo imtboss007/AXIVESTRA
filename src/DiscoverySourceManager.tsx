@@ -63,6 +63,7 @@ type ApiResponse = {
   results?: SearchCandidate[];
   resultsByProfile?: Record<string, SearchCandidate[]>;
   configured?: boolean;
+  reason?: string;
 };
 
 const WORKSPACES = [
@@ -164,6 +165,7 @@ export default function DiscoverySourceManager({
   const [selectedSources, setSelectedSources] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<Record<string, SearchCandidate[]>>({});
   const [searchServiceConfigured, setSearchServiceConfigured] = useState<boolean | null>(null);
+  const [searchServiceReason, setSearchServiceReason] = useState("");
   const [searchFilterDrafts, setSearchFilterDrafts] = useState<Record<string, DiscoverySearchFilterDraft>>({});
   const [selectedSearchWorkspace, setSelectedSearchWorkspace] = useState(WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? selectedWorkspaceKey! : "property_loans");
   const [quickSearchText, setQuickSearchText] = useState("");
@@ -200,6 +202,11 @@ export default function DiscoverySourceManager({
       ]);
       setSearchServiceConfigured(
         searchStatusResult.status === "fulfilled" && searchStatusResult.value.configured === true
+      );
+      setSearchServiceReason(
+        searchStatusResult.status === "fulfilled"
+          ? searchStatusResult.value.reason || ""
+          : "Could not contact the authenticated search status service. Check your connection and refresh."
       );
       if (candidateResult.status === "fulfilled") {
         setSearchResults(candidateResult.value.resultsByProfile || {});
@@ -600,7 +607,7 @@ export default function DiscoverySourceManager({
 
     <div className="discovery-notice">
       <ShieldCheck size={17}/>
-      <p><strong>{searchServiceConfigured === true ? "Live search connected." : searchServiceConfigured === false ? "Live search is not connected yet." : "Checking search connection…"}</strong> {searchServiceConfigured === true ? "Search results are public-source candidates and are not treated as verified records." : searchServiceConfigured === false ? "The server search provider must be activated before live results can be returned." : "AXIVESTRA is checking the server connection."}</p>
+      <p><strong>{searchServiceConfigured === true ? "Live search connected." : searchServiceConfigured === false ? "Live search is not ready yet." : "Checking search connection…"}</strong> {searchServiceConfigured === true ? "Search results are public-source candidates and are not treated as verified records." : searchServiceConfigured === false ? (searchServiceReason || "The authenticated search gateway is unavailable. Refresh to check again.") : "AXIVESTRA is checking the authenticated gateway and its internal search engine."}</p>
       <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh discovery status"><RefreshCw size={16}/></button>
     </div>
     <section className="data-panel discovery-quick-search">
@@ -668,7 +675,7 @@ export default function DiscoverySourceManager({
           <button type="button" className="text-button" onClick={() => setQuickSearchFilters(createDefaultDiscoverySearchFilters())}>Clear filters</button>
         </div>
       </details>
-      {searchServiceConfigured === false && <p className="discovery-quick-search-status" role="status">The search screen is ready, but live results are not available until the server search provider is connected. AXIVESTRA will not show made-up or sample records.</p>}
+      {searchServiceConfigured === false && <p className="discovery-quick-search-status" role="status">{searchServiceReason || "The authenticated search gateway is not ready."} Use the refresh control above to recheck after the service starts. AXIVESTRA will not show made-up or sample records.</p>}
       {searchServiceConfigured === true && <p className="discovery-quick-search-status">Live public-source search is available. Results are unverified candidates until reviewed.</p>}
       {quickSearchProfileId && searchResults[quickSearchProfileId] && <div className="discovery-search-results">
         <div className="discovery-search-results-head"><b>Search results · {searchResults[quickSearchProfileId].length}</b><small>Live public-source candidates · unverified</small></div>

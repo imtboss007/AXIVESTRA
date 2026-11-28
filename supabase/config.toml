@@ -8,3 +8,8 @@ verify_jwt = true
 verify_jwt = true
 [functions.discovery-orchestration-worker]
 verify_jwt = false
+
+[db]
+# Keep the disposable CI database away from the runner's commonly occupied 54322.
+# API port remains the CLI default (54321), so the local Edge Function route is unchanged.
+port = 54329
