@@ -102,4 +102,19 @@ Versions were checked against the upstream GitHub release pages on 2026-11-28. R
 
 ## 9. Current prototype status
 
-The Compose stack, realm import, synthetic RLS schema, Hono API and end-to-end smoke test are staged on the isolated Git branch. GitHub Actions validation is required before treating this stack as a working prototype. The main AXIVESTRA app remains connected to its current backend.
+The isolated prototype passed GitHub Actions run #10:
+
+- Compose configuration validation passed.
+- Hono API unit tests passed.
+- PostgreSQL schema and two synthetic tenants initialized successfully.
+- Keycloak realm import and RS256 JWKS bootstrap passed.
+- PostgREST started and accepted Keycloak-signed JWTs.
+- Hono accepted the Keycloak token and listed the user's company under transaction-scoped RLS.
+- Both LENDER and CUSTOMER synthetic users saw exactly one own-company row.
+- Cross-tenant company reads returned no rows for both users.
+- SeaweedFS authenticated S3 bucket/object create, read and delete round-trip passed.
+- All disposable containers, networks and volumes were removed by CI cleanup.
+
+[Successful workflow run #10](https://github.com/imtboss007/AXIVESTRA/actions/runs/46147384406)
+
+This remains a compatibility proof, not a complete replacement. The main AXIVESTRA app is still connected to Supabase. The prototype has not migrated any production data or ported the complete Auth, query, RPC, Edge Function, worker, invitation, recovery, realtime or storage API surface.
