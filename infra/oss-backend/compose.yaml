@@ -6,11 +6,11 @@ services:
     environment:
       POSTGRES_DB: axivestra
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD:-axivestra-local-postgres-change-me}
-      PGRST_DB_PASSWORD: \${PGRST_DB_PASSWORD:-axivestra-local-postgrest-change-me}
-      API_DB_PASSWORD: \${API_DB_PASSWORD:-axivestra-local-api-change-me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-axivestra-local-postgres-change-me}
+      PGRST_DB_PASSWORD: ${PGRST_DB_PASSWORD:-axivestra-local-postgrest-change-me}
+      API_DB_PASSWORD: ${API_DB_PASSWORD:-axivestra-local-api-change-me}
     ports:
-      - "127.0.0.1:\${POSTGRES_PORT:-55432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init/001-bootstrap.sql:/docker-entrypoint-initdb.d/001-bootstrap.sql:ro
@@ -25,14 +25,14 @@ services:
     image: quay.io/keycloak/keycloak:26.8.2
     command: ["start-dev", "--import-realm", "--http-port=8080"]
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: \${KEYCLOAK_ADMIN:-local-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: \${KEYCLOAK_ADMIN_PASSWORD:-axivestra-local-keycloak-admin-change-me}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-local-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-axivestra-local-keycloak-admin-change-me}
       KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME: "http://localhost:\${KEYCLOAK_PORT:-8180}"
+      KC_HOSTNAME: "http://localhost:${KEYCLOAK_PORT:-8180}"
       KC_HOSTNAME_STRICT: "false"
       KC_HEALTH_ENABLED: "true"
     ports:
-      - "127.0.0.1:\${KEYCLOAK_PORT:-8180}:8080"
+      - "127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"
     volumes:
       - ./keycloak/axivestra-realm.json:/opt/keycloak/data/import/axivestra-realm.json:ro
     restart: unless-stopped
@@ -54,18 +54,18 @@ services:
   postgrest:
     image: postgrest/postgrest:v16.6
     environment:
-      PGRST_DB_URI: postgres://authenticator:\${PGRST_DB_PASSWORD:-axivestra-local-postgrest-change-me}@db:5432/axivestra
+      PGRST_DB_URI: postgres://authenticator:${PGRST_DB_PASSWORD:-axivestra-local-postgrest-change-me}@db:5432/axivestra
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_DB_POOL: "10"
       PGRST_JWT_SECRET: "@/run/secrets/keycloak-jwks.json"
-      PGRST_JWT_ISS: "http://localhost:\${KEYCLOAK_PORT:-8180}/realms/axivestra"
+      PGRST_JWT_ISS: "http://localhost:${KEYCLOAK_PORT:-8180}/realms/axivestra"
       PGRST_JWT_AUD: axivestra-api
       PGRST_SERVER_HOST: 0.0.0.0
       PGRST_SERVER_PORT: "3000"
       PGRST_LOG_LEVEL: info
     ports:
-      - "127.0.0.1:\${POSTGREST_PORT:-8300}:3000"
+      - "127.0.0.1:${POSTGREST_PORT:-8300}:3000"
     volumes:
       - keycloak-jwks:/run/secrets:ro
     depends_on:
@@ -81,17 +81,17 @@ services:
       dockerfile: Dockerfile
     environment:
       PORT: "3000"
-      DATABASE_URL: postgres://axivestra_api:\${API_DB_PASSWORD:-axivestra-local-api-change-me}@db:5432/axivestra
-      OIDC_ISSUER: "http://localhost:\${KEYCLOAK_PORT:-8180}/realms/axivestra"
+      DATABASE_URL: postgres://axivestra_api:${API_DB_PASSWORD:-axivestra-local-api-change-me}@db:5432/axivestra
+      OIDC_ISSUER: "http://localhost:${KEYCLOAK_PORT:-8180}/realms/axivestra"
       OIDC_JWKS_URL: http://keycloak:8080/realms/axivestra/protocol/openid-connect/certs
       OIDC_AUDIENCE: axivestra-api
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       POSTGREST_INTERNAL_URL: http://postgrest:3000
       S3_ENDPOINT: http://seaweedfs:8333
-      S3_ACCESS_KEY: \${S3_ACCESS_KEY:-axivestra-local-s3-user}
-      S3_SECRET_KEY: \${S3_SECRET_KEY:-axivestra-local-s3-secret-change-me}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-axivestra-local-s3-user}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-axivestra-local-s3-secret-change-me}
     ports:
-      - "127.0.0.1:\${API_PORT:-8380}:3000"
+      - "127.0.0.1:${API_PORT:-8380}:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -116,8 +116,8 @@ services:
     image: node:22-alpine
     command: ["node", "/scripts/write-seaweedfs-config.mjs"]
     environment:
-      S3_ACCESS_KEY: \${S3_ACCESS_KEY:-axivestra-local-s3-user}
-      S3_SECRET_KEY: \${S3_SECRET_KEY:-axivestra-local-s3-secret-change-me}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-axivestra-local-s3-user}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-axivestra-local-s3-secret-change-me}
       S3_CONFIG_OUTPUT: /config/s3.json
     volumes:
       - ./scripts/write-seaweedfs-config.mjs:/scripts/write-seaweedfs-config.mjs:ro
@@ -128,7 +128,7 @@ services:
     image: chrislusf/seaweedfs:4.55
     command: ["server", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json"]
     ports:
-      - "127.0.0.1:\${S3_PORT:-8333}:8333"
+      - "127.0.0.1:${S3_PORT:-8333}:8333"
     volumes:
       - seaweedfs-data:/data
       - seaweedfs-config:/etc/seaweedfs:ro
