@@ -383,10 +383,10 @@ export default function DiscoveryOrchestrationWorkspace({
   }
 
   if (!companyId) {
-    return <section className="discovery-orchestration" data-testid="e20-orchestration-workspace"><div className="discovery-empty-state"><ShieldCheck size={26}/><h2>Company workspace required</h2><p>Agent orchestration plans and approvals are isolated by company.</p></div></section>;
+    return <section className="discovery-orchestration"><div className="discovery-empty-state"><ShieldCheck size={26}/><h2>Company workspace required</h2><p>Agent orchestration plans and approvals are isolated by company.</p></div></section>;
   }
 
-  return <section className="discovery-orchestration">
+  return <section className="discovery-orchestration" data-testid="e20-orchestration-workspace">
     <header className="discovery-orchestration-head">
       <div>
         <span className="section-kicker">E20 · REVISED ROADMAP E16</span>
