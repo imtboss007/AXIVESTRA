@@ -87,7 +87,13 @@ test.describe("AXIVESTRA disposable demo: 16 workspace filters on mobile", () =>
   test("tests all 16 CUSTOMER module filter profiles without executing public search", async ({ page }) => {
     await openDiscovery(page, "Customer Discovery");
     await verifyAllWorkspaceProfiles(page, "CUSTOMER");
+    const select = page.getByLabel("Search in");
+    const personalLoanOption = select.locator("option").filter({ hasText: "Personal Loan" }).first();
+    const personalLoanValue = await personalLoanOption.getAttribute("value");
+    expect(personalLoanValue).toBeTruthy();
+    await select.selectOption(personalLoanValue!);
     const personalLoan = page.locator(".discovery-profile-card").filter({ hasText: "Personal Loan" });
+    await expect(personalLoan).toBeVisible();
     await expect(personalLoan).toContainText("External person-discovery is disabled");
     // All fixtures are disabled and have no attached sources. No live request is performed.
   });
