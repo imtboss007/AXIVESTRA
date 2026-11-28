@@ -22,10 +22,13 @@ async function openDiscovery(page: Page, navigationLabel: "Lender Discovery" | "
   await expect(company).toBeVisible();
   await company.click();
 
+  await expect(page.locator(".topbar")).toBeVisible();
   const navigation = page.locator(".nav-list")
     .getByRole("button", { name: new RegExp("^" + navigationLabel) });
+  const openMenu = page.getByRole("button", { name: "Open menu" });
+  await expect(openMenu).toBeVisible();
   if (!await navigation.isVisible().catch(() => false)) {
-    await page.getByRole("button", { name: "Open menu" }).click();
+    await openMenu.click();
   }
   await expect(navigation).toBeVisible();
   await navigation.click();
