@@ -110,7 +110,9 @@ test("E03 search status requires an enabled HTTPS gateway, secure Vault token an
   assert.match(statusAction, /Authorization: "Bearer " \+ gatewayToken/);
   assert.match(statusAction, /configured: configured && healthy/);
   assert.match(statusAction, /secure Vault token is not configured/);
-  assert.match(statusAction, /live search gateway is not responding yet/);
+  assert.match(statusAction, /authenticated search gateway is not responding/);
+  assert.match(statusAction, /Vault token does not match the search gateway token/);
+  assert.match(statusAction, /search gateway is waking up/);
   assert.doesNotMatch(statusAction, /configured: enabled && Boolean\(endpoint\)/);
 });
 
