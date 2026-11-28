@@ -12,5 +12,5 @@ const config = {
 };
 const output = process.env.S3_CONFIG_OUTPUT || "/config/s3.json";
 await mkdir("/config", { recursive: true });
-await writeFile(output, JSON.stringify(config, null, 2), { mode: 0o440 });
+await writeFile(output, JSON.stringify(config, null, 2), { mode: 0o444 });
 process.stdout.write("Wrote local-only SeaweedFS S3 configuration.\n");
