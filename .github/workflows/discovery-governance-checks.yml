@@ -29,7 +29,10 @@ on:
       - feat/discovery-e09-geo-resolution
       - feat/discovery-e10-enrichment
       - feat/discovery-e11-explainable-matching
+      - feat/axivestra-lender-customer-discovery
     paths:
+      - "infra/searxng/**"
+      - "supabase/migrations/*orchestration_catalog_rls*"
       - "supabase/functions/_shared/**"
       - "supabase/functions/discovery-control/**"
       - "supabase/functions/discovery-orchestration-worker/**"
