@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactExtractedFacts } from "../_shared/discovery-contact-redaction.mjs";
 import { buildSearxngQueries, searchSearxng } from "../_shared/discovery-search-connectors.mjs";
+import { normalizeDiscoverySearchFilters } from "../_shared/discovery-search-filters.mjs";
 import { buildE11CandidateFromAcceptedObservations, scoreDiscoveryMatch } from "../_shared/discovery-matching.mjs";
 import {
   normalizeSourceRegistration,
@@ -102,6 +103,37 @@ Deno.serve(async request => {
   const canManage = ["owner", "admin"].includes(membership.role);
 
   try {
+    if (action === "search.status") {
+      const enabled = Deno.env.get("DISCOVERY_SEARXNG_ENABLED") !== "false";
+      const endpoint = Deno.env.get("DISCOVERY_SEARXNG_URL") || "https://axivestra-public-search.onrender.com";
+      const { data: gatewayToken, error: gatewayTokenError } = await admin.rpc("get_axivestra_search_gateway_token");
+      const configured = enabled && endpoint.startsWith("https://") &&
+        !gatewayTokenError && typeof gatewayToken === "string" && gatewayToken.length >= 32;
+      let healthy = false;
+      if (configured) {
+        try {
+          const response = await fetch(new URL("/healthz", endpoint), {
+            method: "GET",
+            signal: AbortSignal.timeout(4000),
+            redirect: "error"
+          });
+          healthy = response.ok;
+        } catch {
+          healthy = false;
+        }
+      }
+      return jsonResponse(200, {
+        ok: true,
+        configured: configured && healthy,
+        provider: "SearXNG",
+        reason: !configured
+          ? !enabled
+            ? "Public search is disabled by server configuration."
+            : "The live search gateway or its secure Vault token is not configured on this AXIVESTRA server."
+          : healthy ? "" : "The live search gateway is not responding yet."
+      });
+    }
+
     if (action === "sources.list") {
       const { data, error } = await admin.from("discovery_source_registry")
         .select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(500);
@@ -121,12 +153,15 @@ Deno.serve(async request => {
 
     if (action === "search.preview") {
       if (!isUuid(payload.profileId)) return jsonResponse(400, { error: "A valid workspace discovery profile is required." });
-      if (Deno.env.get("DISCOVERY_SEARXNG_ENABLED") !== "true") {
-        return jsonResponse(503, { error: "The optional self-hosted search connector is disabled. Configure and enable the SearXNG service before searching." });
+      if (Deno.env.get("DISCOVERY_SEARXNG_ENABLED") === "false") {
+        return jsonResponse(503, { error: "Live public search is disabled by AXIVESTRA server configuration." });
       }
-      const searchBaseUrl = Deno.env.get("DISCOVERY_SEARXNG_URL") || "";
-      const searchBearerToken = Deno.env.get("DISCOVERY_SEARXNG_BEARER_TOKEN") || "";
-      if (!searchBaseUrl) return jsonResponse(503, { error: "The self-hosted SearXNG endpoint is not configured on this AXIVESTRA server." });
+      const searchBaseUrl = Deno.env.get("DISCOVERY_SEARXNG_URL") || "https://axivestra-public-search.onrender.com";
+      const { data: vaultGatewayToken, error: vaultTokenError } = await admin.rpc("get_axivestra_search_gateway_token");
+      if (vaultTokenError || typeof vaultGatewayToken !== "string" || vaultGatewayToken.length < 32) {
+        return jsonResponse(503, { error: "The secure live-search gateway token is not configured in Supabase Vault." });
+      }
+      const searchBearerToken = Deno.env.get("DISCOVERY_SEARXNG_BEARER_TOKEN") || vaultGatewayToken;
 
       const { data: profile, error: profileError } = await admin.from("discovery_profiles")
         .select("*").eq("company_id", companyId).eq("id", payload.profileId).maybeSingle();
@@ -160,13 +195,7 @@ Deno.serve(async request => {
 
       const filterInput = payload.filters && typeof payload.filters === "object" && !Array.isArray(payload.filters)
         ? payload.filters as Record<string, unknown> : {};
-      const filters = {
-        location: typeof filterInput.location === "string" ? filterInput.location.slice(0, 120) : "",
-        sector: typeof filterInput.sector === "string" ? filterInput.sector.slice(0, 100) : "",
-        product: typeof filterInput.product === "string" ? filterInput.product.slice(0, 100) : "",
-        stage: typeof filterInput.stage === "string" ? filterInput.stage.slice(0, 80) : "",
-        instrument: typeof filterInput.instrument === "string" ? filterInput.instrument.slice(0, 80) : ""
-      };
+      const filters = normalizeDiscoverySearchFilters(profile.workspace_key, profile.discovery_mode, filterInput);
       const queries = buildSearxngQueries(profile.criteria || {}, filters);
       await writeAudit(admin, {
         company_id: companyId,
@@ -179,7 +208,8 @@ Deno.serve(async request => {
           discoveryMode: profile.discovery_mode,
           queryCount: queries.length,
           attachedApprovedSourceCount: eligibleSources.length,
-          filterKeys: ["location", "sector", "product", "stage", "instrument"].filter(key => Boolean((filters as Record<string, string>)[key]))
+          coverageScope: filters.coverageScope,
+          filterKeys: [...Object.keys(filters.fields), ...(filters.location ? ["location"] : []), ...(filters.searchTerms ? ["workspace_filters"] : [])]
         }
       });
       const resultsByUrl = new Map<string, Record<string, unknown>>();
@@ -213,13 +243,73 @@ Deno.serve(async request => {
         if (resultsByUrl.size >= 30) break;
       }
       const results = [...resultsByUrl.values()].slice(0, 30);
+      const retrievedAt = new Date().toISOString();
+      const candidateRows = results.map((candidate: Record<string, unknown>) => ({
+        company_id: companyId,
+        profile_id: profile.id,
+        workspace_key: profile.workspace_key,
+        discovery_mode: profile.discovery_mode,
+        title: String(candidate.title || "").slice(0, 300),
+        canonical_url: String(candidate.url || ""),
+        domain: String(candidate.domain || "").slice(0, 253),
+        snippet: String(candidate.snippet || "").slice(0, 1200),
+        status: "unverified_candidate",
+        approved_source_id: candidate.approvedSourceId || null,
+        approved_source_name: candidate.approvedSourceName || null,
+        fetch_eligible: candidate.fetchEligible === true,
+        provider_key: "searxng",
+        retrieved_at: retrievedAt,
+        last_seen_at: retrievedAt,
+        updated_at: retrievedAt
+      })).filter((candidate: Record<string, unknown>) =>
+        candidate.title && candidate.canonical_url && candidate.domain
+      );
+      if (candidateRows.length) {
+        const { error: persistError } = await admin.from("discovery_search_candidates")
+          .upsert(candidateRows, { onConflict: "company_id,profile_id,canonical_url" });
+        if (persistError) throw persistError;
+      }
       return jsonResponse(200, {
         ok: true,
         profile: { id: profile.id, workspace_key: profile.workspace_key, discovery_mode: profile.discovery_mode },
         queries,
         results,
+        appliedFilters: {
+          coverageScope: filters.coverageScope,
+          state: filters.state,
+          country: filters.country,
+          fieldKeys: Object.keys(filters.fields)
+        },
         message: "Search results are unverified candidates, not evidence or verified contacts. Only URLs inside an already approved, attached source path may be added to the E04 queue. Other domains need separate source registration and owner/admin approval."
       });
+    }
+
+    if (action === "search.candidates.list") {
+      const { data, error } = await admin.from("discovery_search_candidates")
+        .select("profile_id,title,canonical_url,domain,snippet,status,fetch_eligible,approved_source_name,retrieved_at,first_seen_at,last_seen_at")
+        .eq("company_id", companyId)
+        .order("last_seen_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const resultsByProfile: Record<string, Record<string, unknown>[]> = {};
+      for (const row of (data || []) as Record<string, unknown>[]) {
+        const profileId = String(row.profile_id || "");
+        if (!profileId) continue;
+        if (!resultsByProfile[profileId]) resultsByProfile[profileId] = [];
+        resultsByProfile[profileId].push({
+          title: row.title,
+          url: row.canonical_url,
+          domain: row.domain,
+          snippet: row.snippet,
+          status: row.status,
+          fetchEligible: row.fetch_eligible === true,
+          approvedSourceName: row.approved_source_name || null,
+          retrievedAt: row.retrieved_at,
+          firstSeenAt: row.first_seen_at,
+          lastSeenAt: row.last_seen_at
+        });
+      }
+      return jsonResponse(200, { ok: true, resultsByProfile, candidateCount: (data || []).length });
     }
 
     if (action === "workers.status") {

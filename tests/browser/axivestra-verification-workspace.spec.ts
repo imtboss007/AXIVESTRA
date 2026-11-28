@@ -27,7 +27,7 @@ test.describe("AXIVESTRA E19 verification acceptance",()=>{
     test.skip(testInfo.project.name!=="desktop-chromium","The verification QA acceptance runs once on desktop.");
     test.skip(!configured,"Requires AXIVESTRA_E2E_EMAIL, AXIVESTRA_E2E_PASSWORD and AXIVESTRA_E2E_COMPANY_NAME.");
     await openCompany(page);
-    await page.locator(".nav-list").getByRole("button",{name:/^Discovery Sources/}).click();
+    await page.locator(".nav-list").getByRole("button",{name:/^Source Governance/}).click();
   });
 
   test("company Discovery Sources exposes the cross-stage verification inbox",async({page})=>{

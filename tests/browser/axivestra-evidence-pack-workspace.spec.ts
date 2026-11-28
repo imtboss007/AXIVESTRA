@@ -23,7 +23,7 @@ async function openEvidenceWorkspace(page: Page) {
   await company.click();
 
   await page.locator(".nav-list")
-    .getByRole("button", { name: /^Discovery Sources/ }).click();
+    .getByRole("button", { name: /^Source Governance/ }).click();
   return page.getByTestId("e21-evidence-workspace");
 }
 

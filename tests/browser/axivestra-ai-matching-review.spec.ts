@@ -22,8 +22,17 @@ async function openCompanyDiscovery(page: Page) {
   await expect(company).toBeVisible();
   await company.click();
 
-  await page.locator(".nav-list")
-    .getByRole("button", { name: /^Discovery Sources/ }).click();
+  await expect(page.locator(".topbar")).toBeVisible();
+  const sourceGovernance = page.locator(".nav-list")
+    .getByRole("button", { name: /^Source Governance/ });
+  if ((page.viewportSize()?.width || 1280) <= 700) {
+    const openMenu = page.getByRole("button", { name: "Open menu" });
+    await expect(openMenu).toBeVisible();
+    await openMenu.click();
+    await expect(page.locator(".sidebar")).toHaveClass(/sidebar-open/);
+  }
+  await expect(sourceGovernance).toBeVisible();
+  await sourceGovernance.click();
   return page.getByTestId("e22-review-workspace");
 }
 
@@ -31,10 +40,6 @@ test.describe("AXIVESTRA E22 authenticated review desk acceptance", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeEach(async ({ page }, testInfo) => {
-    test.skip(
-      testInfo.project.name !== "desktop-chromium",
-      "E22 authenticated QA acceptance runs once on desktop."
-    );
     test.skip(
       !configured,
       "Requires AXIVESTRA_E2E_EMAIL, AXIVESTRA_E2E_PASSWORD and AXIVESTRA_E2E_COMPANY_NAME."

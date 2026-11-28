@@ -19,6 +19,7 @@ on:
     branches:
       - main
       - feat/discovery-source-governance
+      - feat/discovery-e10-enrichment
       - feat/discovery-e04-complete
       - feat/discovery-e05-complete
       - feat/discovery-e06-entity-intelligence
@@ -233,6 +234,14 @@ jobs:
             tests/browser/axivestra-evidence-pack-workspace.spec.ts \
             tests/browser/axivestra-ai-matching-review.spec.ts \
             --project=desktop-chromium
+
+      - name: Run authenticated E20/E22 mobile and 16×2 discovery-module acceptance
+        run: |
+          npm run test:e2e -- \
+            tests/browser/axivestra-orchestration-workspace.spec.ts \
+            tests/browser/axivestra-ai-matching-review.spec.ts \
+            tests/browser/axivestra-discovery-modules-mobile.spec.ts \
+            --project=mobile-chromium
 
       - name: Upload authenticated browser evidence
         if: always()

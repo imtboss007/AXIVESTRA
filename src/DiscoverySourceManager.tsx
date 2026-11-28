@@ -11,6 +11,8 @@ import DiscoveryOrchestrationWorkspace from "./DiscoveryOrchestrationWorkspace";
 import DiscoveryMatchScoringWorkspace from "./DiscoveryMatchScoringWorkspace";
 import { CheckCircle2, CircleAlert, Globe, LoaderCircle, Plus, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import { getDefaultWorkspaceCriteria, validateWorkspaceCriteria } from "./lib/discovery-profiles.mjs";
+import { createDefaultDiscoverySearchFilters, getWorkspaceSearchFilterFields, INDIA_STATES_AND_UTS } from "./lib/discovery-search-filters.mjs";
+import type { DiscoverySearchFilterDraft } from "./lib/discovery-search-filters.mjs";
 import { OFFICIAL_SOURCE_STARTERS, toSourceDraft } from "./lib/discovery-source-catalogue.mjs";
 import DiscoveryPublicApiCatalogue from "./DiscoveryPublicApiCatalogue";
 
@@ -47,6 +49,7 @@ type Profile = {
   criteria: Record<string, unknown>;
 };
 type SourceLink = { profile_id: string; source_id: string };
+type SearchCandidate = { title: string; url: string; domain: string; snippet: string; status: string; fetchEligible: boolean; approvedSourceName?: string | null; retrievedAt?: string; firstSeenAt?: string; lastSeenAt?: string };
 type ApiResponse = {
   ok?: boolean;
   error?: string;
@@ -57,6 +60,9 @@ type ApiResponse = {
   source?: Source;
   profile?: Profile;
   remainingSources?: number;
+  results?: SearchCandidate[];
+  resultsByProfile?: Record<string, SearchCandidate[]>;
+  configured?: boolean;
 };
 
 const WORKSPACES = [
@@ -118,12 +124,14 @@ export default function DiscoverySourceManager({
   companyId,
   companyRole,
   selectedWorkspaceKey,
-  selectedMode
+  selectedMode,
+  onSwitchWorkspace
 }: {
   companyId?: string;
   companyRole?: string;
   selectedWorkspaceKey?: string;
   selectedMode?: "LENDER" | "CUSTOMER";
+  onSwitchWorkspace?: () => void;
 }) {
   const canManage = companyRole === "owner" || companyRole === "admin";
   const [sources, setSources] = useState<Source[]>([]);
@@ -140,7 +148,7 @@ export default function DiscoverySourceManager({
     purpose: string;
     jurisdiction: string;
   }>({
-    workspaceKey: selectedWorkspaceKey || "property_loans",
+    workspaceKey: WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? selectedWorkspaceKey! : "property_loans",
     discoveryMode: selectedMode || "LENDER",
     purpose: "",
     jurisdiction: "IN"
@@ -154,6 +162,13 @@ export default function DiscoverySourceManager({
     attribution: string;
   }>>({});
   const [selectedSources, setSelectedSources] = useState<Record<string, string>>({});
+  const [searchResults, setSearchResults] = useState<Record<string, SearchCandidate[]>>({});
+  const [searchServiceConfigured, setSearchServiceConfigured] = useState<boolean | null>(null);
+  const [searchFilterDrafts, setSearchFilterDrafts] = useState<Record<string, DiscoverySearchFilterDraft>>({});
+  const [selectedSearchWorkspace, setSelectedSearchWorkspace] = useState(WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? selectedWorkspaceKey! : "property_loans");
+  const [quickSearchText, setQuickSearchText] = useState("");
+  const [quickSearchFilters, setQuickSearchFilters] = useState<DiscoverySearchFilterDraft>(() => createDefaultDiscoverySearchFilters());
+  const [quickSearchProfileId, setQuickSearchProfileId] = useState("");
 
   const invoke = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
     if (!companyId) throw new Error("Open an authenticated AXIVESTRA company workspace first.");
@@ -179,6 +194,16 @@ export default function DiscoverySourceManager({
       setSources(sourceResponse.sources || []);
       setProfiles(profileResponse.profiles || []);
       setLinks(profileResponse.sourceLinks || []);
+      const [searchStatusResult, candidateResult] = await Promise.allSettled([
+        invoke("search.status"),
+        invoke("search.candidates.list")
+      ]);
+      setSearchServiceConfigured(
+        searchStatusResult.status === "fulfilled" && searchStatusResult.value.configured === true
+      );
+      if (candidateResult.status === "fulfilled") {
+        setSearchResults(candidateResult.value.resultsByProfile || {});
+      }
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -189,10 +214,9 @@ export default function DiscoverySourceManager({
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
-    if (!selectedWorkspaceKey) return;
     setProfileDraft(current => ({
       ...current,
-      workspaceKey: selectedWorkspaceKey,
+      ...(WORKSPACES.some(([key]) => key === selectedWorkspaceKey) ? { workspaceKey: selectedWorkspaceKey! } : {}),
       discoveryMode: selectedMode || current.discoveryMode,
       purpose: ""
     }));
@@ -272,8 +296,8 @@ export default function DiscoverySourceManager({
   };
 
   const profileAlreadyExists = profiles.some(profile =>
-    profile.workspace_key === profileDraft.workspaceKey &&
-    profile.discovery_mode === profileDraft.discoveryMode
+    profile.workspace_key === selectedSearchWorkspace &&
+    profile.discovery_mode === (selectedMode || "LENDER")
   );
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -286,14 +310,23 @@ export default function DiscoverySourceManager({
     setError("");
     setNotice("");
     try {
-      const criteria = validateWorkspaceCriteria(JSON.parse(criteriaText), profileDraft.workspaceKey, profileDraft.discoveryMode);
+      const workspaceLabel = WORKSPACES.find(([key]) => key === selectedSearchWorkspace)?.[1] || selectedSearchWorkspace;
+      const discoveryMode = selectedMode || "LENDER";
+      const purpose = profileDraft.purpose.trim() || ("Public " + discoveryMode.toLowerCase() + " discovery for " + workspaceLabel);
+      const criteria = validateWorkspaceCriteria(JSON.parse(criteriaText), selectedSearchWorkspace, discoveryMode);
+      const enabled = criteria.disabledByPolicy !== true;
       await invoke("profiles.upsert", {
-        ...profileDraft,
-        enabled: false,
+        workspaceKey: selectedSearchWorkspace,
+        discoveryMode,
+        purpose,
+        jurisdiction: profileDraft.jurisdiction || "IN",
+        enabled,
         criteria
       });
-      setProfileDraft({ ...profileDraft, purpose: "" });
-      setNotice("Workspace discovery profile saved in disabled state.");
+      setProfileDraft(current => ({ ...current, workspaceKey: selectedSearchWorkspace, discoveryMode, purpose }));
+      setNotice(enabled
+        ? "Search profile created and enabled. Results will be stored as unverified candidates."
+        : "This workspace is policy-restricted and remains disabled.");
       await refresh();
     } catch (reason) {
       setError(errorText(reason));
@@ -402,6 +435,138 @@ export default function DiscoverySourceManager({
     .map(link => sources.find(source => source.id === link.source_id))
     .filter((source): source is Source => Boolean(source));
 
+  useEffect(() => {
+    if (selectedWorkspaceKey && WORKSPACES.some(([key]) => key === selectedWorkspaceKey)) {
+      setSelectedSearchWorkspace(selectedWorkspaceKey);
+    }
+  }, [selectedWorkspaceKey]);
+
+  const activeDiscoveryMode = selectedMode || "LENDER";
+  const visibleProfiles = profiles.filter(profile =>
+    profile.discovery_mode === activeDiscoveryMode &&
+    profile.workspace_key === selectedSearchWorkspace
+  );
+  const selectedWorkspaceLabel = WORKSPACES.find(([key]) => key === selectedSearchWorkspace)?.[1] || selectedSearchWorkspace;
+
+  const updateSearchFilter = (profileId: string, key: "coverageScope" | "state" | "country" | "currency" | "keywords", value: string) => {
+    setSearchFilterDrafts(current => {
+      const draft = { ...(current[profileId] || createDefaultDiscoverySearchFilters()) };
+      if (key === "coverageScope") draft.coverageScope = value as DiscoverySearchFilterDraft["coverageScope"];
+      else if (key === "state") draft.state = value;
+      else if (key === "country") draft.country = value;
+      else if (key === "currency") draft.currency = value;
+      else draft.keywords = value;
+      return { ...current, [profileId]: draft };
+    });
+  };
+
+  const updateWorkspaceFilter = (profileId: string, key: string, value: string) => {
+    setSearchFilterDrafts(current => {
+      const currentDraft = current[profileId] || createDefaultDiscoverySearchFilters();
+      return { ...current, [profileId]: { ...currentDraft, fields: { ...currentDraft.fields, [key]: value } } };
+    });
+  };
+
+  const runPublicSearch = async (profile: Profile) => {
+    setBusyKey("search-" + profile.id);
+    setError("");
+    setNotice("");
+    try {
+      if (searchServiceConfigured !== true) {
+        throw new Error("Live search is not connected on this AXIVESTRA server yet. The search screen is ready; the server search provider must be activated before real results can appear.");
+      }
+      const filters = searchFilterDrafts[profile.id] || createDefaultDiscoverySearchFilters();
+      const result = await invoke("search.preview", { profileId: profile.id, filters });
+      setSearchResults(current => ({ ...current, [profile.id]: result.results || [] }));
+      await refresh();
+      const scopeLabel = filters.coverageScope === "state" ? filters.state + ", India"
+        : filters.coverageScope === "india" ? "All India"
+        : filters.country || "International (all countries)";
+      setNotice("Search completed for " + scopeLabel + ". Results are unverified candidates; only exact matches to approved attached source paths are fetch-eligible.");
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusyKey("");
+    }
+  };
+
+  const runQuickSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = quickSearchText.trim();
+    if (query.length < 2) {
+      setError("Enter what you are looking for before searching.");
+      return;
+    }
+    setBusyKey("quick-search");
+    setError("");
+    setNotice("");
+    try {
+      const workspaceKey = selectedSearchWorkspace;
+      const discoveryMode = activeDiscoveryMode;
+      const workspaceLabel = WORKSPACES.find(([key]) => key === workspaceKey)?.[1] || workspaceKey;
+      const defaultCriteria = getDefaultWorkspaceCriteria(workspaceKey, discoveryMode);
+      if (defaultCriteria.disabledByPolicy) {
+        throw new Error("This search is restricted by AXIVESTRA policy. Use the approved intake or referral workflow instead.");
+      }
+
+      let profile = profiles.find(item =>
+        item.workspace_key === workspaceKey && item.discovery_mode === discoveryMode
+      );
+      if (!profile) {
+        const created = await invoke("profiles.upsert", {
+          workspaceKey,
+          discoveryMode,
+          purpose: "Public " + discoveryMode.toLowerCase() + " discovery for " + workspaceLabel,
+          jurisdiction: "IN",
+          enabled: true,
+          criteria: defaultCriteria
+        });
+        profile = created.profile as Profile | undefined;
+        if (!profile?.id) {
+          const refreshed = await invoke("profiles.list");
+          profile = (refreshed.profiles || []).find((item: Profile) =>
+            item.workspace_key === workspaceKey && item.discovery_mode === discoveryMode
+          );
+        }
+      } else if (!profile.enabled) {
+        const criteria = profile.criteria?.schemaVersion === 1
+          ? validateWorkspaceCriteria(profile.criteria, workspaceKey, discoveryMode)
+          : defaultCriteria;
+        const enabled = await invoke("profiles.upsert", {
+          workspaceKey,
+          discoveryMode,
+          purpose: profile.purpose,
+          jurisdiction: profile.jurisdiction || "IN",
+          enabled: true,
+          criteria
+        });
+        profile = (enabled.profile as Profile | undefined) || { ...profile, enabled: true };
+      }
+      if (!profile?.id) throw new Error("AXIVESTRA could not prepare the search workspace. Refresh the page and try again.");
+      setQuickSearchProfileId(profile.id);
+
+      if (searchServiceConfigured !== true) {
+        await refresh();
+        setNotice(workspaceLabel + " · " + discoveryMode + " profile is ready. Live search is not connected on this AXIVESTRA server yet. No search was executed. No dummy results will be shown.");
+        return;
+      }
+
+      const filters: DiscoverySearchFilterDraft = {
+        ...quickSearchFilters,
+        keywords: [query, quickSearchFilters.keywords].filter(Boolean).join(" ").slice(0, 160)
+      };
+      const result = await invoke("search.preview", { profileId: profile.id, filters });
+      setQuickSearchProfileId(profile.id);
+      setSearchResults(current => ({ ...current, [profile!.id]: result.results || [] }));
+      setNotice("Search completed. Results are live public-source candidates and remain unverified until separately reviewed.");
+      await refresh();
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusyKey("");
+    }
+  };
+
   const availableSources = (profile: Profile) => sources.filter(source =>
     source.status === "approved" &&
     (source.allowed_purposes || []).includes(profile.purpose) &&
@@ -412,8 +577,9 @@ export default function DiscoverySourceManager({
     return <section className="discovery-manager">
       <div className="discovery-empty-state">
         <ShieldCheck size={28}/>
-        <h2>Company workspace required</h2>
-        <p>Discovery source governance is company-scoped. Switch to an authenticated company workspace to register and review sources. Personal and local-only records are not shared with this service.</p>
+        <h2>Connect a company workspace to use {selectedMode === "CUSTOMER" ? "CUSTOMER" : "LENDER"} discovery</h2>
+        <p>This discovery module is ready for company-scoped search, source approvals and shared evidence. The current session is Personal or Local, so the service cannot load company profiles or live source results. Your local records remain untouched.</p>
+        {onSwitchWorkspace && <button type="button" className="primary-button" onClick={() => onSwitchWorkspace()}>Switch to company workspace</button>}
       </div>
     </section>;
   }
@@ -421,9 +587,9 @@ export default function DiscoverySourceManager({
   return <section className="discovery-manager">
     <div className="discovery-hero">
       <div>
-        <span className="section-kicker">AXIVESTRA · EXTERNAL INTELLIGENCE</span>
-        <h2>Multi-source discovery governance</h2>
-        <p>Register permitted websites, official registries, APIs and datasets once, then assign approved sources to the relevant LENDER and CUSTOMER workspace profiles.</p>
+        <span className="section-kicker">AXIVESTRA · LIVE DISCOVERY</span>
+        <h2>{selectedMode === "CUSTOMER" ? "Find Customers" : "Find Lenders"}</h2>
+        <p>Type what you need and search. AXIVESTRA prepares the matching workspace automatically. Add filters only when you want to narrow the results.</p>
       </div>
       <div className="discovery-hero-counts">
         <div><strong>{sources.length}</strong><span>Registered sources</span></div>
@@ -434,16 +600,97 @@ export default function DiscoverySourceManager({
 
     <div className="discovery-notice">
       <ShieldCheck size={17}/>
-      <p><strong>Governed access only.</strong> New sources start pending. No website is crawled by this screen. Actual fetch workers and provider-specific adapters are a separate implementation stage.</p>
-      <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh discovery registry"><RefreshCw size={16}/></button>
+      <p><strong>{searchServiceConfigured === true ? "Live search connected." : searchServiceConfigured === false ? "Live search is not connected yet." : "Checking search connection…"}</strong> {searchServiceConfigured === true ? "Search results are public-source candidates and are not treated as verified records." : searchServiceConfigured === false ? "The server search provider must be activated before live results can be returned." : "AXIVESTRA is checking the server connection."}</p>
+      <button type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh discovery status"><RefreshCw size={16}/></button>
     </div>
+    <section className="data-panel discovery-quick-search">
+      <div className="discovery-quick-search-heading">
+        <div>
+          <span className="section-kicker">{activeDiscoveryMode} DISCOVERY</span>
+          <h2>{activeDiscoveryMode === "LENDER" ? "Find a lender" : "Find a customer"}</h2>
+          <p>One search box. No profile setup needed.</p>
+        </div>
+        <label>Search in
+          <select value={selectedSearchWorkspace} onChange={event => {
+            setSelectedSearchWorkspace(event.target.value);
+            setProfileDraft(current => ({ ...current, workspaceKey: event.target.value, purpose: "" }));
+            setQuickSearchFilters(createDefaultDiscoverySearchFilters());
+            setQuickSearchProfileId("");
+          }}>
+            {WORKSPACES.map(([key, label]) => <option value={key} key={key}>{label}</option>)}
+          </select>
+        </label>
+      </div>
+      <form className="discovery-quick-search-form" onSubmit={runQuickSearch}>
+        <label htmlFor="axivestra-quick-search-query">What are you looking for?</label>
+        <div className="discovery-quick-search-input-row">
+          <input id="axivestra-quick-search-query" value={quickSearchText} maxLength={160} required
+            onChange={event => setQuickSearchText(event.target.value)}
+            placeholder={activeDiscoveryMode === "LENDER" ? "e.g. Property loan lenders in Karnataka" : "e.g. Businesses seeking loans against property"}/>
+          <button type="submit" className="primary-button" disabled={busyKey === "quick-search" || searchServiceConfigured === null}>
+            {busyKey === "quick-search" ? <LoaderCircle size={16}/> : <Globe size={16}/>}
+            {busyKey === "quick-search" ? "Searching…" : activeDiscoveryMode === "LENDER" ? "Search Lenders" : "Search Customers"}
+          </button>
+        </div>
+      </form>
+      <details className="discovery-quick-search-filters">
+        <summary>Filters (optional)</summary>
+        <div className="discovery-quick-search-filter-grid">
+          <label>Coverage
+            <select value={quickSearchFilters.coverageScope} onChange={event => setQuickSearchFilters(current => ({ ...current, coverageScope: event.target.value as DiscoverySearchFilterDraft["coverageScope"] }))}>
+              <option value="state">One State / UT</option>
+              <option value="india">All India</option>
+              <option value="international">International</option>
+            </select>
+          </label>
+          {quickSearchFilters.coverageScope === "state" && <label>State / UT
+            <select value={quickSearchFilters.state} onChange={event => setQuickSearchFilters(current => ({ ...current, state: event.target.value }))}>
+              {INDIA_STATES_AND_UTS.map(state => <option value={state} key={state}>{state}</option>)}
+            </select>
+          </label>}
+          {quickSearchFilters.coverageScope === "international" && <label>Country (optional)
+            <input value={quickSearchFilters.country} maxLength={100} onChange={event => setQuickSearchFilters(current => ({ ...current, country: event.target.value }))} placeholder="Blank = global"/>
+          </label>}
+          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).map(field => <label key={field.key}>{field.label}
+            {field.type === "select" ? <select value={quickSearchFilters.fields[field.key] || ""} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}>
+              <option value="">Any</option>
+              {(field.options || []).map(option => <option value={option} key={option}>{option}</option>)}
+            </select> : <input type={field.type} min={field.type === "number" ? 0 : undefined} step={field.type === "number" ? "any" : undefined} value={quickSearchFilters.fields[field.key] || ""} placeholder={field.placeholder || "Any"} onChange={event => setQuickSearchFilters(current => ({ ...current, fields: { ...current.fields, [field.key]: event.target.value } }))}/>}
+          </label>)}
+          {getWorkspaceSearchFilterFields(selectedSearchWorkspace, activeDiscoveryMode).some(field => /(amount|ticket|loan|investment|capital|value|exposure|commitment|budget|price)/i.test(field.label)) && <label>Currency
+            <select value={quickSearchFilters.currency} onChange={event => setQuickSearchFilters(current => ({ ...current, currency: event.target.value }))}>
+              {["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"].map(currency => <option value={currency} key={currency}>{currency}</option>)}
+            </select>
+          </label>}
+        </div>
+        <div className="discovery-quick-search-filter-actions">
+          <span>Leave every filter blank to search broadly.</span>
+          <button type="button" className="text-button" onClick={() => setQuickSearchFilters(createDefaultDiscoverySearchFilters())}>Clear filters</button>
+        </div>
+      </details>
+      {searchServiceConfigured === false && <p className="discovery-quick-search-status" role="status">The search screen is ready, but live results are not available until the server search provider is connected. AXIVESTRA will not show made-up or sample records.</p>}
+      {searchServiceConfigured === true && <p className="discovery-quick-search-status">Live public-source search is available. Results are unverified candidates until reviewed.</p>}
+      {quickSearchProfileId && searchResults[quickSearchProfileId] && <div className="discovery-search-results">
+        <div className="discovery-search-results-head"><b>Search results · {searchResults[quickSearchProfileId].length}</b><small>Live public-source candidates · unverified</small></div>
+        {searchResults[quickSearchProfileId].length ? searchResults[quickSearchProfileId].map(candidate => <article className="discovery-search-candidate" key={candidate.url}>
+          <strong>{candidate.title}</strong>
+          <small>{candidate.domain} · {candidate.status.replaceAll("_", " ")}</small>
+          {candidate.snippet && <p>{candidate.snippet}</p>}
+          <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.url}</a>
+          <span>{candidate.fetchEligible ? "Matches an approved source path" : "Unverified · source approval required before fetching"}</span>
+        </article>) : <p className="discovery-empty-inline">No matching public results were returned. Try a broader search or different filters.</p>}
+      </div>}
+    </section>
 
-    <DiscoveryPublicApiCatalogue workspaceKey={selectedWorkspaceKey} mode={selectedMode} />
+
+    <details className="discovery-advanced-sources">
+      <summary>Source catalogue and governance (advanced)</summary>
+      <DiscoveryPublicApiCatalogue workspaceKey={selectedWorkspaceKey} mode={selectedMode} />
 
     {error && <div className="discovery-feedback discovery-feedback--error" role="alert"><CircleAlert size={17}/><span>{error}</span><button type="button" onClick={() => setError("")} aria-label="Dismiss error"><XCircle size={15}/></button></div>}
     {notice && <div className="discovery-feedback discovery-feedback--success" role="status"><CheckCircle2 size={17}/><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Dismiss notice">×</button></div>}
 
-    <div className="discovery-columns">
+    <details className="discovery-source-governance"><summary>Source registry and approvals (advanced)</summary><div className="discovery-columns">
       <section className="data-panel discovery-panel">
         <div className="section-heading">
           <div><span className="section-kicker">E02 · SOURCE REGISTRY</span><h2>Register a website or provider</h2><p>Use the exact official hostname and narrow path list. No wildcard domains.</p></div>
@@ -527,22 +774,44 @@ export default function DiscoverySourceManager({
             </article>;
           })}</div>}
       </section>
-    </div>
+    </div></details>
+    </details>
 
-    <section className="data-panel discovery-panel discovery-profiles-panel">
+
+    <details className="discovery-advanced-profile-setup">
+      <summary>Advanced profile setup and controls (optional)</summary>
+      <section className="data-panel discovery-panel discovery-profiles-panel">
       <div className="section-heading"><div><span className="section-kicker">E02 · WORKSPACE CONFIGURATION</span><h2>LENDER and CUSTOMER profiles</h2><p>Configure separate target profiles for each of AXIVESTRA's 16 workspaces. Create and enable a profile to search; E04 fetching still requires each target source to be separately reviewed, approved and attached.</p></div><ShieldCheck size={20}/></div>
+      <section className="discovery-module-search-selector" aria-label={activeDiscoveryMode + " module settings"}>
+        <div>
+          <span className="section-kicker">ADVANCED {activeDiscoveryMode} SETTINGS</span>
+          <strong>Selected module: {selectedWorkspaceLabel}</strong>
+          <small>The main search panel already handles this workspace automatically.</small>
+        </div>
+      </section>
+      {searchServiceConfigured === false && <div className="discovery-feedback discovery-feedback--error" role="status"><CircleAlert size={17}/><span>Live search provider is not connected. Advanced filters can be prepared, but live results require the server provider.</span></div>}
       <form className="discovery-profile-create" onSubmit={saveProfile}>
-        <label>Workspace<select value={profileDraft.workspaceKey} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, workspaceKey: event.target.value })}>{WORKSPACES.map(([key,label]) => <option value={key} key={key}>{label}</option>)}</select></label>
-        <label>Profile mode<select value={profileDraft.discoveryMode} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, discoveryMode: event.target.value as "LENDER" | "CUSTOMER" })}><option value="LENDER">LENDER</option><option value="CUSTOMER">CUSTOMER</option></select></label>
-        <label>Exact permitted purpose<input required list="axivestra-discovery-purposes" maxLength={500} value={profileDraft.purpose} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, purpose: event.target.value })} placeholder="e.g. Discover licensed property-loan lenders in Karnataka"/><datalist id="axivestra-discovery-purposes">{purposeOptions.map(purpose => <option value={purpose} key={purpose}/>)}</datalist><small>Enter the exact discovery purpose. Existing approved-source purposes are suggestions; the exact same purpose must be included when a target source is registered and reviewed.</small></label>
-        <label>Jurisdiction<input required value={profileDraft.jurisdiction} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, jurisdiction: event.target.value })}/></label>
-        <label className="discovery-profile-criteria-editor">Workspace-specific targets, required fields, match dimensions and guardrails
-          <textarea rows={9} value={criteriaText} onChange={event => setCriteriaText(event.target.value)} disabled={!canManage || busyKey === "add-profile"} spellCheck={false}/>
-          <small>Defaults are loaded from the 16-workspace blueprint. <code>requiredFields</code> describe the final record and may be supplied by several sources; use <code>sourceRequiredFields</code> only when every attached source must provide a particular field. <code>matchCriteria</code> is optional: set explicit E11 values for geography, type, ticket range (with an explicit three-letter <code>currencyCode</code>), instrument, collateral, stage, mandate or evidence freshness. Use <code>value</code>, <code>weight</code> and optional <code>required</code>; freshness uses <code>maxAgeDays</code>. No thresholds are guessed. Enabling allows E03 search only; E04 fetching remains blocked until an exact target source is approved and attached.</small>
-        </label>
-        <button type="submit" className="primary-button" disabled={!canManage || !profileDraft.purpose || busyKey === "add-profile" || profileAlreadyExists}><Plus size={15}/>{profileAlreadyExists ? "Profile already exists" : "Create disabled profile"}</button>
+        <div className="discovery-profile-create-context">
+          <strong>{activeDiscoveryMode} · {selectedWorkspaceLabel}</strong>
+          <small>One search profile for this selected module. A ready-made purpose and India jurisdiction are supplied automatically.</small>
+        </div>
+        <details className="discovery-profile-advanced-create">
+          <summary>Advanced profile settings (optional)</summary>
+          <label>Purpose override <span className="discovery-optional">(leave blank to use the default)</span>
+            <input list="axivestra-discovery-purposes" maxLength={500} value={profileDraft.purpose} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, purpose: event.target.value })} placeholder={"Public " + activeDiscoveryMode.toLowerCase() + " discovery for " + selectedWorkspaceLabel}/>
+            <datalist id="axivestra-discovery-purposes">{purposeOptions.map(purpose => <option value={purpose} key={purpose}/>)}</datalist>
+          </label>
+          <label>Jurisdiction <input maxLength={80} value={profileDraft.jurisdiction} disabled={!canManage || busyKey === "add-profile"} onChange={event => setProfileDraft({ ...profileDraft, jurisdiction: event.target.value })}/></label>
+          <label className="discovery-profile-criteria-editor">Workspace criteria (JSON)
+            <textarea rows={7} value={criteriaText} onChange={event => setCriteriaText(event.target.value)} disabled={!canManage || busyKey === "add-profile"} spellCheck={false}/>
+            <small>Default targets and guardrails are preloaded. Edit only when this module needs a different target scope.</small>
+          </label>
+        </details>
+        <button type="submit" className="primary-button" disabled={!canManage || busyKey === "add-profile" || profileAlreadyExists || getDefaultWorkspaceCriteria(selectedSearchWorkspace, activeDiscoveryMode).disabledByPolicy}>
+          <Plus size={15}/>{profileAlreadyExists ? "Profile already exists" : "Create and enable search profile"}
+        </button>
       </form>
-      <section className="discovery-profile-coverage" aria-label="Workspace profile coverage">
+      <details className="discovery-profile-coverage-details"><summary>View setup status across all 16 workspaces</summary><section className="discovery-profile-coverage" aria-label="Workspace profile coverage">
         <div className="discovery-profile-coverage-head">
           <div><span className="section-kicker">16 WORKSPACES · 2 MODES</span><h3>Discovery coverage</h3><p>{profiles.length} of 32 profiles configured · {profiles.filter(profile => profile.enabled).length} enabled · {WORKSPACES.filter(([key]) => getDefaultWorkspaceCriteria(key,"LENDER").disabledByPolicy || getDefaultWorkspaceCriteria(key,"CUSTOMER").disabledByPolicy).length} workspaces contain a policy-restricted mode.</p></div>
         </div>
@@ -574,14 +843,19 @@ export default function DiscoverySourceManager({
             })}</tbody>
           </table>
         </div>
-      </section>
-      {profileAlreadyExists && <p className="discovery-readonly">A {profileDraft.discoveryMode} profile already exists for this workspace. Select another workspace/mode; existing profiles are listed below.</p>}
+      </section></details>
+      {profileAlreadyExists && <p className="discovery-readonly">A {activeDiscoveryMode} search profile already exists for {selectedWorkspaceLabel}. Use the existing profile below.</p>}
       {!canManage && <p className="discovery-readonly">Only company owners and admins can configure profiles and source links.</p>}
-      {profiles.length === 0 ? <p className="discovery-empty-inline">No profiles created yet. Define a workspace purpose and criteria first; you can enable E03 search before registering target sources.</p> :
-        <div className="discovery-profile-list">{profiles.map(profile => {
+      {visibleProfiles.length === 0 ? <p className="discovery-empty-inline">No {activeDiscoveryMode} profile exists for {selectedWorkspaceLabel}. Create this module profile above to enable its filters and search.</p> :
+        <div className="discovery-profile-list">{visibleProfiles.map(profile => {
           const attached = sourcesForProfile(profile);
           const choices = profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" ? [] : availableSources(profile);
           const selected = selectedSources[profile.id] || "";
+          const filterDraft = searchFilterDrafts[profile.id] || createDefaultDiscoverySearchFilters();
+          const filterFields = getWorkspaceSearchFilterFields(profile.workspace_key, profile.discovery_mode);
+          const primaryFilterFields = filterFields.slice(0, 3);
+          const additionalFilterFields = filterFields.slice(3);
+          const hasAmountFilters = filterFields.some(field => /(amount|ticket|loan|investment|capital|value|exposure|commitment|budget|price)/i.test(field.label));
           return <article className="discovery-profile-card" key={profile.id}>
             <div className="discovery-profile-head">
               <div><span className="section-kicker">{profile.discovery_mode}</span><strong>{WORKSPACES.find(([key]) => key === profile.workspace_key)?.[1] || profile.workspace_key}</strong><small>{profile.purpose} · {profile.jurisdiction}</small></div>
@@ -617,11 +891,79 @@ export default function DiscoverySourceManager({
                 {profile.enabled ? "Disable profile" : "Enable profile"}
               </button>
             </div>}
+            <section className="discovery-search-filter-panel" aria-label={profile.workspace_key.replaceAll("_", " ") + " " + profile.discovery_mode + " search filters"}>
+              <div className="discovery-search-filter-heading">
+                <div><span className="section-kicker">E03 · TARGET FILTERS</span><strong>Search filters</strong><small>Specific to this module and {profile.discovery_mode.toLowerCase()} search.</small></div>
+              </div>
+              <div className="discovery-search-filter-grid">
+                <label>Coverage
+                  <select value={filterDraft.coverageScope} onChange={event => updateSearchFilter(profile.id, "coverageScope", event.target.value)}>
+                    <option value="state">One State / UT</option>
+                    <option value="india">All India</option>
+                    <option value="international">International</option>
+                  </select>
+                </label>
+                {filterDraft.coverageScope === "state" && <label>State / UT
+                  <select value={filterDraft.state} onChange={event => updateSearchFilter(profile.id, "state", event.target.value)}>
+                    {INDIA_STATES_AND_UTS.map(state => <option value={state} key={state}>{state}</option>)}
+                  </select>
+                </label>}
+                {filterDraft.coverageScope === "international" && <label>Country (optional)
+                  <input value={filterDraft.country} maxLength={100} onChange={event => updateSearchFilter(profile.id, "country", event.target.value)} placeholder="Blank = global"/>
+                </label>}
+                {primaryFilterFields.map(field => <label key={field.key}>{field.label}
+                  {field.type === "select" ? <select value={filterDraft.fields[field.key] || ""} onChange={event => updateWorkspaceFilter(profile.id, field.key, event.target.value)}>
+                    <option value="">Any</option>
+                    {(field.options || []).map(option => <option value={option} key={option}>{option}</option>)}
+                  </select> : <input type={field.type} min={field.type === "number" ? 0 : undefined} step={field.type === "number" ? "any" : undefined} value={filterDraft.fields[field.key] || ""} placeholder={field.placeholder || "Any"} onChange={event => updateWorkspaceFilter(profile.id, field.key, event.target.value)}/>}
+                </label>)}
+                {hasAmountFilters && <label>Currency
+                  <select value={filterDraft.currency} onChange={event => updateSearchFilter(profile.id, "currency", event.target.value)}>
+                    {["INR", "USD", "EUR", "GBP", "AED", "SGD", "CAD", "AUD"].map(currency => <option value={currency} key={currency}>{currency}</option>)}
+                  </select>
+                </label>}
+                <label>Keywords (optional)
+                  <input value={filterDraft.keywords || ""} maxLength={160} onChange={event => updateSearchFilter(profile.id, "keywords", event.target.value)} placeholder="Additional search terms"/>
+                </label>
+              </div>
+              {additionalFilterFields.length > 0 && <details className="discovery-more-filters">
+                <summary>More filters ({additionalFilterFields.length})</summary>
+                <div className="discovery-search-filter-grid">
+                  {additionalFilterFields.map(field => <label key={field.key}>{field.label}
+                    {field.type === "select" ? <select value={filterDraft.fields[field.key] || ""} onChange={event => updateWorkspaceFilter(profile.id, field.key, event.target.value)}>
+                      <option value="">Any</option>
+                      {(field.options || []).map(option => <option value={option} key={option}>{option}</option>)}
+                    </select> : <input type={field.type} min={field.type === "number" ? 0 : undefined} step={field.type === "number" ? "any" : undefined} value={filterDraft.fields[field.key] || ""} placeholder={field.placeholder || "Any"} onChange={event => updateWorkspaceFilter(profile.id, field.key, event.target.value)}/>}
+                  </label>)}
+                </div>
+              </details>}
+              <div className="discovery-search-filter-actions">
+                <small className="discovery-guardrail">Applies only to this selected module and mode.</small>
+                <button type="button" className="text-button" onClick={() => setSearchFilterDrafts(current => ({ ...current, [profile.id]: createDefaultDiscoverySearchFilters() }))}>Clear filters</button>
+              </div>
+            </section>
+            <div className="discovery-profile-controls">
+              <button type="button" className="primary-button" onClick={() => void runPublicSearch(profile)} disabled={!profile.enabled || searchServiceConfigured !== true || busyKey === "search-" + profile.id}>
+                {busyKey === "search-" + profile.id ? <LoaderCircle size={15}/> : <Globe size={15}/>} {searchServiceConfigured === false ? "Search provider not connected" : "Search with filters"}
+              </button>
+              <span className="discovery-guardrail">Search uses this {profile.discovery_mode} / {profile.workspace_key.replaceAll("_", " ")} filter set.</span>
+            </div>
+            {searchResults[profile.id] && <div className="discovery-search-results">
+              <div className="discovery-search-results-head"><b>Saved candidates · {searchResults[profile.id].length}</b><small>Unverified · retained for this company and module</small></div>
+              {searchResults[profile.id].length ? searchResults[profile.id].map(candidate => <article className="discovery-search-candidate" key={candidate.url}>
+                <strong>{candidate.title}</strong>
+                <small>{candidate.domain} · {candidate.status.replaceAll("_", " ")}</small>
+                {candidate.snippet && <p>{candidate.snippet}</p>}
+                <a href={candidate.url} target="_blank" rel="noreferrer">{candidate.url}</a>
+                <span>{candidate.fetchEligible ? "Matches approved attached source path" : "Not fetch-eligible · register and approve source first"}</span>
+              </article>) : <p className="discovery-empty-inline">No candidates are saved for this module yet. Check the search connection and try again.</p>}
+            </div>}
             {!attached.some(source => source.status === "approved") && <small className="discovery-guardrail">Search-only profile: no target source is attached. E03 search results are unverified; E04 fetch and extraction are unavailable until a domain/path is registered, reviewed, approved and attached.</small>}
             {profile.workspace_key === "personal_loan" && profile.discovery_mode === "CUSTOMER" && <small className="discovery-guardrail">External person-discovery is disabled for Personal Loan customers. Use user-entered, referred, inbound or explicitly consented borrower intake.</small>}
           </article>;
         })}</div>}
-    </section>
+      </section>
+    </details>
     <DiscoveryJobQueue companyId={companyId} companyRole={companyRole} sources={sources} profiles={profiles} links={links} initialWorkspaceKey={selectedWorkspaceKey} initialMode={selectedMode}/>
     <DiscoveryExtractionResults companyId={companyId} companyRole={companyRole} sources={sources}/>
     <DiscoveryEvidenceWorkspace companyId={companyId} companyRole={companyRole}/>

@@ -52,7 +52,8 @@ export function buildSearxngQueries(criteria, filters = {}) {
     sector: cleanText(filters.sector, 100),
     product: cleanText(filters.product, 100),
     stage: cleanText(filters.stage, 80),
-    instrument: cleanText(filters.instrument, 80)
+    instrument: cleanText(filters.instrument, 80),
+    searchTerms: cleanText(filters.searchTerms, 500)
   };
   const sensitiveInput = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
   const phoneInput = /(?:\+?\d[\d .()\-]{7,}\d)/;
@@ -67,7 +68,9 @@ export function buildSearxngQueries(criteria, filters = {}) {
   for (const target of targetClasses.slice(0, 4)) {
     const term = cleanText(target.replaceAll("_", " "), 120);
     if (!term) continue;
-    const query = [term, suffix].filter(Boolean).join(" ");
+    const suffixBudget = Math.max(0, MAX_QUERY_CHARS - term.length - (suffix ? 1 : 0));
+    const boundedSuffix = suffix.slice(0, suffixBudget).trimEnd();
+    const query = [term, boundedSuffix].filter(Boolean).join(" ");
     if (query && query.length <= MAX_QUERY_CHARS && !queries.includes(query)) queries.push(query);
   }
   if (!queries.length) throw new Error("The workspace did not produce a usable public search query.");

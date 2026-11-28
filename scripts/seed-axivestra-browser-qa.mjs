@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
+import { DISCOVERY_WORKSPACE_KEYS, getDefaultWorkspaceCriteria } from "../src/lib/discovery-profiles.mjs";
 
 function required(name, ...alternates) {
   for (const key of [name, ...alternates]) {
@@ -147,6 +148,40 @@ const { data: profile, error: profileError } = await admin
   .select("id")
   .single();
 check(profileError, "Create disabled synthetic discovery profile");
+
+// The browser demo is isolated in this disposable QA company. Create one disabled
+// profile for every workspace/mode combination. No source is attached and no
+// external search or fetch is executed by these fixtures.
+const additionalProfileRows = [];
+for (const workspaceKey of DISCOVERY_WORKSPACE_KEYS) {
+  for (const discoveryMode of ["LENDER", "CUSTOMER"]) {
+    if (workspaceKey === "property_sale" && discoveryMode === "LENDER") continue;
+    additionalProfileRows.push({
+      company_id: companyId,
+      workspace_key: workspaceKey,
+      discovery_mode: discoveryMode,
+      jurisdiction: "IN",
+      purpose: "Synthetic removable browser demo only · " + workspaceKey + " · " + discoveryMode,
+      enabled: false,
+      criteria: getDefaultWorkspaceCriteria(workspaceKey, discoveryMode),
+      created_by: userId,
+      updated_by: userId
+    });
+  }
+}
+const { error: moduleProfilesError } = await admin
+  .from("discovery_profiles")
+  .insert(additionalProfileRows);
+check(moduleProfilesError, "Create isolated 16-workspace × 2-mode demo profiles");
+
+const { count: demoProfileCount, error: demoCountError } = await admin
+  .from("discovery_profiles")
+  .select("id", { count: "exact", head: true })
+  .eq("company_id", companyId);
+check(demoCountError, "Verify isolated demo profile count");
+if (demoProfileCount !== DISCOVERY_WORKSPACE_KEYS.length * 2) {
+  throw new Error("The disposable QA company must contain exactly 32 synthetic workspace profiles.");
+}
 
 const { data: job, error: jobError } = await admin
   .from("discovery_jobs")
@@ -317,6 +352,7 @@ const envLines = [
   "AXIVESTRA_E2E_EMAIL=" + email,
   "AXIVESTRA_E2E_PASSWORD=" + password,
   "AXIVESTRA_E2E_COMPANY_NAME=" + companyName,
+  "AXIVESTRA_E2E_DISCOVERY_PROFILE_COUNT=32",
   "AXIVESTRA_E2E_DEAL_TITLE=" + dealTitle,
   "AXIVESTRA_E2E_PARTY_NAME=" + partyName,
   "AXIVESTRA_E2E_RELATIONSHIP_LABEL=buyer",
@@ -328,5 +364,5 @@ const envLines = [
 await appendFile(githubEnv, envLines.join("\n") + "\n", "utf8");
 
 console.log("Disposable local QA fixtures created successfully.");
-console.log("QA company, E16 relationship, E19 case, E21 provenance citation, E22 pending suggestion: PASS.");
+console.log("QA company, 32 synthetic discovery profiles (16 workspaces × 2 modes), E16 relationship, E19 case, E21 provenance citation and E22 pending suggestion: PASS.");
 console.log("No hosted Supabase project, real company data, live source or external provider was accessed.");
