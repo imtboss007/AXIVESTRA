@@ -547,7 +547,7 @@ export default function DiscoverySourceManager({
 
       if (searchServiceConfigured !== true) {
         await refresh();
-        setNotice(workspaceLabel + " · " + discoveryMode + " profile is ready. Live search is not connected on this AXIVESTRA server yet. No search was executed; no dummy results will be shown.");
+        setNotice(workspaceLabel + " · " + discoveryMode + " profile is ready. Live search is not connected on this AXIVESTRA server yet. No search was executed. No dummy results will be shown.");
         return;
       }
 
