@@ -48,7 +48,8 @@ async function getToken(username, password) {
     grant_type: "password",
     client_id: "axivestra-test",
     username,
-    password
+    password,
+    scope: "axivestra-api"
   });
   const response = await fetch(keycloak + "/realms/axivestra/protocol/openid-connect/token", {
     method: "POST",
@@ -59,6 +60,16 @@ async function getToken(username, password) {
   if (!response.ok || typeof data.access_token !== "string") {
     throw new Error("Keycloak demo login failed for " + username + ": " + JSON.stringify(data));
   }
+  const tokenParts = data.access_token.split(".");
+  let tokenClaims = {};
+  try { tokenClaims = JSON.parse(Buffer.from(tokenParts[1], "base64url").toString("utf8")); } catch {}
+  process.stdout.write("Keycloak token claims for " + username + ": " + JSON.stringify({
+    iss: tokenClaims.iss,
+    aud: tokenClaims.aud,
+    role: tokenClaims.role,
+    sub: tokenClaims.sub,
+    scope: tokenClaims.scope
+  }) + "\\n");
   return data.access_token;
 }
 
