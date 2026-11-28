@@ -35,7 +35,7 @@ async function openDiscovery(page: Page, navigationLabel: "Lender Discovery" | "
   await expect(page.locator(".discovery-quick-search")).toBeVisible();
   const advanced = page.locator("details.discovery-advanced-profile-setup");
   await expect(advanced).toBeAttached();
-  await advanced.locator("summary").click();
+  await advanced.locator(":scope > summary").click();
   await expect(advanced).toHaveAttribute("open", "");
 }
 
