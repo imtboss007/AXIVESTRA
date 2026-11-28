@@ -26,9 +26,8 @@ async function openCompanySourceGovernance(page: Page) {
     .getByRole("button", { name: /^Source Governance/ });
   const openMenu = page.getByRole("button", { name: "Open menu" });
   await expect(openMenu).toBeVisible();
-  if (!await sourceGovernance.isVisible().catch(() => false)) {
-    await openMenu.click();
-  }
+  await openMenu.click();
+  await expect(page.locator(".sidebar")).toHaveClass(/sidebar-open/);
   await expect(sourceGovernance).toBeVisible();
   await sourceGovernance.click();
 }
