@@ -129,6 +129,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Test authenticated SearXNG gateway readiness and search route
+        run: python -m unittest infra.searxng.test_gateway
+
       - name: Install parser-only Scrapling dependency
         run: python -m pip install --disable-pip-version-check -r services/discovery-worker/requirements-scrapling-parser.txt
 
