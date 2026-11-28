@@ -24,7 +24,11 @@ export function createRequireAuth({ jwks, issuer, audience, verifyToken = jwtVer
       }
       context.set("identity", payload);
       await next();
-    } catch {
+    } catch (error) {
+      const reason = error && typeof error === "object" && "code" in error
+        ? String(error.code)
+        : error instanceof Error ? error.name : "verification_failed";
+      console.error("OIDC token verification rejected a request: " + reason);
       return context.json({ error: "The access token is invalid, expired or intended for another service." }, 401);
     }
   };
